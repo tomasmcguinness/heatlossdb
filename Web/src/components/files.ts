@@ -1,0 +1,94 @@
+import { isFabricDocument, useFabric } from '../fabric/store'
+import { parseScan, ScanParseError } from '../scan/parse'
+
+async function readJson(file: File): Promise<unknown> {
+  try {
+    return JSON.parse(await file.text())
+  } catch {
+    throw new ScanParseError(`${file.name} isn't a valid JSON file.`)
+  }
+}
+
+/** Loads a dropped or chosen file: a scan (merged.json) or exported fabric settings. */
+export async function openFile(file: File): Promise<void> {
+  const json = await readJson(file)
+  const store = useFabric.getState()
+
+  if (isFabricDocument(json)) {
+    if (!store.scan) throw new ScanParseError('Open the scan first, then import its fabric settings.')
+    if (
+      json.scanHash !== store.scan.hash &&
+      !window.confirm('These settings were exported from a different scan. Import the ones that match this scan?')
+    ) {
+      return
+    }
+    store.importFabric(json)
+    return
+  }
+
+  store.loadScan(parseScan(json))
+}
+
+export function downloadFabric() {
+  const doc = useFabric.getState().exportFabric()
+  if (!doc) return
+  const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `fabric-${doc.scanHash}.json`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof ScanParseError ? error.message : "Couldn't open that file."
+}
+
+/**
+ * Development only: opens ?scan=<url>, then applies ?select=<element id or index:N>,
+ * ?tab=<tab> and ?view=spread,ceilings,external,hide:<storey>. Used for screenshots in tests.
+ */
+export async function loadDevScan(params: URLSearchParams): Promise<void> {
+  const response = await fetch(params.get('scan')!)
+  const store = useFabric.getState()
+  store.loadScan(parseScan(await response.json()))
+
+  const view = (params.get('view') ?? '').split(',').filter(Boolean)
+  if (view.includes('plan')) store.resetView('plan')
+  store.setView({
+    spreadStoreys: view.includes('spread'),
+    showCeilings: view.includes('ceilings'),
+    externalOnly: view.includes('external'),
+    showStorage: view.includes('storage'),
+    hiddenStories: view.filter((v) => v.startsWith('hide:')).map((v) => Number(v.slice(5))),
+  })
+
+  const select = params.get('select')
+  if (select) {
+    const elements = useFabric.getState().scan!.elements
+    const id = select.startsWith('index:') ? elements[Number(select.slice(6))]?.id : select
+    if (id) store.select(id)
+  }
+  const tab = params.get('tab')
+  if (tab === 'element' || tab === 'defaults' || tab === 'storeys' || tab === 'summary') store.setTab(tab)
+}
+
+/** The survey id in a link such as /s/AbC…, or null on any other page. */
+export function surveyIdFromPath(pathname: string): string | null {
+  return /^\/s\/([A-Za-z0-9_-]{22})\/?$/.exec(pathname)?.[1] ?? null
+}
+
+/** Opens a survey uploaded from the app, as linked from the app after uploading. */
+export async function loadSurvey(id: string): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch(`/api/surveys/${id}/scan`)
+  } catch {
+    throw new ScanParseError("Couldn't reach HeatLossDB. Check your connection and try again.")
+  }
+  if (response.status === 404) {
+    throw new ScanParseError("This survey link isn't valid, or the survey has been removed.")
+  }
+  if (!response.ok) throw new ScanParseError("Couldn't load this survey. Try again in a moment.")
+  useFabric.getState().loadScan(parseScan(await response.json()))
+}

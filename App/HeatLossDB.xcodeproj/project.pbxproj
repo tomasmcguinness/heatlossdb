@@ -1,0 +1,476 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2C0D65882B9121CA000ADE89 /* SurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0D65872B9121CA000ADE89 /* SurveyView.swift */; };
+		2C0D658E2B924894000ADE89 /* Survey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0D658D2B924894000ADE89 /* Survey.swift */; };
+		2C2A61442B911C6C0045DEA0 /* AddPropertyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2A61432B911C6C0045DEA0 /* AddPropertyView.swift */; };
+		2C2A61482B911CEB0045DEA0 /* PropertyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2A61472B911CEB0045DEA0 /* PropertyView.swift */; };
+		2C2A614A2B911D6B0045DEA0 /* PreviewPropertyData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2A61492B911D6B0045DEA0 /* PreviewPropertyData.swift */; };
+		2C2A614C2B911D750045DEA0 /* SampleProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2A614B2B911D750045DEA0 /* SampleProperties.swift */; };
+		2C99B5572B9063840084CF65 /* HeatLossDBApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C99B5562B9063840084CF65 /* HeatLossDBApp.swift */; };
+		2C99B5592B9063840084CF65 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C99B5582B9063840084CF65 /* ContentView.swift */; };
+		2C99B55B2B9063840084CF65 /* Property.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C99B55A2B9063840084CF65 /* Property.swift */; };
+		2C99B55D2B9063870084CF65 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C99B55C2B9063870084CF65 /* Assets.xcassets */; };
+		2C99B5612B9063870084CF65 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C99B5602B9063870084CF65 /* Preview Assets.xcassets */; };
+		2CAD78862B9C3F25000E6554 /* FloorPlanObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78822B9C3F25000E6554 /* FloorPlanObject.swift */; };
+		2CAD78872B9C3F25000E6554 /* DrawParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78832B9C3F25000E6554 /* DrawParameters.swift */; };
+		2CAD78882B9C3F25000E6554 /* FloorPlanSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78842B9C3F25000E6554 /* FloorPlanSurface.swift */; };
+		2CAD78892B9C3F25000E6554 /* FloorPlanScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78852B9C3F25000E6554 /* FloorPlanScene.swift */; };
+		2CAD78932B9C4190000E6554 /* CGPoint+RotateAround.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78912B9C4190000E6554 /* CGPoint+RotateAround.swift */; };
+		2CAD78942B9C4190000E6554 /* simd_float4x4+EulerAnglesAndPosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78922B9C4190000E6554 /* simd_float4x4+EulerAnglesAndPosition.swift */; };
+		2CAD78962B9C4237000E6554 /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAD78952B9C4237000E6554 /* Room.swift */; };
+		2CB83D1D2B9C4CEC00F11A98 /* ScanRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB83D1C2B9C4CEC00F11A98 /* ScanRoomView.swift */; };
+		2CB83D1F2B9C4D3500F11A98 /* ScanRoomModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB83D1E2B9C4D3500F11A98 /* ScanRoomModel.swift */; };
+		2CB83D212B9C4DF800F11A98 /* ScanRoomRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB83D202B9C4DF800F11A98 /* ScanRoomRepresentable.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2C0D65872B9121CA000ADE89 /* SurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyView.swift; sourceTree = "<group>"; };
+		2C0D658D2B924894000ADE89 /* Survey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Survey.swift; sourceTree = "<group>"; };
+		2C2A61402B9112FA0045DEA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2C2A61432B911C6C0045DEA0 /* AddPropertyView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AddPropertyView.swift; sourceTree = "<group>"; };
+		2C2A61472B911CEB0045DEA0 /* PropertyView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PropertyView.swift; sourceTree = "<group>"; };
+		2C2A61492B911D6B0045DEA0 /* PreviewPropertyData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewPropertyData.swift; sourceTree = "<group>"; };
+		2C2A614B2B911D750045DEA0 /* SampleProperties.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SampleProperties.swift; sourceTree = "<group>"; };
+		2C99B5532B9063840084CF65 /* HeatLossDB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HeatLossDB.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2C99B5562B9063840084CF65 /* HeatLossDBApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatLossDBApp.swift; sourceTree = "<group>"; };
+		2C99B5582B9063840084CF65 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		2C99B55A2B9063840084CF65 /* Property.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Property.swift; sourceTree = "<group>"; };
+		2C99B55C2B9063870084CF65 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2C99B55E2B9063870084CF65 /* HeatLossDB.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HeatLossDB.entitlements; sourceTree = "<group>"; };
+		2C99B5602B9063870084CF65 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		2CAD78822B9C3F25000E6554 /* FloorPlanObject.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloorPlanObject.swift; sourceTree = "<group>"; };
+		2CAD78832B9C3F25000E6554 /* DrawParameters.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawParameters.swift; sourceTree = "<group>"; };
+		2CAD78842B9C3F25000E6554 /* FloorPlanSurface.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloorPlanSurface.swift; sourceTree = "<group>"; };
+		2CAD78852B9C3F25000E6554 /* FloorPlanScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloorPlanScene.swift; sourceTree = "<group>"; };
+		2CAD78912B9C4190000E6554 /* CGPoint+RotateAround.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CGPoint+RotateAround.swift"; sourceTree = "<group>"; };
+		2CAD78922B9C4190000E6554 /* simd_float4x4+EulerAnglesAndPosition.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "simd_float4x4+EulerAnglesAndPosition.swift"; sourceTree = "<group>"; };
+		2CAD78952B9C4237000E6554 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
+		2CB83D1C2B9C4CEC00F11A98 /* ScanRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRoomView.swift; sourceTree = "<group>"; };
+		2CB83D1E2B9C4D3500F11A98 /* ScanRoomModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRoomModel.swift; sourceTree = "<group>"; };
+		2CB83D202B9C4DF800F11A98 /* ScanRoomRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRoomRepresentable.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2C99B5502B9063840084CF65 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2C99B54A2B9063840084CF65 = {
+			isa = PBXGroup;
+			children = (
+				2C99B5552B9063840084CF65 /* HeatLossDB */,
+				2C99B5542B9063840084CF65 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2C99B5542B9063840084CF65 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2C99B5532B9063840084CF65 /* HeatLossDB.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2C99B5552B9063840084CF65 /* HeatLossDB */ = {
+			isa = PBXGroup;
+			children = (
+				2CB83D222B9C58D800F11A98 /* Models */,
+				2C2A61432B911C6C0045DEA0 /* AddPropertyView.swift */,
+				2C99B55C2B9063870084CF65 /* Assets.xcassets */,
+				2C99B5582B9063840084CF65 /* ContentView.swift */,
+				2CAD78902B9C417C000E6554 /* Extensions */,
+				2CAD78812B9C3EDD000E6554 /* FloorPlan */,
+				2C2A61402B9112FA0045DEA0 /* Info.plist */,
+				2C99B55F2B9063870084CF65 /* Preview Content */,
+				2C2A61492B911D6B0045DEA0 /* PreviewPropertyData.swift */,
+				2C2A61472B911CEB0045DEA0 /* PropertyView.swift */,
+				2C99B55E2B9063870084CF65 /* HeatLossDB.entitlements */,
+				2C99B5562B9063840084CF65 /* HeatLossDBApp.swift */,
+				2CB83D1E2B9C4D3500F11A98 /* ScanRoomModel.swift */,
+				2CB83D202B9C4DF800F11A98 /* ScanRoomRepresentable.swift */,
+				2CB83D1C2B9C4CEC00F11A98 /* ScanRoomView.swift */,
+				2C0D65872B9121CA000ADE89 /* SurveyView.swift */,
+			);
+			path = HeatLossDB;
+			sourceTree = "<group>";
+		};
+		2C99B55F2B9063870084CF65 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				2C99B5602B9063870084CF65 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		2CAD78812B9C3EDD000E6554 /* FloorPlan */ = {
+			isa = PBXGroup;
+			children = (
+				2CAD78832B9C3F25000E6554 /* DrawParameters.swift */,
+				2CAD78822B9C3F25000E6554 /* FloorPlanObject.swift */,
+				2CAD78852B9C3F25000E6554 /* FloorPlanScene.swift */,
+				2CAD78842B9C3F25000E6554 /* FloorPlanSurface.swift */,
+			);
+			path = FloorPlan;
+			sourceTree = "<group>";
+		};
+		2CAD78902B9C417C000E6554 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				2CAD78912B9C4190000E6554 /* CGPoint+RotateAround.swift */,
+				2CAD78922B9C4190000E6554 /* simd_float4x4+EulerAnglesAndPosition.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		2CB83D222B9C58D800F11A98 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				2C2A614B2B911D750045DEA0 /* SampleProperties.swift */,
+				2C0D658D2B924894000ADE89 /* Survey.swift */,
+				2CAD78952B9C4237000E6554 /* Room.swift */,
+				2C99B55A2B9063840084CF65 /* Property.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2C99B5522B9063840084CF65 /* HeatLossDB */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C99B5642B9063870084CF65 /* Build configuration list for PBXNativeTarget "HeatLossDB" */;
+			buildPhases = (
+				2C99B54F2B9063840084CF65 /* Sources */,
+				2C99B5502B9063840084CF65 /* Frameworks */,
+				2C99B5512B9063840084CF65 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HeatLossDB;
+			productName = HeatLossDB;
+			productReference = 2C99B5532B9063840084CF65 /* HeatLossDB.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2C99B54B2B9063840084CF65 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					2C99B5522B9063840084CF65 = {
+						CreatedOnToolsVersion = 15.3;
+					};
+				};
+			};
+			buildConfigurationList = 2C99B54E2B9063840084CF65 /* Build configuration list for PBXProject "HeatLossDB" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2C99B54A2B9063840084CF65;
+			productRefGroup = 2C99B5542B9063840084CF65 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2C99B5522B9063840084CF65 /* HeatLossDB */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2C99B5512B9063840084CF65 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C99B5612B9063870084CF65 /* Preview Assets.xcassets in Resources */,
+				2C99B55D2B9063870084CF65 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2C99B54F2B9063840084CF65 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C0D658E2B924894000ADE89 /* Survey.swift in Sources */,
+				2CAD78962B9C4237000E6554 /* Room.swift in Sources */,
+				2CAD78862B9C3F25000E6554 /* FloorPlanObject.swift in Sources */,
+				2C2A61442B911C6C0045DEA0 /* AddPropertyView.swift in Sources */,
+				2C99B5592B9063840084CF65 /* ContentView.swift in Sources */,
+				2C2A614A2B911D6B0045DEA0 /* PreviewPropertyData.swift in Sources */,
+				2CAD78872B9C3F25000E6554 /* DrawParameters.swift in Sources */,
+				2CB83D1D2B9C4CEC00F11A98 /* ScanRoomView.swift in Sources */,
+				2C2A61482B911CEB0045DEA0 /* PropertyView.swift in Sources */,
+				2CB83D212B9C4DF800F11A98 /* ScanRoomRepresentable.swift in Sources */,
+				2CAD78892B9C3F25000E6554 /* FloorPlanScene.swift in Sources */,
+				2CAD78932B9C4190000E6554 /* CGPoint+RotateAround.swift in Sources */,
+				2CB83D1F2B9C4D3500F11A98 /* ScanRoomModel.swift in Sources */,
+				2CAD78882B9C3F25000E6554 /* FloorPlanSurface.swift in Sources */,
+				2C0D65882B9121CA000ADE89 /* SurveyView.swift in Sources */,
+				2C99B55B2B9063840084CF65 /* Property.swift in Sources */,
+				2CAD78942B9C4190000E6554 /* simd_float4x4+EulerAnglesAndPosition.swift in Sources */,
+				2C99B5572B9063840084CF65 /* HeatLossDBApp.swift in Sources */,
+				2C2A614C2B911D750045DEA0 /* SampleProperties.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2C99B5622B9063870084CF65 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = R9KK4QW233;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		2C99B5632B9063870084CF65 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = R9KK4QW233;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		2C99B5652B9063870084CF65 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HeatLossDB/HeatLossDB.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "\"HeatLossDB/Preview Content\"";
+				DEVELOPMENT_TEAM = R5QS56362W;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HeatLossDB/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HeatLossDB;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera is used for scanning stuff";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tomasmcguinness.com.heatlossdb;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		2C99B5662B9063870084CF65 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HeatLossDB/HeatLossDB.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "\"HeatLossDB/Preview Content\"";
+				DEVELOPMENT_TEAM = R5QS56362W;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HeatLossDB/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HeatLossDB;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera is used for scanning stuff";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tomasmcguinness.com.heatlossdb;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2C99B54E2B9063840084CF65 /* Build configuration list for PBXProject "HeatLossDB" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C99B5622B9063870084CF65 /* Debug */,
+				2C99B5632B9063870084CF65 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2C99B5642B9063870084CF65 /* Build configuration list for PBXNativeTarget "HeatLossDB" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C99B5652B9063870084CF65 /* Debug */,
+				2C99B5662B9063870084CF65 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2C99B54B2B9063840084CF65 /* Project object */;
+}
