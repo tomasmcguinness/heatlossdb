@@ -59,7 +59,7 @@ function sampleOutlines(outlines: Point2[][], step: number): Point2[] {
 }
 
 /** The building's main direction (mod 90°), weighted by edge length: walls are mostly square. */
-function dominantAngle(outlines: Point2[][]): number {
+export function dominantAngle(outlines: Point2[][]): number {
   let sin = 0
   let cos = 0
   for (const outline of outlines) {

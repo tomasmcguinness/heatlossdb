@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react'
 import { DefaultsPanel } from './components/DefaultsPanel'
 import { DropZone } from './components/DropZone'
 import { ElementPanel } from './components/ElementPanel'
+import { MatchesPage } from './components/MatchesPage'
 import { StoreysPanel } from './components/StoreysPanel'
 import { Summary } from './components/Summary'
 import { Toolbar } from './components/Toolbar'
 import { Viewer } from './components/Viewer'
 import { errorMessage, loadDevScan, loadSurvey, surveyIdFromPath } from './components/files'
 import { restoreLastScan, useFabric, type SidebarTab } from './fabric/store'
+import { useProfile } from './match/useProfile'
+
+type Page = 'matches' | 'scan'
 
 const TABS: { id: SidebarTab; label: string }[] = [
   { id: 'element', label: 'Element' },
@@ -24,6 +28,10 @@ export default function App() {
   // A link from the app (/s/<id>) opens that survey rather than the last one.
   const [surveyId] = useState(() => surveyIdFromPath(location.pathname))
   const [loadingSurvey, setLoadingSurvey] = useState(surveyId !== null)
+  // An uploaded survey opens on its matches; the 3D scan is a click away.
+  const [page, setPage] = useState<Page>(surveyId ? 'matches' : 'scan')
+  const profile = useProfile(surveyId)
+  const showMatches = surveyId !== null && scan !== null && profile !== null && page === 'matches'
 
   useEffect(() => {
     if (surveyId) {
@@ -46,7 +54,16 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>HeatLossDB</h1>
-        <Toolbar onError={setError} />
+        {surveyId && scan && (
+          <nav className="segmented compact page-nav" aria-label="View">
+            {(['matches', 'scan'] as const).map((p) => (
+              <button key={p} aria-current={page === p ? 'page' : undefined} className={page === p ? 'on' : ''} onClick={() => setPage(p)}>
+                {p === 'matches' ? 'Matches' : 'Scan'}
+              </button>
+            ))}
+          </nav>
+        )}
+        {!showMatches && <Toolbar onError={setError} />}
       </header>
 
       {loadingSurvey ? (
@@ -55,6 +72,8 @@ export default function App() {
         </div>
       ) : !scan ? (
         <DropZone error={error} onError={setError} />
+      ) : showMatches ? (
+        <MatchesPage surveyId={surveyId} profile={profile} />
       ) : (
         <main className="workspace">
           <div className="viewport">

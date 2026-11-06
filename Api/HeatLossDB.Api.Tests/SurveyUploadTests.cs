@@ -97,3 +97,77 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         Assert.Equal(bytes, stored);
     }
 }
+
+public class MatchingCandidateTests : IClassFixture<SurveyUploadTests.Api>
+{
+    private readonly HttpClient client;
+
+    public MatchingCandidateTests(SurveyUploadTests.Api api) => client = api.CreateClient();
+
+    private const string Scan = """{"walls":[{"identifier":"A"}],"doors":[],"windows":[],"openings":[]}""";
+
+    private record Upload(string Id, string Url);
+    private record CandidateDto(string Id, string CreatedAt, System.Text.Json.JsonElement Profile);
+
+    private async Task<string> UploadAsync(string appSurveyId)
+    {
+        var content = new StringContent(Scan, Encoding.UTF8, "application/json");
+        content.Headers.Add("X-App-Survey-Id", appSurveyId);
+        var response = await client.PostAsync("/api/surveys", content);
+        return (await response.Content.ReadFromJsonAsync<Upload>())!.Id;
+    }
+
+    private Task<HttpResponseMessage> PutProfileAsync(string id, string profile) =>
+        client.PutAsync($"/api/surveys/{id}/profile", new StringContent(profile, Encoding.UTF8, "application/json"));
+
+    [Fact]
+    public async Task CandidatesAreOtherHomesWithProfilesButNotReuploadsOfTheSameSurvey()
+    {
+        var mine = await UploadAsync("survey-mine");
+        var mineAgain = await UploadAsync("survey-mine");
+        var theirs = await UploadAsync("survey-theirs");
+        var noProfile = await UploadAsync("survey-no-profile");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await PutProfileAsync(mine, """{"version":1,"floorArea":100}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await PutProfileAsync(mineAgain, """{"version":1,"floorArea":100}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await PutProfileAsync(theirs, """{"version":1,"floorArea":120}""")).StatusCode);
+
+        var candidates = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{mine}/candidates");
+        var ids = candidates!.Select(c => c.Id).ToList();
+
+        Assert.Contains(theirs, ids);
+        Assert.DoesNotContain(mine, ids);
+        Assert.DoesNotContain(mineAgain, ids);
+        Assert.DoesNotContain(noProfile, ids);
+        Assert.Equal(120, candidates!.Single(c => c.Id == theirs).Profile.GetProperty("floorArea").GetInt32());
+    }
+
+    [Fact]
+    public async Task ProfilesCanBeReplaced()
+    {
+        var a = await UploadAsync("survey-a");
+        var b = await UploadAsync("survey-b");
+        await PutProfileAsync(b, """{"version":1,"floorArea":80}""");
+        await PutProfileAsync(b, """{"version":1,"floorArea":90}""");
+
+        var candidates = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{a}/candidates");
+        Assert.Equal(90, candidates!.Single(c => c.Id == b).Profile.GetProperty("floorArea").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("""{"floorArea":1}""")]
+    [InlineData("""{"version":2}""")]
+    public async Task RejectsInvalidProfiles(string profile)
+    {
+        var id = await UploadAsync("survey-invalid");
+        Assert.Equal(HttpStatusCode.BadRequest, (await PutProfileAsync(id, profile)).StatusCode);
+    }
+
+    [Fact]
+    public async Task UnknownSurveysAreNotFound()
+    {
+        Assert.Equal(HttpStatusCode.NotFound, (await PutProfileAsync("AAAAAAAAAAAAAAAAAAAAAA", """{"version":1}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/surveys/AAAAAAAAAAAAAAAAAAAAAA/candidates")).StatusCode);
+    }
+}

@@ -22,3 +22,19 @@ because there's no sign-in yet.
 
 Scans go in `HeatLossDB.Api/Data/scans/{id}.json`, and metadata in `Data/heatlossdb.db` (SQLite).
 `Data/` is gitignored because it holds floorplans of real homes.
+
+## Heat pump figures
+
+- `PUT /api/surveys/{id}/heat-pump`: a survey's heat loss and heat pump figures, as a JSON object
+  with a `source` (e.g. `"heatpumpmonitor"` or `"survey"`). Candidates include these figures.
+- Development only: `POST /api/dev/sample-heat-pumps` gives every home that has a profile but no
+  figures believable made-up ones, marked `"source": "sample"` and shown as **Sample data** on the
+  website. Add `?replace=true` to regenerate existing sample figures. Real figures are never
+  overwritten by sample ones.
+
+```sh
+curl -X POST http://localhost:5080/api/dev/sample-heat-pumps
+```
+
+Homes uploaded later need seeding again once their link has been opened, because opening the
+link is what saves their profile.

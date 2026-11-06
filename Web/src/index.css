@@ -480,6 +480,209 @@ code {
   cursor: default;
 }
 
+/* Matches */
+
+.matches-page {
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  padding: 20px 16px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card h2 {
+  font-size: 1.1rem;
+}
+
+.your-home {
+  position: sticky;
+  top: 0;
+}
+
+.matches {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.matches-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.match-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.match-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.match-score {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.match-summary {
+  margin: 0;
+}
+
+.plan {
+  width: 100%;
+  height: auto;
+  max-height: 260px;
+}
+
+.plan-own {
+  fill: color-mix(in srgb, var(--muted) 22%, transparent);
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.plan-theirs {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.25;
+  stroke-dasharray: 5 3;
+}
+
+.plan-label {
+  fill: var(--muted);
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.factors {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.factors th,
+.factors td {
+  text-align: left;
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.factors thead th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.factors tbody th {
+  font-weight: 500;
+}
+
+.bar {
+  display: inline-block;
+  width: 56px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.factors tr.not-counted th,
+.factors tr.not-counted td {
+  color: var(--muted);
+}
+
+.tag-sample {
+  background: color-mix(in srgb, #d9a400 22%, transparent);
+  color: #8a6a00;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .tag-sample {
+    color: #f2cf5b;
+  }
+}
+
+:root[data-theme='dark'] .tag-sample {
+  color: #f2cf5b;
+}
+
+.results,
+.estimate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.results h3,
+.estimate h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.estimate {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.stats.large dd {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.page-nav button {
+  min-width: 84px;
+}
+
 /* Empty state */
 
 .dropzone {
@@ -512,6 +715,14 @@ code {
 /* Phones and narrow windows: viewer on top, panel below. */
 
 @media (max-width: 800px) {
+  .matches-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .your-home {
+    position: static;
+  }
+
   .app {
     height: auto;
     min-height: 100dvh;

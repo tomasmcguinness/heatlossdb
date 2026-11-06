@@ -87,3 +87,20 @@ export function subtract(polygon: Point2[], cutouts: Point2[][]): PolygonWithHol
     holes: ex.holes.map(fromPath),
   }))
 }
+
+function booleanArea(subject: Point2[][], clip: Point2[][], type: ClipperLib.ClipType): number {
+  const clipper = new ClipperLib.Clipper()
+  clipper.AddPaths(subject.map(toPath), ClipperLib.PolyType.ptSubject, true)
+  clipper.AddPaths(clip.map(toPath), ClipperLib.PolyType.ptClip, true)
+  const result: ClipperLib.Paths = []
+  clipper.Execute(type, result, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero)
+  // Holes come back with the opposite winding, so summing signed areas subtracts them.
+  return Math.abs(result.reduce((sum, path) => sum + ClipperLib.Clipper.Area(path), 0)) / (SCALE * SCALE)
+}
+
+/** How much two plans overlap: intersection over union, from 0 (none) to 1 (identical). */
+export function overlap(a: Point2[][], b: Point2[][]): number {
+  if (!a.length || !b.length) return 0
+  const union = booleanArea(a, b, ClipperLib.ClipType.ctUnion)
+  return union > 0 ? booleanArea(a, b, ClipperLib.ClipType.ctIntersection) / union : 0
+}

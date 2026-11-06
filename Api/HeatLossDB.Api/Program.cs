@@ -34,6 +34,67 @@ app.MapPost("/api/surveys", async (
 app.MapGet("/api/surveys/{id}/scan", (string id, SurveyStore store) =>
     store.ScanPath(id) is { } path ? Results.File(path, "application/json") : Results.NotFound());
 
+// The website derives a shape profile from the scan (measurements and lined-up outlines) and
+// stores it here, so matching doesn't need every scan in full.
+app.MapPut("/api/surveys/{id}/profile", async (
+    string id,
+    HttpRequest request,
+    SurveyStore store,
+    CancellationToken cancellationToken) =>
+{
+    if (!store.Exists(id)) return Results.NotFound();
+    var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxProfileBytes, cancellationToken);
+    if (body is null)
+        return Results.Problem("The profile is too large.", statusCode: StatusCodes.Status413PayloadTooLarge);
+    if (ScanValidator.ValidateProfile(body) is { } error)
+        return Results.BadRequest(new { error });
+    await store.SaveProfileAsync(id, body, cancellationToken);
+    return Results.NoContent();
+});
+
+// Other homes to match against. For now every upload with a profile is a candidate; sharing
+// consent comes with the "do you have a heat pump?" flow.
+app.MapGet("/api/surveys/{id}/candidates", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
+    store.Exists(id) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound());
+
+// A survey's heat loss and heat pump figures. Real ones will come from HeatPumpMonitor or a
+// heat loss survey; until then, sample figures fill the gap (see below).
+app.MapPut("/api/surveys/{id}/heat-pump", async (
+    string id,
+    HttpRequest request,
+    SurveyStore store,
+    CancellationToken cancellationToken) =>
+{
+    if (!store.Exists(id)) return Results.NotFound();
+    var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxProfileBytes, cancellationToken);
+    if (body is null)
+        return Results.Problem("The heat pump record is too large.", statusCode: StatusCodes.Status413PayloadTooLarge);
+    if (ScanValidator.ValidateHeatPump(body) is { } error)
+        return Results.BadRequest(new { error });
+    await store.SaveHeatPumpAsync(id, body, cancellationToken);
+    return Results.NoContent();
+});
+
+if (app.Environment.IsDevelopment())
+{
+    // Development only: gives every home that has a profile but no figures made-up heat loss and
+    // heat pump data (marked "source": "sample"), for building the matching page.
+    app.MapPost("/api/dev/sample-heat-pumps", async (SurveyStore store, bool? replace, CancellationToken cancellationToken) =>
+    {
+        var seeded = 0;
+        foreach (var (id, floorArea) in await store.SurveysWithProfilesAsync(cancellationToken))
+        {
+            // Never overwrite real figures; replace sample ones only when asked.
+            var source = await store.HeatPumpSourceAsync(id, cancellationToken);
+            if (source is not null && (source != "sample" || replace != true)) continue;
+            var record = SampleHeatPumps.Generate(id, floorArea);
+            await store.SaveHeatPumpAsync(id, System.Text.Encoding.UTF8.GetBytes(record.ToJsonString()), cancellationToken);
+            seeded++;
+        }
+        return Results.Ok(new { seeded });
+    });
+}
+
 app.Run();
 
 public record UploadResult(string Id, string Url);
@@ -42,6 +103,9 @@ public static class Uploads
 {
     /// <summary>A two-storey house is about 1.5 MB; this leaves plenty of room.</summary>
     public const long MaxScanBytes = 25 * 1024 * 1024;
+
+    /// <summary>Profiles hold a few outlines and figures: a few kilobytes.</summary>
+    public const long MaxProfileBytes = 1024 * 1024;
 
     /// <summary>Reads the stream, or returns null as soon as it exceeds the limit.</summary>
     public static async Task<byte[]?> ReadLimitedAsync(Stream stream, long limit, CancellationToken cancellationToken)
