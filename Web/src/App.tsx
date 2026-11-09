@@ -53,7 +53,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>HeatLossDB</h1>
+        <h1 className="brand" aria-label="HeatLossDB">
+          <img src="/logo.svg" alt="" width={28} height={28} />
+          <span aria-hidden="true">
+            heatloss<span className="brand-db">db</span>
+          </span>
+        </h1>
         {surveyId && scan && (
           <nav className="segmented compact page-nav" aria-label="View">
             {(['matches', 'scan'] as const).map((p) => (

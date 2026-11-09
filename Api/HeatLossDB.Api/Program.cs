@@ -4,10 +4,28 @@ using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<HeatLossDbOptions>(builder.Configuration.GetSection("HeatLossDB"));
+// Scans go in Azure Blob Storage when the "Storage" connection string is set, otherwise in files.
+builder.Services.AddSingleton<IScanStorage>(services =>
+{
+    var options = services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value;
+    return services.GetRequiredService<IConfiguration>().GetConnectionString("Storage") is { } storage
+        ? new BlobScanStorage(storage, options.ScansContainer)
+        : new FileScanStorage(Path.Combine(options.ResolveDataDirectory(services.GetRequiredService<IHostEnvironment>()), "scans"));
+});
 builder.Services.AddSingleton<SurveyStore>();
 builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = Uploads.MaxScanBytes);
 
 var app = builder.Build();
+
+// The website, built into wwwroot on publish (in development, Vite serves it instead). Vite
+// fingerprints everything under /assets, so those can be cached for good; index.html must not be.
+var websiteFiles = new StaticFileOptions
+{
+    OnPrepareResponse = context => context.Context.Response.Headers.CacheControl =
+        context.Context.Request.Path.StartsWithSegments("/assets") ? "public, max-age=31536000, immutable" : "no-cache",
+};
+app.UseDefaultFiles();
+app.UseStaticFiles(websiteFiles);
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 
@@ -31,8 +49,8 @@ app.MapPost("/api/surveys", async (
     return Results.Created($"/api/surveys/{id}", new UploadResult(id, url));
 });
 
-app.MapGet("/api/surveys/{id}/scan", (string id, SurveyStore store) =>
-    store.ScanPath(id) is { } path ? Results.File(path, "application/json") : Results.NotFound());
+app.MapGet("/api/surveys/{id}/scan", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
+    await store.OpenScanAsync(id, cancellationToken) is { } scan ? Results.Stream(scan, "application/json") : Results.NotFound());
 
 // The website derives a shape profile from the scan (measurements and lined-up outlines) and
 // stores it here, so matching doesn't need every scan in full.
@@ -42,7 +60,7 @@ app.MapPut("/api/surveys/{id}/profile", async (
     SurveyStore store,
     CancellationToken cancellationToken) =>
 {
-    if (!store.Exists(id)) return Results.NotFound();
+    if (!await store.ExistsAsync(id, cancellationToken)) return Results.NotFound();
     var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxProfileBytes, cancellationToken);
     if (body is null)
         return Results.Problem("The profile is too large.", statusCode: StatusCodes.Status413PayloadTooLarge);
@@ -55,7 +73,7 @@ app.MapPut("/api/surveys/{id}/profile", async (
 // Other homes to match against. For now every upload with a profile is a candidate; sharing
 // consent comes with the "do you have a heat pump?" flow.
 app.MapGet("/api/surveys/{id}/candidates", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
-    store.Exists(id) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound());
+    await store.ExistsAsync(id, cancellationToken) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound());
 
 // A survey's heat loss and heat pump figures. Real ones will come from HeatPumpMonitor or a
 // heat loss survey; until then, sample figures fill the gap (see below).
@@ -65,7 +83,7 @@ app.MapPut("/api/surveys/{id}/heat-pump", async (
     SurveyStore store,
     CancellationToken cancellationToken) =>
 {
-    if (!store.Exists(id)) return Results.NotFound();
+    if (!await store.ExistsAsync(id, cancellationToken)) return Results.NotFound();
     var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxProfileBytes, cancellationToken);
     if (body is null)
         return Results.Problem("The heat pump record is too large.", statusCode: StatusCodes.Status413PayloadTooLarge);
@@ -94,6 +112,10 @@ if (app.Environment.IsDevelopment())
         return Results.Ok(new { seeded });
     });
 }
+
+// Unknown API routes stay 404s; any other path is a page of the website, such as /s/{id}.
+app.MapFallback("/api/{**path}", () => Results.NotFound());
+app.MapFallbackToFile("index.html", websiteFiles);
 
 app.Run();
 

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Option C – Heat-Loss Grid</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#B9461A}a:hover{color:#1F2430}
+</style>
+</helmet>
+<div style="width: 1200px; height: 720px; box-sizing: border-box; padding: 64px; background: #EDE9E2; display: flex; gap: 64px; align-items: center; font-family: 'JetBrains Mono', monospace; color: #1F2430">
+  <div style="display: flex; flex-direction: column; gap: 20px; width: 400px; align-items: center">
+    <div style="width: 360px; height: 360px; border-radius: 80px; overflow: hidden; box-shadow: 0 24px 48px rgba(31,36,48,0.18)">
+      <svg width="360" height="360" viewBox="0 0 100 100" role="img" aria-label="heatlossdb app icon: a house built from heat-loss heatmap tiles"><rect width="100" height="100" fill="{{iconBg}}"></rect><polygon points="24,38 50,14 76,38" fill="{{roof}}" stroke="{{roof}}" stroke-width="3" stroke-linejoin="round"></polygon><rect x="27.5" y="42" width="13" height="13" rx="2.5" fill="#EE7B30"></rect><rect x="43.5" y="42" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="59.5" y="42" width="13" height="13" rx="2.5" fill="#B9461A"></rect><rect x="27.5" y="58" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect><rect x="43.5" y="58" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="59.5" y="58" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="27.5" y="74" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="43.5" y="74" width="13" height="13" rx="2.5" fill="#1D4E89"></rect><rect x="59.5" y="74" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect></svg>
+    </div>
+    <p style="margin: 0; font-size: 14px; color: #4F5563">App icon · 1024 master</p>
+  </div>
+  <div style="flex: 1; display: flex; flex-direction: column; gap: 24px">
+    <div style="background: #FFFFFF; border-radius: 20px; padding: 36px 40px; display: flex; align-items: center; gap: 20px">
+      <div style="width: 72px; height: 72px; border-radius: 16px; overflow: hidden; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(31,36,48,0.1)">
+        <svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="{{iconBg}}"></rect><polygon points="24,38 50,14 76,38" fill="{{roof}}" stroke="{{roof}}" stroke-width="3" stroke-linejoin="round"></polygon><rect x="27.5" y="42" width="13" height="13" rx="2.5" fill="#EE7B30"></rect><rect x="43.5" y="42" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="59.5" y="42" width="13" height="13" rx="2.5" fill="#B9461A"></rect><rect x="27.5" y="58" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect><rect x="43.5" y="58" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="59.5" y="58" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="27.5" y="74" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="43.5" y="74" width="13" height="13" rx="2.5" fill="#1D4E89"></rect><rect x="59.5" y="74" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect></svg>
+      </div>
+      <span style="font-size: 42px; font-weight: 800; letter-spacing: -0.04em">heatloss<span style="font-weight: 500; color: #B9461A">.db</span></span>
+    </div>
+    <div style="background: #1F2430; border-radius: 20px; padding: 36px 40px; display: flex; align-items: center; gap: 20px; color: #F6F3EE">
+      <div style="width: 72px; height: 72px; border-radius: 16px; overflow: hidden; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,0.16)">
+        <svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="{{iconBg}}"></rect><polygon points="24,38 50,14 76,38" fill="{{roof}}" stroke="{{roof}}" stroke-width="3" stroke-linejoin="round"></polygon><rect x="27.5" y="42" width="13" height="13" rx="2.5" fill="#EE7B30"></rect><rect x="43.5" y="42" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="59.5" y="42" width="13" height="13" rx="2.5" fill="#B9461A"></rect><rect x="27.5" y="58" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect><rect x="43.5" y="58" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="59.5" y="58" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="27.5" y="74" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="43.5" y="74" width="13" height="13" rx="2.5" fill="#1D4E89"></rect><rect x="59.5" y="74" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect></svg>
+      </div>
+      <span style="font-size: 42px; font-weight: 800; letter-spacing: -0.04em">heatloss<span style="font-weight: 500; color: #EE7B30">.db</span></span>
+    </div>
+    <div style="display: flex; gap: 32px; align-items: flex-end; padding: 8px 4px 0">
+      <div style="display: flex; flex-direction: column; gap: 10px; align-items: center">
+        <div style="width: 120px; height: 120px; border-radius: 27px; overflow: hidden">
+          <svg width="120" height="120" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="{{iconBg}}"></rect><polygon points="24,38 50,14 76,38" fill="{{roof}}" stroke="{{roof}}" stroke-width="3" stroke-linejoin="round"></polygon><rect x="27.5" y="42" width="13" height="13" rx="2.5" fill="#EE7B30"></rect><rect x="43.5" y="42" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="59.5" y="42" width="13" height="13" rx="2.5" fill="#B9461A"></rect><rect x="27.5" y="58" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect><rect x="43.5" y="58" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="59.5" y="58" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="27.5" y="74" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="43.5" y="74" width="13" height="13" rx="2.5" fill="#1D4E89"></rect><rect x="59.5" y="74" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect></svg>
+        </div>
+        <span style="font-size: 13px; color: #4F5563">120</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; align-items: center">
+        <div style="width: 64px; height: 64px; border-radius: 14px; overflow: hidden">
+          <svg width="64" height="64" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="{{iconBg}}"></rect><polygon points="24,38 50,14 76,38" fill="{{roof}}" stroke="{{roof}}" stroke-width="3" stroke-linejoin="round"></polygon><rect x="27.5" y="42" width="13" height="13" rx="2.5" fill="#EE7B30"></rect><rect x="43.5" y="42" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="59.5" y="42" width="13" height="13" rx="2.5" fill="#B9461A"></rect><rect x="27.5" y="58" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect><rect x="43.5" y="58" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="59.5" y="58" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="27.5" y="74" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="43.5" y="74" width="13" height="13" rx="2.5" fill="#1D4E89"></rect><rect x="59.5" y="74" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect></svg>
+        </div>
+        <span style="font-size: 13px; color: #4F5563">64</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; align-items: center">
+        <div style="width: 32px; height: 32px; border-radius: 7px; overflow: hidden">
+          <svg width="32" height="32" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="{{iconBg}}"></rect><polygon points="24,38 50,14 76,38" fill="{{roof}}" stroke="{{roof}}" stroke-width="3" stroke-linejoin="round"></polygon><rect x="27.5" y="42" width="13" height="13" rx="2.5" fill="#EE7B30"></rect><rect x="43.5" y="42" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="59.5" y="42" width="13" height="13" rx="2.5" fill="#B9461A"></rect><rect x="27.5" y="58" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect><rect x="43.5" y="58" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="59.5" y="58" width="13" height="13" rx="2.5" fill="#F7C59F"></rect><rect x="27.5" y="74" width="13" height="13" rx="2.5" fill="#5B8FD6"></rect><rect x="43.5" y="74" width="13" height="13" rx="2.5" fill="#1D4E89"></rect><rect x="59.5" y="74" width="13" height="13" rx="2.5" fill="#BFD3EE"></rect></svg>
+        </div>
+        <span style="font-size: 13px; color: #4F5563">32</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"darkIcon":{"editor":"boolean","default":false},"$preview":{"width":1200,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.darkIcon ?? false;
+    return { iconBg: dark ? '#1F2430' : '#F6F3EE', roof: dark ? '#F6F3EE' : '#1F2430' };
+  }
+}
+</script>
+</body>
+</html>

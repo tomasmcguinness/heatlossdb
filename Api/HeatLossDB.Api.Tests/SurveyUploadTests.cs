@@ -21,6 +21,8 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+            // Pooled connections keep the database file open, and Windows won't delete an open file.
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             if (Directory.Exists(DataDirectory)) Directory.Delete(DataDirectory, recursive: true);
         }
     }

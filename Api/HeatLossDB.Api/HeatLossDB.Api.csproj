@@ -4,10 +4,41 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The website's source (React + Vite). The API serves its build, so one deployment runs both. -->
+    <WebsiteRoot>$(MSBuildProjectDirectory)\..\..\Web\</WebsiteRoot>
+    <!-- When run from Visual Studio or dotnet run, start the website's Vite dev server too and send
+         the browser there (launchSettings.json turns this on). -->
+    <SpaRoot>$(WebsiteRoot)</SpaRoot>
+    <SpaProxyServerUrl>http://localhost:5179</SpaProxyServerUrl>
+    <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SpaProxy" Version="8.0.11" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <PackageReference Include="Microsoft.Data.SqlClient.Extensions.Azure" Version="7.1.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
   </ItemGroup>
+
+  <!-- A fresh clone needs the website's packages before its dev server can start. -->
+  <Target Name="InstallWebsitePackages" BeforeTargets="Build" Condition="'$(Configuration)' == 'Debug' And !Exists('$(WebsiteRoot)node_modules')">
+    <Exec WorkingDirectory="$(WebsiteRoot)" Command="npm ci" />
+  </Target>
+
+  <!-- On publish, build the website and ship it as wwwroot. -->
+  <Target Name="PublishWebsite" AfterTargets="ComputeFilesToPublish">
+    <Exec WorkingDirectory="$(WebsiteRoot)" Command="npm ci" Condition="!Exists('$(WebsiteRoot)node_modules')" />
+    <Exec WorkingDirectory="$(WebsiteRoot)" Command="npm run build" />
+    <ItemGroup>
+      <WebsiteFiles Include="$(WebsiteRoot)dist\**" />
+      <ResolvedFileToPublish Include="@(WebsiteFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(FileName)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 
 </Project>

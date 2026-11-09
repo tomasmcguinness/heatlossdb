@@ -7,6 +7,8 @@
   --border: #d9dde3;
   --accent: #e0661f;
   --accent-text: #ffffff;
+  --brand-text: #12233b;
+  --brand-db: #b4581a;
   --viewport: #e9ecf0;
   --error: #b3261e;
 
@@ -32,6 +34,8 @@
     --muted: #a0a7b1;
     --border: #353a41;
     --viewport: #202328;
+    --brand-text: #ffffff;
+    --brand-db: #f2994a;
     --error: #f2b8b5;
     color-scheme: dark;
   }
@@ -45,6 +49,8 @@
   --muted: #a0a7b1;
   --border: #353a41;
   --viewport: #202328;
+  --brand-text: #ffffff;
+  --brand-db: #f2994a;
   --error: #f2b8b5;
   color-scheme: dark;
 }
@@ -104,10 +110,24 @@ code {
   border-bottom: 1px solid var(--border);
 }
 
-.topbar h1 {
-  font-size: 1.1rem;
-  color: var(--accent);
-  letter-spacing: 0.01em;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-text);
+}
+
+.brand img {
+  display: block;
+  border-radius: 6px;
+}
+
+.brand-db {
+  color: var(--brand-db);
 }
 
 .toolbar {

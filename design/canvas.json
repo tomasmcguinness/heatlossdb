@@ -1,0 +1,122 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Artboard-a1lf.dc.html": {
+      "h": 1104,
+      "page": "page-x1j87x",
+      "title": "Scan, match & share flow",
+      "w": 2896,
+      "x": 0,
+      "y": 0
+    },
+    "WhatNext.dc.html": {
+      "h": 900,
+      "page": "page-x1j87x",
+      "title": "Screen · What next?",
+      "w": 1440,
+      "x": 0,
+      "y": 1224,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "ViewScan.dc.html": {
+      "h": 900,
+      "page": "page-x1j87x",
+      "title": "Screen · View my scan",
+      "w": 1440,
+      "x": 1560,
+      "y": 1224,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "ShareHome.dc.html": {
+      "h": 900,
+      "page": "page-x1j87x",
+      "title": "Screen · Share your home",
+      "w": 1440,
+      "x": 3120,
+      "y": 1224,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "FindSimilar.dc.html": {
+      "h": 1100,
+      "page": "page-x1j87x",
+      "title": "Screen · Find similar homes",
+      "w": 1440,
+      "x": 4680,
+      "y": 1224,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "FanHouse.dc.html": {
+      "h": 720,
+      "title": "B · Fan House",
+      "w": 1200,
+      "x": 1280,
+      "y": 0
+    },
+    "LossGrid.dc.html": {
+      "h": 720,
+      "title": "C · Heat-Loss Grid",
+      "w": 1200,
+      "x": 0,
+      "y": 840
+    },
+    "Main.dc.html": {
+      "h": 720,
+      "title": "A · House Layers",
+      "w": 1200,
+      "x": 0,
+      "y": 0
+    },
+    "Monogram.dc.html": {
+      "h": 720,
+      "title": "D · House-h Monogram",
+      "w": 1200,
+      "x": 1280,
+      "y": 840
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-06T18:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "title": {
+      "kind": "title1",
+      "maxW": 2480,
+      "text": "heatlossdb — logo & app icon directions",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "FanHouse.dc.html",
+    "LossGrid.dc.html",
+    "Monogram.dc.html",
+    "Artboard-a1lf.dc.html",
+    "WhatNext.dc.html",
+    "ViewScan.dc.html",
+    "ShareHome.dc.html",
+    "FindSimilar.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Page 1"
+    },
+    {
+      "id": "page-x1j87x",
+      "name": "Page 2"
+    }
+  ],
+  "title": "heatpumpdb logo & app icon options"
+}

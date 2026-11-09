@@ -7,6 +7,10 @@ cd HeatLossDB.Api && dotnet run     # listens on http://0.0.0.0:5080
 dotnet test                         # from Api/
 ```
 
+Publishing builds the website (`../Web`) into `wwwroot`, and the API serves it: any path outside
+`/api` gets `index.html`, so links like `/s/{id}` work. In development, run the website with Vite
+instead (see the main README).
+
 ## Endpoints
 
 - `POST /api/surveys`: body is the app's `merged.json` (a RoomPlan `CapturedStructure`), sent as
@@ -20,8 +24,37 @@ because there's no sign-in yet.
 
 ## Storage
 
-Scans go in `HeatLossDB.Api/Data/scans/{id}.json`, and metadata in `Data/heatlossdb.db` (SQLite).
-`Data/` is gitignored because it holds floorplans of real homes.
+Each survey is a scan (up to 25 MB, kept as uploaded) plus a database row holding its metadata,
+shape profile and heat pump figures.
+
+| | Scans | Database |
+| --- | --- | --- |
+| Local (default) | `Data/scans/{id}.json` | SQLite, `Data/heatlossdb.db` |
+| Azure | Blob Storage, container `scans` | Azure SQL, table `Surveys` |
+
+Azure is used when these connection strings are set (e.g. as `ConnectionStrings__Database` and
+`ConnectionStrings__Storage` environment variables):
+
+- `Database`: e.g. `Server=tcp:<server>.database.windows.net;Database=heatlossdb;Authentication=Active Directory Default;Encrypt=True`.
+  The `Surveys` table is created on first start.
+- `Storage`: the account's blob address, `https://<account>.blob.core.windows.net`, or a storage
+  connection string. The `scans` container is created on first start.
+
+With `Active Directory Default` and a blob address, the app signs in with its managed identity (or
+your `az login` locally), so no keys are kept in settings. Give that identity:
+
+- on the storage account, the **Storage Blob Data Contributor** role;
+- in the database (run as the server's Entra admin), access including creating the table:
+  ```sql
+  CREATE USER [<app or identity name>] FROM EXTERNAL PROVIDER;
+  ALTER ROLE db_datareader ADD MEMBER [<app or identity name>];
+  ALTER ROLE db_datawriter ADD MEMBER [<app or identity name>];
+  ALTER ROLE db_ddladmin ADD MEMBER [<app or identity name>];
+  ```
+
+`Data/` is gitignored because it holds floorplans of real homes. Data directories from before
+profiles and figures moved into the database are upgraded on start; the old `profiles/` and
+`heat-pumps/` folders are then no longer used.
 
 ## Heat pump figures
 

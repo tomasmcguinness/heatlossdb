@@ -2,3 +2,4 @@ bin/
 obj/
 # Uploaded scans are floorplans of real homes: never commit them.
 HeatLossDB.Api/Data/
+.vs/
