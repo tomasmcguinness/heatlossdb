@@ -26,7 +26,13 @@ export async function openFile(file: File): Promise<void> {
     return
   }
 
-  store.loadScan(parseScan(json))
+  store.loadScan(parseScan(json), file.name)
+}
+
+/** Closes the open scan. Leaves a survey link too, so a reload doesn't reopen it. */
+export function closeScan() {
+  useFabric.getState().closeScan()
+  if (location.pathname !== '/') history.replaceState(null, '', '/')
 }
 
 export function downloadFabric() {

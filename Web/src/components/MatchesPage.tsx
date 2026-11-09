@@ -1,3 +1,4 @@
+// Parked: matching against other homes. Not shown until "Find similar homes" opens.
 import { useEffect, useState } from 'react'
 import { storeyName, useFabric } from '../fabric/store'
 import {

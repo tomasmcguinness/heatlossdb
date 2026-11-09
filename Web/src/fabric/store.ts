@@ -42,6 +42,8 @@ export type SidebarTab = 'element' | 'defaults' | 'storeys' | 'summary'
 
 interface FabricState {
   scan: Scan | null
+  /** The file the scan was opened from, when it came from one. */
+  scanName: string | null
   byId: Map<string, ScanElement>
   childrenOf: Map<string, ScanElement[]>
   autoRoles: Record<string, Role>
@@ -57,7 +59,7 @@ interface FabricState {
   /** Bumped to ask the viewer to re-frame the building. */
   viewResetToken: number
 
-  loadScan: (scan: Scan) => void
+  loadScan: (scan: Scan, name?: string) => void
   closeScan: () => void
   select: (id: string | null) => void
   hover: (id: string | null) => void
@@ -149,6 +151,7 @@ function withElement(
 
 export const useFabric = create<FabricState>()((set, get) => ({
   scan: null,
+  scanName: null,
   byId: new Map(),
   childrenOf: new Map(),
   autoRoles: {},
@@ -162,13 +165,14 @@ export const useFabric = create<FabricState>()((set, get) => ({
   tab: 'summary',
   viewResetToken: 0,
 
-  loadScan: (scan) => {
+  loadScan: (scan, name) => {
     const saved = readStorage<FabricDocument>(fabricKey(scan.hash))
     const valid = saved && isFabricDocument(saved) ? saved : null
     writeStorage(SCAN_KEY, scan)
     const automatic = autoAlign(scan)
     set({
       scan,
+      scanName: name ?? null,
       ...indexScan(scan),
       autoRoles: classify(scan),
       defaults: { ...emptyDefaults(), ...valid?.defaults },
@@ -185,7 +189,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
 
   closeScan: () => {
     writeStorage(SCAN_KEY, null)
-    set({ scan: null, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
+    set({ scan: null, scanName: null, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
   },
 
   select: (id) => set(id ? { selectedId: id, tab: 'element' } : { selectedId: null }),

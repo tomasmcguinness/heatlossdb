@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { storeyName, useFabric } from '../fabric/store'
-import { downloadFabric, errorMessage, openFile } from './files'
+import { closeScan, downloadFabric, errorMessage, openFile } from './files'
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -16,7 +16,6 @@ export function Toolbar({ onError }: { onError: (message: string | null) => void
   const view = useFabric((s) => s.view)
   const setView = useFabric((s) => s.setView)
   const resetView = useFabric((s) => s.resetView)
-  const closeScan = useFabric((s) => s.closeScan)
   const importInput = useRef<HTMLInputElement>(null)
 
   if (!scan) return null
@@ -91,14 +90,7 @@ export function Toolbar({ onError }: { onError: (message: string | null) => void
             }
           }}
         />
-        <button
-          className="button subtle"
-          onClick={() => {
-            closeScan()
-            // Leave a survey link so a reload doesn't reopen it.
-            if (location.pathname !== '/') history.replaceState(null, '', '/')
-          }}
-        >
+        <button className="button subtle" onClick={closeScan}>
           Close scan
         </button>
       </div>
