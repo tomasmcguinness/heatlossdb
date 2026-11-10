@@ -337,6 +337,8 @@ export function alignmentOf(state: Pick<FabricState, 'alignment'>, story: number
 export type RoomElement = (PlanElement & { added?: false }) | (AddedElement & { added: true })
 
 export interface EditedRoom extends PlanRoom {
+  /** What the scan called the room, before any rename. */
+  scannedName: string
   heated: boolean
   checked: boolean
   removed: boolean
@@ -350,6 +352,7 @@ export function editedRoom(room: PlanRoom, settings: RoomSettings = {}): EditedR
   return {
     ...room,
     name: settings.name?.trim() || room.name,
+    scannedName: room.name,
     heated: settings.heated ?? true,
     checked: settings.checked ?? false,
     removed: settings.removed ?? false,

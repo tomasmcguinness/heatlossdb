@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useFabric, type EditedRoom, type RoomElement } from '../../fabric/store'
 import { BackIcon, BinIcon, InfoIcon, KindIcon, PencilIcon } from './icons'
 import { kindName, type ItemKind } from './kinds'
@@ -8,18 +9,19 @@ interface RoomPanelProps {
   /** The floor being shown, or null on the overview. */
   floor: EditorFloor | null
   room: EditedRoom | null
-  editing: boolean
+  /** Whether the selected room's name is being changed. */
+  renaming: boolean
   actions: RoomActions
-  onEditing: (editing: boolean) => void
+  onRenaming: (renaming: boolean) => void
   onClear: () => void
 }
 
-/** The side panel: every room to check, or the selected room, or the room being edited. */
+/** The side panel: every room to check, or the selected room ready to correct. */
 export function RoomPanel(props: RoomPanelProps) {
-  const { room, editing } = props
+  const { room } = props
   return (
     <aside className="editor-panel" aria-label="Rooms">
-      {!room ? <AllRooms {...props} /> : editing ? <EditRoom {...props} room={room} /> : <RoomSummary {...props} room={room} />}
+      {room ? <RoomDetails {...props} room={room} /> : <AllRooms {...props} />}
     </aside>
   )
 }
@@ -80,7 +82,7 @@ function AllRooms({ floors, floor, actions }: RoomPanelProps) {
                   </span>
                   <span className={r.checked ? 'status-checked' : 'muted small'}>{r.checked ? 'Checked' : 'To check'}</span>
                 </button>
-                <button className="panel-room-edit" aria-label={`Edit ${r.name}`} onClick={() => actions.edit(r.id)}>
+                <button className="panel-room-edit" aria-label={`Rename ${r.name}`} onClick={() => actions.rename(r.id)}>
                   <PencilIcon />
                 </button>
               </li>
@@ -113,46 +115,6 @@ function AllRooms({ floors, floor, actions }: RoomPanelProps) {
   )
 }
 
-function RoomSummary({ floors, room, onEditing, onClear }: RoomPanelProps & { room: EditedRoom }) {
-  const height = floors.find((f) => f.plan.story === room.story)?.plan.wallHeight
-  const count = (kind: ItemKind) => room.items.filter((i) => i.kind === kind).length
-  const facts = [room.area !== null && squareMetres(room.area), height && `ceiling ${height.toFixed(1)} m`, room.checked ? 'checked' : 'not checked yet']
-
-  return (
-    <>
-      <button className="link back-link" onClick={onClear}>
-        <BackIcon />
-        All rooms
-      </button>
-      <div className="panel-intro">
-        <h2>{room.name}</h2>
-        <p className="muted">
-          {facts.filter(Boolean).join(' · ')}
-          {!room.heated && ' · not heated'}
-        </p>
-      </div>
-      <ul className="room-counts">
-        <li>
-          <span>External doors</span>
-          <span className="muted">{count('door')}</span>
-        </li>
-        <li>
-          <span>Windows</span>
-          <span className="muted">{count('window')}</span>
-        </li>
-        <li>
-          <span>Skylights</span>
-          <span className="muted">{count('skylight')}</span>
-        </li>
-      </ul>
-      <button className="button panel-action" onClick={() => onEditing(true)}>
-        <PencilIcon />
-        Edit room
-      </button>
-    </>
-  )
-}
-
 /** "External door 1", "Window 2"… numbered per kind in the order listed. */
 function itemNames(items: RoomElement[]): string[] {
   const seen: Partial<Record<ItemKind, number>> = {}
@@ -162,11 +124,59 @@ function itemNames(items: RoomElement[]): string[] {
   })
 }
 
-function EditRoom({ room, onEditing, onClear }: RoomPanelProps & { room: EditedRoom }) {
-  const settings = useFabric((s) => s.rooms[room.id]) ?? {}
+/** The room's name, which turns into a text box when clicked. */
+function RoomName({ room, renaming, onRenaming }: { room: EditedRoom; renaming: boolean; onRenaming: (renaming: boolean) => void }) {
+  const setRoom = useFabric((s) => s.setRoom)
+  const [draft, setDraft] = useState(room.name)
+  // Escape removes the text box, which blurs it; that blur mustn't save.
+  const cancelled = useRef(false)
+
+  if (!renaming) {
+    return (
+      <h2>
+        <button className="room-title" title="Rename this room" onClick={() => onRenaming(true)}>
+          <span>{room.name}</span>
+          <PencilIcon />
+        </button>
+      </h2>
+    )
+  }
+
+  const save = () => {
+    if (cancelled.current) return
+    const name = draft.trim()
+    // An empty name, or the scanned one, goes back to what the scan called it.
+    setRoom(room.id, (s) => ({ ...s, name: name && name !== room.scannedName ? name : undefined }))
+    onRenaming(false)
+  }
+  return (
+    <input
+      className="room-title-input"
+      aria-label="Room name"
+      autoFocus
+      value={draft}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') save()
+        if (e.key === 'Escape') {
+          cancelled.current = true
+          onRenaming(false)
+        }
+      }}
+    />
+  )
+}
+
+/** The selected room: its name, whether it's heated, and its doors, windows and skylights, all
+ *  editable. */
+function RoomDetails({ floors, room, renaming, onRenaming, onClear }: RoomPanelProps & { room: EditedRoom }) {
   const setRoom = useFabric((s) => s.setRoom)
   const update = (patch: Parameters<typeof setRoom>[1]) => setRoom(room.id, patch)
   const names = itemNames(room.items)
+  const height = floors.find((f) => f.plan.story === room.story)?.plan.wallHeight
+  const facts = [room.area !== null && squareMetres(room.area), height && `ceiling ${height.toFixed(1)} m`]
 
   const add = (kind: ItemKind) =>
     update((s) => ({ ...s, added: [...(s.added ?? []), { id: `added-${crypto.randomUUID()}`, kind }] }))
@@ -179,31 +189,24 @@ function EditRoom({ room, onEditing, onClear }: RoomPanelProps & { room: EditedR
 
   return (
     <>
-      <div className="panel-edit-head">
-        <span className="editing-label">Editing room</span>
-        <button className="link" onClick={() => onEditing(false)}>
-          Done
-        </button>
+      <button className="link back-link" onClick={onClear}>
+        <BackIcon />
+        All rooms
+      </button>
+
+      <div className="panel-intro">
+        {/* Keyed so each rename starts from the current name. */}
+        <RoomName key={`${room.id}-${renaming}`} room={room} renaming={renaming} onRenaming={onRenaming} />
+        <p className="muted">{facts.filter(Boolean).join(' · ')}</p>
       </div>
 
-      <div className="room-fields">
-        <label className="field wide">
-          <span>Room name</span>
-          <input
-            type="text"
-            className="room-name-input"
-            value={settings.name ?? room.name}
-            onChange={(e) => update((s) => ({ ...s, name: e.target.value }))}
-          />
-        </label>
-        <label className="field">
-          <span>Heated?</span>
-          <select value={room.heated ? 'yes' : 'no'} onChange={(e) => update((s) => ({ ...s, heated: e.target.value === 'yes' }))}>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </label>
-      </div>
+      <label className="panel-field heated-field">
+        <span>Heated?</span>
+        <select value={room.heated ? 'yes' : 'no'} onChange={(e) => update((s) => ({ ...s, heated: e.target.value === 'yes' }))}>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </label>
 
       <section className="room-items" aria-labelledby="items-title">
         <h3 id="items-title">External doors, windows &amp; skylights</h3>

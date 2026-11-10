@@ -1672,69 +1672,69 @@ span.panel-room {
   font-size: 0.93rem;
 }
 
-.room-counts {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.room-counts li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-}
-
-.panel-action {
-  min-height: 46px;
-  display: flex;
+/* The room's name: click to rename. */
+.room-title {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 1rem;
+  gap: 10px;
+  max-width: 100%;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  cursor: text;
 }
 
-.panel-edit-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.room-title svg {
+  flex-shrink: 0;
+  color: var(--muted);
 }
 
-.panel-edit-head .link {
-  padding: 8px;
+.room-title:hover {
+  background: var(--surface-2);
 }
 
-.editing-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--badge-account-text);
+.room-title:hover svg {
+  color: var(--text);
 }
 
-.room-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.room-title-input {
+  /* With the negative margins, the same height as the name it replaces. */
+  height: 40px;
+  width: calc(100% + 16px);
+  box-sizing: border-box;
+  margin: -4px -8px;
+  padding: 0 8px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
 }
 
-.field {
+.heated-field {
+  max-width: 200px;
+}
+
+.panel-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.field.wide {
-  grid-column: 1 / -1;
-}
-
-.field > span {
+.panel-field > span {
   font-size: 0.8rem;
   color: var(--muted);
 }
 
-.field input,
-.field select {
+.panel-field input,
+.panel-field select {
   height: 44px;
   box-sizing: border-box;
   padding: 0 10px;
@@ -1743,11 +1743,6 @@ span.panel-room {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
-}
-
-.field .room-name-input {
-  font-size: 1.1rem;
-  font-weight: 600;
 }
 
 .room-items {

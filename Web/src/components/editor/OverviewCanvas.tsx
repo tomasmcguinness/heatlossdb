@@ -50,7 +50,7 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
                               aria-label={room.name + (room.checked ? ', checked' : '')}
                               aria-pressed={room.id === actions.selectedId}
                               onClick={unlessDragged(() => actions.select(room.id))}
-                              onDoubleClick={() => actions.edit(room.id)}
+                              onDoubleClick={() => actions.rename(room.id)}
                             >
                               <span className="room-name">{room.name}</span>
                               <ItemIcons kinds={kindsOf(room)} />
@@ -61,7 +61,7 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
                                 </span>
                               )}
                             </button>
-                            <button className="room-pencil" aria-label={`Edit ${room.name}`} onClick={unlessDragged(() => actions.edit(room.id))}>
+                            <button className="room-pencil" aria-label={`Rename ${room.name}`} onClick={unlessDragged(() => actions.rename(room.id))}>
                               <PencilIcon />
                             </button>
                           </div>

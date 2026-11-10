@@ -17,7 +17,7 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
   const floors = useEditorFloors()
   const [view, setView] = useState<View>('overview')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [editing, setEditing] = useState(false)
+  const [renaming, setRenaming] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const floor = view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
@@ -32,16 +32,16 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
     // Clicking the selected room again deselects it.
     select: (id) => {
       setSelectedId((current) => (current === id ? null : id))
-      setEditing(false)
+      setRenaming(false)
     },
-    edit: (id) => {
+    rename: (id) => {
       setSelectedId(id)
-      setEditing(true)
+      setRenaming(true)
     },
   }
   const clear = () => {
     setSelectedId(null)
-    setEditing(false)
+    setRenaming(false)
   }
 
   // Every floor is drawn within the bounds of them all, so they share a scale.
@@ -120,8 +120,8 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
 
           <p className="canvas-hint">
             {floor
-              ? 'Hover to highlight a room. Click to select it, double-click or use the pencil to edit. Scroll to zoom, drag to move.'
-              : 'Side view of every floor. Hover to highlight a room, click to select, double-click or pencil to edit. Scroll to zoom, drag to move.'}
+              ? 'Hover to highlight a room. Click to select it, double-click to rename. Scroll to zoom, drag to move.'
+              : 'Side view of every floor. Hover to highlight a room, click to select, double-click or pencil to rename. Scroll to zoom, drag to move.'}
           </p>
           <div className="canvas-legend" aria-hidden="true">
             <span>
@@ -143,9 +143,9 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
           floors={floors}
           floor={floor}
           room={room}
-          editing={editing}
+          renaming={renaming}
           actions={actions}
-          onEditing={setEditing}
+          onRenaming={setRenaming}
           onClear={clear}
         />
       </div>

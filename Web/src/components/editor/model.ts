@@ -10,13 +10,15 @@ export interface EditorFloor {
   rooms: EditedRoom[]
 }
 
-/** How the canvases and the side panel share hovering, selecting and editing a room. */
+/** How the canvases and the side panel share hovering, selecting and renaming a room. */
 export interface RoomActions {
   hoveredId: string | null
   selectedId: string | null
   hover: (id: string | null) => void
+  /** Selects the room, or deselects it if it's already selected. */
   select: (id: string) => void
-  edit: (id: string) => void
+  /** Selects the room and starts changing its name. */
+  rename: (id: string) => void
 }
 
 /** Every storey, lowest first, with its rooms as the user has corrected them. */

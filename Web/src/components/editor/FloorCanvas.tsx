@@ -1,4 +1,4 @@
-import { CheckIcon, ItemIcons, PencilIcon } from './icons'
+import { CheckIcon, ItemIcons } from './icons'
 import { kindsOf, type EditorFloor, type RoomActions } from './model'
 import { MARGIN, usePanZoom } from './panZoom'
 import { ZoomControls } from './ZoomControls'
@@ -75,7 +75,7 @@ export function FloorCanvas({
                   onMouseEnter={() => actions.hover(room.id)}
                   onMouseLeave={() => actions.hover(null)}
                   onClick={unlessDragged(() => actions.select(room.id))}
-                  onDoubleClick={() => actions.edit(room.id)}
+                  onDoubleClick={() => actions.rename(room.id)}
                 />
               ))}
               {plan.walls.map((wall) => line(wall.id, isExternal(wall.id) ? 'fp-wall external' : 'fp-wall', wall.a, wall.b))}
@@ -97,7 +97,7 @@ export function FloorCanvas({
                     aria-label={room.name + (room.checked ? ', checked' : '')}
                     aria-pressed={room.id === actions.selectedId}
                     onClick={unlessDragged(() => actions.select(room.id))}
-                    onDoubleClick={() => actions.edit(room.id)}
+                    onDoubleClick={() => actions.rename(room.id)}
                   >
                     <span className="room-name">{room.name}</span>
                     <ItemIcons kinds={kindsOf(room)} />
@@ -107,9 +107,6 @@ export function FloorCanvas({
                         Checked
                       </span>
                     )}
-                  </button>
-                  <button className="room-pencil" aria-label={`Edit ${room.name}`} onClick={unlessDragged(() => actions.edit(room.id))}>
-                    <PencilIcon />
                   </button>
                 </div>
               )
