@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import RoomPlan
+import QuickLook
 import _SpriteKit_SwiftUI
 
 /// Presentation state for the survey section. It is owned by the parent view because alerts,
@@ -19,7 +20,10 @@ final class SurveySectionState {
     var isShowingResetConfirmation = false
     var newRoomName = ""
     var scanningRoomName: String?
+    
     var floorPlanScene: FloorPlanScene?
+    /// A room's 3D model being shown in Quick Look.
+    var previewURL: URL?
 }
 
 extension FloorPlanScene: Identifiable {}
@@ -62,12 +66,12 @@ struct SurveySection : View {
             }
             
             ForEach(rooms) { room in
-                Text(room.name)
+                roomRow(room)
             }
             .onDelete(perform: survey.isComplete ? nil : deleteRooms)
             
             if !survey.isComplete {
-                Button("Scan Room", systemImage: "camera.metering.matrix") {
+                Button(rooms.isEmpty ? "Scan First Room" : "Scan Another Room", systemImage: "camera.metering.matrix") {
                     state.newRoomName = ""
                     state.isShowingRoomNamePrompt = true
                 }
@@ -88,11 +92,28 @@ struct SurveySection : View {
                 }
             } header: {
                 Text("Actions")
-            } footer: {
-                if survey.isComplete, let uploadedAt = survey.uploadedAt {
-                    Text("Uploaded \(uploadedAt.formatted(date: .abbreviated, time: .shortened)). Anyone with the link can view the scan.")
+            }
+        }
+    }
+    
+    /// A saved room opens its 3D model; one still processing (or that failed to save) is plain text.
+    @ViewBuilder
+    private func roomRow(_ room: Room) -> some View {
+        if let url = scanRoomModel.roomModelURL(surveyId: survey.surveyId, roomId: room.roomId) {
+            Button {
+                state.previewURL = url
+            } label: {
+                LabeledContent {
+                    Image(systemName: "cube")
+                        .foregroundStyle(.tint)
+                } label: {
+                    Text(room.name)
+                        .foregroundStyle(.primary)
                 }
             }
+            .accessibilityHint("Opens the room's 3D model")
+        } else {
+            Text(room.name)
         }
     }
     
@@ -133,52 +154,15 @@ struct SurveySection : View {
             Button("Retry Merge", systemImage: "arrow.clockwise") {
                 Task { await scanRoomModel.mergeRooms(surveyId: survey.surveyId) }
             }
-        }
-        
-        uploadActions
-        
-        Button("View Floorplan", systemImage: "map") {
-            if let mergedStructure {
-                // Build the scene once, so re-renders don't replace it while it's on screen.
-                state.floorPlanScene = FloorPlanScene(capturedRoom: mergedStructure)
+        } else {
+            let shareURLs = mergedStructure == nil ? [] : scanRoomModel.mergedFileURLs(surveyId: survey.surveyId)
+            ShareLink(items: shareURLs) {
+                Label("Share Scan", systemImage: "square.and.arrow.up")
             }
+            .disabled(shareURLs.isEmpty)
         }
-        .disabled(mergedStructure == nil)
-        
-        let shareURLs = mergedStructure == nil ? [] : scanRoomModel.mergedFileURLs(surveyId: survey.surveyId)
-        ShareLink(items: shareURLs) {
-            Label("Share Survey", systemImage: "square.and.arrow.up")
-        }
-        .disabled(shareURLs.isEmpty)
         
         resetAction
-    }
-    
-    @ViewBuilder
-    private var uploadActions: some View {
-        if scanRoomModel.isUploading(survey.surveyId) {
-            HStack {
-                ProgressView()
-                Text("Uploading…")
-            }
-        } else if let link = survey.uploadURL.flatMap(URL.init(string:)) {
-            Link(destination: link) {
-                Label("Open on HeatLossDB", systemImage: "safari")
-            }
-            ShareLink(item: link) {
-                Label("Share Link", systemImage: "link")
-            }
-            Button("Upload Again", systemImage: "icloud.and.arrow.up", action: upload)
-                .disabled(mergedStructure == nil)
-        } else {
-            Button("Upload to HeatLossDB", systemImage: "icloud.and.arrow.up", action: upload)
-                .disabled(mergedStructure == nil)
-        }
-        
-        if let uploadError = scanRoomModel.uploadError(for: survey.surveyId) {
-            Text("Upload failed: \(uploadError)")
-                .foregroundStyle(.red)
-        }
     }
     
     private func upload() {
@@ -198,7 +182,7 @@ struct SurveySection : View {
         } else if !survey.isComplete && !rooms.isEmpty && !isSurveying {
             Text("The scanning session was interrupted. Rooms scanned now won't line up with the earlier ones. Complete the survey with the rooms you have, or reset it.")
         } else if !survey.isComplete && rooms.count < 2 {
-            Text("Scan at least two rooms to complete the survey.")
+            Text("You must scan at least two rooms to complete the survey.")
         }
     }
     
@@ -252,6 +236,7 @@ struct SurveyPresentations: ViewModifier {
             .navigationDestination(item: $state.scanningRoomName) { roomName in
                 ScanRoomView(roomName: roomName, property: property, survey: survey)
             }
+            .quickLookPreview($state.previewURL)
             .fullScreenCover(item: $state.floorPlanScene) { scene in
                 ZStack(alignment: .topTrailing) {
                     SpriteView(scene: scene)

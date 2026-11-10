@@ -18,17 +18,11 @@ struct PropertyView: View {
     
     var body: some View {
         let form = Form {
-            Section("Details") {
-                LabeledContent("Name") {
-                    TextField("Name", text: $property.name)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-            
             if let survey = property.survey {
                 SurveySection(property: property, survey: survey, state: surveyState)
             }
         }
+        .appBackground()
         .navigationTitle(property.name)
         .onAppear(perform: ensureSurvey)
         
