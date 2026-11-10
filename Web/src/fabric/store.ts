@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { autoAlign, IDENTITY, type StoreyAlignment } from '../scan/align'
 import { classify, type Role } from '../scan/classify'
 import { indexScan } from '../scan/parse'
+import type { PlanElement, PlanRoom } from '../scan/plan'
 import { ELEMENT_KINDS, type ElementKind, type Scan, type ScanElement } from '../scan/types'
 
 /** What the user has set on one element. Anything left unset falls back to the defaults. */
@@ -9,6 +10,24 @@ export interface ElementSettings {
   role?: Role
   fields?: Record<string, string>
   uValue?: number
+}
+
+/** A door, window or skylight the user added to a room because the scan missed it. */
+export interface AddedElement {
+  id: string
+  kind: 'door' | 'window' | 'skylight'
+}
+
+/** What the user has checked or corrected on one room. */
+export interface RoomSettings {
+  name?: string
+  /** Rooms are heated unless the user says otherwise. */
+  heated?: boolean
+  checked?: boolean
+  removed?: boolean
+  /** Scanned doors and windows the user says aren't there. */
+  removedElements?: string[]
+  added?: AddedElement[]
 }
 
 export interface KindDefaults {
@@ -25,6 +44,8 @@ export interface FabricDocument {
   elements: Record<string, ElementSettings>
   /** How each storey is moved to line up with the one below, keyed by RoomPlan storey number. */
   alignment?: Record<string, StoreyAlignment>
+  /** The user's checks and corrections, keyed by room id. */
+  rooms?: Record<string, RoomSettings>
 }
 
 export type CameraPreset = 'perspective' | 'plan'
@@ -50,6 +71,7 @@ interface FabricState {
   defaults: Record<ElementKind, KindDefaults>
   elements: Record<string, ElementSettings>
   alignment: Record<number, StoreyAlignment>
+  rooms: Record<string, RoomSettings>
   /** The automatic alignment, so the user can return to it after nudging. */
   autoAlignment: Record<number, StoreyAlignment>
   selectedId: string | null
@@ -75,6 +97,7 @@ interface FabricState {
   setDefaultField: (kind: ElementKind, key: string, value: string | undefined) => void
   setDefaultUValue: (kind: ElementKind, value: number | undefined) => void
   setAlignment: (story: number, alignment: StoreyAlignment) => void
+  setRoom: (id: string, update: (current: RoomSettings) => RoomSettings) => void
 
   exportFabric: () => FabricDocument | null
   importFabric: (doc: FabricDocument) => void
@@ -158,6 +181,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
   defaults: emptyDefaults(),
   elements: {},
   alignment: {},
+  rooms: {},
   autoAlignment: {},
   selectedId: null,
   hoveredId: null,
@@ -178,6 +202,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
       defaults: { ...emptyDefaults(), ...valid?.defaults },
       elements: valid?.elements ?? {},
       alignment: { ...automatic, ...valid?.alignment },
+      rooms: valid?.rooms ?? {},
       autoAlignment: automatic,
       selectedId: null,
       hoveredId: null,
@@ -218,11 +243,12 @@ export const useFabric = create<FabricState>()((set, get) => ({
   },
 
   setAlignment: (story, alignment) => set({ alignment: { ...get().alignment, [story]: alignment } }),
+  setRoom: (id, update) => set({ rooms: { ...get().rooms, [id]: update(get().rooms[id] ?? {}) } }),
 
   exportFabric: () => {
-    const { scan, defaults, elements, alignment } = get()
+    const { scan, defaults, elements, alignment, rooms } = get()
     if (!scan) return null
-    return { format: 'heatlossdb.fabric', version: 1, scanHash: scan.hash, defaults, elements, alignment }
+    return { format: 'heatlossdb.fabric', version: 1, scanHash: scan.hash, defaults, elements, alignment, rooms }
   },
 
   importFabric: (doc) => {
@@ -233,6 +259,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
       defaults: { ...emptyDefaults(), ...doc.defaults },
       elements,
       alignment: { ...get().autoAlignment, ...doc.alignment },
+      rooms: doc.rooms ?? {},
     })
   },
 }))
@@ -243,7 +270,8 @@ useFabric.subscribe((state, previous) => {
   if (
     state.defaults === previous.defaults &&
     state.elements === previous.elements &&
-    state.alignment === previous.alignment
+    state.alignment === previous.alignment &&
+    state.rooms === previous.rooms
   ) {
     return
   }
@@ -304,4 +332,30 @@ export function storeyName(stories: number[], story: number): string {
 
 export function alignmentOf(state: Pick<FabricState, 'alignment'>, story: number): StoreyAlignment {
   return state.alignment[story] ?? IDENTITY
+}
+
+export type RoomElement = (PlanElement & { added?: false }) | (AddedElement & { added: true })
+
+export interface EditedRoom extends PlanRoom {
+  heated: boolean
+  checked: boolean
+  removed: boolean
+  /** Scanned doors and windows the user hasn't removed, then the ones they added. */
+  items: RoomElement[]
+}
+
+/** A room as the user has corrected it. */
+export function editedRoom(room: PlanRoom, settings: RoomSettings = {}): EditedRoom {
+  const removed = new Set(settings.removedElements ?? [])
+  return {
+    ...room,
+    name: settings.name?.trim() || room.name,
+    heated: settings.heated ?? true,
+    checked: settings.checked ?? false,
+    removed: settings.removed ?? false,
+    items: [
+      ...room.elements.filter((e) => !removed.has(e.id)).map((e) => ({ ...e, added: false as const })),
+      ...(settings.added ?? []).map((e) => ({ ...e, added: true as const })),
+    ],
+  }
 }

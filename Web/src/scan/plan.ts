@@ -1,5 +1,5 @@
 import { applyAlignment, dominantAngle, IDENTITY, pivotOf, type StoreyAlignment } from './align'
-import { polygonArea, wallPointAt } from './geometry'
+import { matrixOf, polygonArea, wallPointAt } from './geometry'
 import { distanceToSegment, type Point2 } from './outline'
 import type { ScanElement, Scan } from './types'
 
@@ -13,12 +13,28 @@ const ROOM_NAMES: Record<string, string> = {
   unidentified: 'Room',
 }
 
+/** An external door or window, as found in the scan. */
+export interface PlanElement {
+  id: string
+  kind: 'door' | 'window'
+  width: number
+  height: number
+}
+
 export interface PlanRoom {
+  /** Stable for a given scan (storey and RoomPlan section), so the user's edits can key on it. */
+  id: string
+  story: number
   name: string
   /** Where RoomPlan placed the room's label. */
   centre: Point2
   /** Floor area (m²) between the room's walls, or null if it couldn't be measured. */
   area: number | null
+  /** The floor between the room's walls as an SVG path, in plan coordinates. Empty if it
+   *  couldn't be measured. */
+  shape: string
+  /** External doors and windows in the room's walls. */
+  elements: PlanElement[]
 }
 
 export interface PlanLine {
@@ -46,6 +62,8 @@ const CELL = 0.05
  *  end so small gaps where scanned walls don't quite meet don't join rooms together. */
 const WALL_HALF_THICKNESS = 0.06
 const WALL_END_EXTENSION = 0.1
+/** How far (m) either side of a door or window to look for the room it belongs to. */
+const ROOM_PROBE = 0.3
 
 function rotate([x, z]: Point2, radians: number): Point2 {
   const c = Math.cos(radians)
@@ -83,14 +101,31 @@ function extend([a, b]: [Point2, Point2], by: number): [Point2, Point2] {
   ]
 }
 
-/**
- * Each room's floor area. RoomPlan gives one floor outline per storey, so the storey is divided
- * up on a grid: walls block, and each label claims the cells it can reach first. Rooms joined
- * by an archway, or open plan, are split halfway between their labels.
- */
+/** A storey divided into rooms: which room (by label index, or -1) owns each grid cell. */
+export interface RoomGrid {
+  owner: Int16Array
+  columns: number
+  rows: number
+  minX: number
+  minZ: number
+}
+
+/** Each room's floor area (m²), or null for a label that claimed no floor. */
 export function measureRooms(outlines: Point2[][], walls: [Point2, Point2][], centres: Point2[]): (number | null)[] {
+  const grid = divideRooms(outlines, walls, centres)
+  const counts = centres.map(() => 0)
+  if (grid) for (const room of grid.owner) if (room >= 0) counts[room]++
+  return counts.map((count) => (count ? count * CELL * CELL : null))
+}
+
+/**
+ * Divides a storey into rooms. RoomPlan gives one floor outline per storey, so the storey is
+ * divided up on a grid: walls block, and each label claims the cells it can reach first. Rooms
+ * joined by an archway, or open plan, are split halfway between their labels.
+ */
+export function divideRooms(outlines: Point2[][], walls: [Point2, Point2][], centres: Point2[]): RoomGrid | null {
   const points = outlines.flat()
-  if (!points.length || !centres.length) return centres.map(() => null)
+  if (!points.length || !centres.length) return null
   const minX = Math.min(...points.map((p) => p[0]))
   const minZ = Math.min(...points.map((p) => p[1]))
   const columns = Math.ceil((Math.max(...points.map((p) => p[0])) - minX) / CELL) + 1
@@ -140,9 +175,34 @@ export function measureRooms(outlines: Point2[][], walls: [Point2, Point2][], ce
     frontier = next
   }
 
-  const counts = centres.map(() => 0)
-  for (const room of owner) if (room >= 0) counts[room]++
-  return counts.map((count) => (count ? count * CELL * CELL : null))
+  return { owner, columns, rows, minX, minZ }
+}
+
+/** The room (label index) owning the cell at p, or -1. */
+function roomAt(grid: RoomGrid, [x, z]: Point2): number {
+  const c = Math.floor((x - grid.minX) / CELL)
+  const r = Math.floor((z - grid.minZ) / CELL)
+  if (c < 0 || c >= grid.columns || r < 0 || r >= grid.rows) return -1
+  return grid.owner[r * grid.columns + c]
+}
+
+/** A room's cells as an SVG path: one rectangle per run of cells along each row. */
+export function roomShape(grid: RoomGrid, room: number): string {
+  const parts: string[] = []
+  for (let r = 0; r < grid.rows; r++) {
+    let start = -1
+    for (let c = 0; c <= grid.columns; c++) {
+      const owned = c < grid.columns && grid.owner[r * grid.columns + c] === room
+      if (owned && start < 0) start = c
+      if (!owned && start >= 0) {
+        const x = grid.minX + start * CELL
+        const z = grid.minZ + r * CELL
+        parts.push(`M${x.toFixed(2)} ${z.toFixed(2)}h${((c - start) * CELL).toFixed(2)}v${CELL}h${(-(c - start) * CELL).toFixed(2)}z`)
+        start = -1
+      }
+    }
+  }
+  return parts.join('')
 }
 
 /** The free cell closest to (c, r), looking up to half a metre away, for labels placed on a wall. */
@@ -201,7 +261,12 @@ function sentenceCase(label: string): string {
  * Every storey drawn flat, lowest first: lined up with each other, then turned (as PlanSvg turns
  * plans) so the ground floor's main walls run across and down the page.
  */
-export function floorPlans(scan: Scan, alignmentOf: (story: number) => StoreyAlignment = () => IDENTITY): FloorPlan[] {
+export function floorPlans(
+  scan: Scan,
+  alignmentOf: (story: number) => StoreyAlignment = () => IDENTITY,
+  /** Whether a door or window is in an external wall; only those are listed per room. */
+  isExternal: (id: string) => boolean = () => true,
+): FloorPlan[] {
   const storeys = [...scan.outlines].sort((a, b) => a.story - b.story)
   const placers = storeys.map((storey) => {
     const pivot = pivotOf(storey)
@@ -222,14 +287,34 @@ export function floorPlans(scan: Scan, alignmentOf: (story: number) => StoreyAli
 
     const outlines = storey.closed.map(place)
     const walls = on('wall').map((element) => ({ ...line(element), element }))
-    const sections = scan.sections.filter((s) => (s.story ?? 0) === storey.story)
-    const centres = sections.map((s) => place([[s.center[0], s.center[2]]])[0])
-    labels.push(sections.map((s) => s.label))
-    const areas = measureRooms(
+    const sections = scan.sections.map((s, i) => ({ s, i })).filter(({ s }) => (s.story ?? 0) === storey.story)
+    const centres = sections.map(({ s }) => place([[s.center[0], s.center[2]]])[0])
+    labels.push(sections.map(({ s }) => s.label))
+    const grid = divideRooms(
       outlines,
       walls.map((w) => [w.a, w.b]),
       centres,
     )
+    const cells = centres.map(() => 0)
+    if (grid) for (const room of grid.owner) if (room >= 0) cells[room]++
+
+    // Each external door and window goes to the room on one side of it or the other.
+    const elements: PlanElement[][] = centres.map(() => [])
+    if (grid) {
+      for (const element of [...on('door'), ...on('window')]) {
+        if (!isExternal(element.id)) continue
+        const m = matrixOf(element).elements
+        const normal = Math.hypot(m[8], m[10]) || 1
+        const [nx, nz] = [m[8] / normal, m[10] / normal]
+        const probes = place([
+          [m[12] + nx * ROOM_PROBE, m[14] + nz * ROOM_PROBE],
+          [m[12] - nx * ROOM_PROBE, m[14] - nz * ROOM_PROBE],
+        ])
+        const room = probes.map((p) => roomAt(grid, p)).find((r) => r >= 0)
+        if (room === undefined) continue
+        elements[room].push({ id: element.id, kind: element.kind as 'door' | 'window', width: element.width, height: element.height })
+      }
+    }
 
     return {
       story: storey.story,
@@ -237,7 +322,15 @@ export function floorPlans(scan: Scan, alignmentOf: (story: number) => StoreyAli
       walls,
       doors: [...on('door'), ...on('opening')].map(line),
       windows: on('window').map(line),
-      rooms: centres.map((centre, k) => ({ name: '', centre, area: areas[k] })),
+      rooms: centres.map((centre, k) => ({
+        id: `room-${storey.story}-${sections[k].i}`,
+        story: storey.story,
+        name: '',
+        centre,
+        area: cells[k] ? cells[k] * CELL * CELL : null,
+        shape: grid ? roomShape(grid, k) : '',
+        elements: elements[k],
+      })),
       area: outlines.reduce((total, outline) => total + polygonArea(outline), 0),
       wallHeight: storey.wallHeight,
     }

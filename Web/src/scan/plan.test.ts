@@ -42,8 +42,8 @@ describe('floorPlans', () => {
     story: 0,
   })
 
-  it('names and numbers rooms, and measures each one', () => {
-    const scan = parseScan({
+  const twoRooms = () =>
+    parseScan({
       walls: [
         wall('n', 8, at(4, 0)),
         wall('s', 8, at(4, 4)),
@@ -51,8 +51,9 @@ describe('floorPlans', () => {
         wall('e', 4, at(8, 2, true)),
         wall('middle', 4, at(4, 2, true)),
       ],
-      doors: [],
-      windows: [],
+      // A window in the north wall of the left room, and a door between the rooms.
+      doors: [{ ...wall('inside-door', 0.9, at(4, 2, true)), category: { door: {} }, parentIdentifier: 'middle' }],
+      windows: [{ ...wall('north-window', 1.2, at(2, 0)), category: { window: {} }, parentIdentifier: 'n' }],
       openings: [],
       floors: [
         {
@@ -76,11 +77,40 @@ describe('floorPlans', () => {
         { label: 'bedroom', center: [6, 0, 2], story: 0 },
       ],
     })
-    const [plan] = floorPlans(scan)
+
+  it('names and numbers rooms, and measures each one', () => {
+    const [plan] = floorPlans(twoRooms())
     expect(plan.rooms.map((r) => r.name)).toEqual(['Bedroom 1', 'Bedroom 2'])
     // Measured inside the walls, so a little under 4 m × 4 m.
     for (const room of plan.rooms) expect(room.area).toBeGreaterThan(14.5)
     for (const room of plan.rooms) expect(room.area).toBeLessThan(16)
     expect(plan.area).toBeCloseTo(32, 0)
+  })
+
+  it('gives each external door and window to the room it opens from', () => {
+    const [plan] = floorPlans(twoRooms(), undefined, (id) => id !== 'inside-door')
+    const [left, right] = plan.rooms
+    expect(left.elements.map((e) => e.id)).toEqual(['north-window'])
+    expect(right.elements).toEqual([])
+  })
+
+  it('lists doors in internal walls only when told they are external', () => {
+    const [plan] = floorPlans(twoRooms())
+    expect(plan.rooms.flatMap((r) => r.elements.map((e) => e.id)).sort()).toEqual(['inside-door', 'north-window'])
+  })
+
+  it('keeps room ids stable', () => {
+    const ids = (scan = twoRooms()) => floorPlans(scan)[0].rooms.map((r) => r.id)
+    expect(ids()).toEqual(ids())
+    expect(new Set(ids()).size).toBe(2)
+  })
+
+  it('draws each room as the cells it covers', () => {
+    const [plan] = floorPlans(twoRooms())
+    for (const room of plan.rooms) {
+      // Each run is "M x z h width v height h -width z"; add up width × height.
+      const area = [...room.shape.matchAll(/h([\d.]+)v([\d.]+)/g)].reduce((total, [, w, h]) => total + Number(w) * Number(h), 0)
+      expect(area).toBeCloseTo(room.area!, 1)
+    }
   })
 })

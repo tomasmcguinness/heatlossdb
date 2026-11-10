@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DropZone } from './components/DropZone'
-import { ScanView } from './components/ScanView'
 import { WhatNext } from './components/WhatNext'
+import { ScanEditor } from './components/editor/ScanEditor'
 import { errorMessage, loadDevScan, loadSurvey, surveyIdFromPath } from './components/files'
 import { restoreLastScan, useFabric } from './fabric/store'
 import { useProfile } from './match/useProfile'
@@ -19,6 +19,7 @@ export default function App() {
   const page: Page = scan && pageFor?.hash === scan.hash ? pageFor.page : 'next'
   const setPage = (p: Page) => scan && setPageFor({ hash: scan.hash, page: p })
   const profile = useProfile(surveyId)
+  const editing = scan !== null && !loadingSurvey && page === 'scan'
 
   useEffect(() => {
     if (surveyId) {
@@ -38,15 +39,18 @@ export default function App() {
   }, [surveyId])
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <h1 className="brand" aria-label="HeatLossDB">
-          <img src="/logo.svg" alt="" width={28} height={28} />
-          <span aria-hidden="true">
-            heatloss<span className="brand-db">db</span>
-          </span>
-        </h1>
-      </header>
+    <div className={editing ? 'app full' : 'app'}>
+      {/* The editor has a header of its own. */}
+      {!editing && (
+        <header className="topbar">
+          <h1 className="brand" aria-label="HeatLossDB">
+            <img src="/logo.svg" alt="" width={28} height={28} />
+            <span aria-hidden="true">
+              heatloss<span className="brand-db">db</span>
+            </span>
+          </h1>
+        </header>
+      )}
 
       {loadingSurvey ? (
         <div className="dropzone">
@@ -57,7 +61,7 @@ export default function App() {
       ) : page === 'next' ? (
         <WhatNext profile={profile} onView={() => setPage('scan')} />
       ) : (
-        <ScanView stored={surveyId !== null} onBack={() => setPage('next')} />
+        <ScanEditor onBack={() => setPage('next')} />
       )}
     </div>
   )

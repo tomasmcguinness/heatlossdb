@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { parseScan } from '../scan/parse'
 import type { RawSurface } from '../scan/types'
-import { effectiveField, effectiveRole, effectiveUValue, isFabricDocument, useFabric } from './store'
+import { editedRoom, effectiveField, effectiveRole, effectiveUValue, isFabricDocument, useFabric } from './store'
 
 const at = (x: number, y: number, z: number) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]
 
@@ -109,5 +109,49 @@ describe('export and import', () => {
     expect(state().elements.win.fields?.glazing).toBe('Triple')
     expect(effectiveRole(state(), 'middle')).toBe('party')
     expect(state().elements['not-in-this-scan']).toBeUndefined()
+  })
+})
+
+describe('rooms', () => {
+  const room = {
+    id: 'room-0-0',
+    story: 0,
+    name: 'Bedroom',
+    centre: [0, 0] as [number, number],
+    area: 12,
+    shape: '',
+    elements: [
+      { id: 'w1', kind: 'window' as const, width: 1.2, height: 1.1 },
+      { id: 'w2', kind: 'window' as const, width: 0.6, height: 1.1 },
+    ],
+  }
+
+  it('applies the user’s corrections', () => {
+    state().setRoom(room.id, () => ({ name: 'Study', heated: false, removedElements: ['w2'], added: [{ id: 'a', kind: 'skylight' }] }))
+    const edited = editedRoom(room, state().rooms[room.id])
+    expect(edited.name).toBe('Study')
+    expect(edited.heated).toBe(false)
+    expect(edited.checked).toBe(false)
+    expect(edited.items.map((i) => i.id)).toEqual(['w1', 'a'])
+  })
+
+  it('keeps the scanned name when the name is cleared', () => {
+    expect(editedRoom(room, { name: '  ' }).name).toBe('Bedroom')
+  })
+
+  it('round-trips with the rest of the settings', () => {
+    state().setRoom(room.id, (s) => ({ ...s, checked: true }))
+    const doc = state().exportFabric()!
+    state().loadScan(scan)
+    expect(state().rooms).toEqual({})
+    state().importFabric(doc)
+    expect(state().rooms[room.id]).toEqual({ checked: true })
+  })
+
+  it('still accepts documents saved before rooms were added', () => {
+    const { rooms: _, ...older } = state().exportFabric()!
+    expect(isFabricDocument(older)).toBe(true)
+    state().importFabric(older)
+    expect(state().rooms).toEqual({})
   })
 })
