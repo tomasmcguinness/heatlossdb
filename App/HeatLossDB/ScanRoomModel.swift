@@ -355,6 +355,14 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         return structure
     }
     
+    /// The room's own 3D model, if it was saved. Reads `savedRoomIds` so views update the moment
+    /// a room finishes saving; the file check covers rooms saved in an earlier launch.
+    func roomModelURL(surveyId: UUID, roomId: UUID) -> URL? {
+        let url = scanFolderURL(surveyId: surveyId).appending(path: "\(roomId).usdz")
+        let justSaved = savedRoomIds.contains(roomId)
+        return justSaved || FileManager.default.fileExists(atPath: url.path()) ? url : nil
+    }
+    
     func scanFolderURL(surveyId: UUID) -> URL {
         return getDocumentsDirectory().appending(path: "Scans").appending(path: "\(surveyId.uuidString)")
     }

@@ -15,6 +15,9 @@ struct AddPropertyView: View {
     
     @State private var name: String = ""
     
+    /// Called with the new property once it's saved. Without it, the form just closes.
+    var onSave: ((Property) -> Void)?
+    
     @FocusState private var isFocused: Bool
     
     private var trimmedName: String {
@@ -24,11 +27,12 @@ struct AddPropertyView: View {
     var body: some View {
         Form {
             Section("Details") {
-                TextField("Name", text: $name)
+                TextField("Scan Name", text: $name)
                     .focused($isFocused)
             }
         }
-        .navigationTitle("Add Property")
+        .appBackground()
+        .navigationTitle("Add Scan")
         .toolbar {
             Button("Save", action: addItem)
                 .disabled(trimmedName.isEmpty)
@@ -49,7 +53,11 @@ struct AddPropertyView: View {
             } catch {
                 print("Failed to save property \(error)")
             }
-            dismiss()
+            if let onSave {
+                onSave(property)
+            } else {
+                dismiss()
+            }
         }
     }
 }
