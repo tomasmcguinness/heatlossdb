@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>heatlossdb – Home fabric</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0;background:#141518}
+a{color:#F2994A}a:hover{color:#FFC08A}
+button,input,select{font:inherit}
+</style>
+</helmet>
+<div role="dialog" aria-modal="true" aria-labelledby="hf-title" style="min-height: 100vh; display: flex; flex-direction: column; background: #141518; color: #F2F2F2; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif">
+
+  <header style="min-height: 64px; box-sizing: border-box; padding: 10px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; background: #1E1F23; border-bottom: 1px solid #2C2E33">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <h1 id="hf-title" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700">Home fabric</h1>
+      <span style="font-size: 13px; color: #A9ADB5">How the whole building is put together, from the loft down to the ground floor</span>
+    </div>
+    <a href="PlanEditor.dc.html" aria-label="Close" style="margin-left: auto; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #2A2C31; border: 1px solid #4A4D55">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2.2" stroke-linecap="round"><path d="M6 6 L18 18 M18 6 L6 18"></path></svg>
+    </a>
+  </header>
+
+  <main style="flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 24px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+
+    <section aria-labelledby="whole-h" style="padding: 20px; background: #202125; border: 1px solid #2C2E33; border-radius: 14px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px 32px">
+      <h2 id="whole-h" style="flex: 1 1 100%; margin: 0; font-size: 16px; font-weight: 600">Whole home</h2>
+      <div style="display: flex; flex-direction: column; gap: 8px; flex: 1 1 200px">
+        <label for="hf-age" style="font-size: 13px; color: #A9ADB5">Age band</label>
+        <select id="hf-age" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Choose an age band</option><option>Before 1919</option><option>1919–1944</option><option>1945–1964</option><option>1965–1982</option><option>1983–2002</option><option>2003 or later</option><option>Not sure</option></select>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span id="ptype-l" style="font-size: 13px; color: #A9ADB5">Property type</span>
+        <div role="radiogroup" aria-labelledby="ptype-l" style="display: flex; gap: 4px; padding: 4px; background: #17181C; border-radius: 10px">
+          <button type="button" role="radio" aria-checked="{{pDet.on}}" onClick="{{pDet.pick}}" style="cursor: pointer; min-height: 36px; padding: 6px 12px; border: none; border-radius: 7px; font-size: 14px; color: {{pDet.fg}}; background: {{pDet.bg}}">Detached</button>
+          <button type="button" role="radio" aria-checked="{{pSemi.on}}" onClick="{{pSemi.pick}}" style="cursor: pointer; min-height: 36px; padding: 6px 12px; border: none; border-radius: 7px; font-size: 14px; color: {{pSemi.fg}}; background: {{pSemi.bg}}">Semi-detached</button>
+          <button type="button" role="radio" aria-checked="{{pTer.on}}" onClick="{{pTer.pick}}" style="cursor: pointer; min-height: 36px; padding: 6px 12px; border: none; border-radius: 7px; font-size: 14px; color: {{pTer.fg}}; background: {{pTer.bg}}">Terraced</button>
+        </div>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-direction: column">
+
+      <div style="display: flex; flex-wrap: wrap; gap: 0 32px; align-items: stretch">
+        <div aria-hidden="true" style="flex: 1 1 440px; min-width: 0; display: flex; justify-content: center">
+          <div style="position: relative; width: 100%; max-width: 480px; height: {{roofCellH}}px">
+            <div style="position: absolute; left: 0; right: 0; top: 8px; height: 150px; background: #24364D; clip-path: polygon(50% 0, 100% 100%, 0 100%)"></div>
+            <div style="position: absolute; left: 0; right: 0; top: 78px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 14px; color: #D4D6DB"><span style="font-weight: 600">{{roofName}}</span></div>
+            <div style="position: absolute; left: 12px; right: 12px; top: 158px; height: {{insH}}px; background: {{insBg}}; border-top: {{insBorder}}"></div>
+            <div style="position: absolute; right: 18px; top: 128px; font-size: 12px; font-weight: 600; color: {{insFg}}">{{insLabel}}</div>
+          </div>
+        </div>
+        <section aria-labelledby="roof-h" style="flex: 1 1 340px; min-width: 0; box-sizing: border-box; padding: 20px 0; display: flex; flex-direction: column; gap: 12px; justify-content: center">
+          <h3 id="roof-h" style="margin: 0; font-size: 16px; font-weight: 600">Roof &amp; loft</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-roof" style="font-size: 13px; color: #A9ADB5">Roof type</label>
+              <select id="hf-roof" value="{{roof}}" onChange="{{setRoof}}" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option value="pitched">Pitched, with loft</option><option value="rir">Room in roof</option><option value="flat">Flat roof</option><option value="above">Another home above</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-loft" style="font-size: 13px; color: #A9ADB5">Insulation</label>
+              <select id="hf-loft" value="{{loft}}" onChange="{{setLoft}}" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option value="none">None</option><option value="lt100">Under 100 mm</option><option value="100-200">100–200 mm</option><option value="gt200">Over 200 mm</option><option value="unknown">Not sure</option></select>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 0 32px; align-items: stretch">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; justify-content: center">
+          <div style="position: relative; width: 100%; max-width: 480px; height: 180px; box-sizing: border-box; background: #1B2533">
+            <div aria-hidden="true" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; background: {{wallL}}"></div>
+            <div aria-hidden="true" style="position: absolute; right: 0; top: 0; bottom: 0; width: 14px; background: {{wallR}}"></div>
+            <div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: #3A4A60"></div>
+            <div style="position: absolute; left: 28px; right: 28px; top: 16px; bottom: 20px; display: flex; flex-direction: column; justify-content: space-between">
+              <span style="font-size: 14px; font-weight: 600; color: #D4D6DB">First floor</span>
+              <div role="img" aria-label="5 windows and 1 skylight" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px">
+                <sc-for list="{{firstIcons}}" as="ic" hint-placeholder-count="6">
+                  <span style="width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: #17181C">
+                    <sc-if value="{{ic.window}}" hint-placeholder-val="{{ true }}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#7CC4F2" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="M12 4 V20 M4 12 H20"></path></svg></sc-if>
+                    <sc-if value="{{ic.sky}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F6B97E" stroke-width="2" stroke-linejoin="round"><path d="M3 19 L12 6 L21 19 Z"></path><rect x="9.5" y="12" width="5" height="4"></rect></svg></sc-if>
+                    <sc-if value="{{ic.door}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#E07B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 H20"></path><path d="M6 21 V4 H17 V21"></path><circle cx="14" cy="13" r="0.9" fill="#E07B35"></circle></svg></sc-if>
+                  </span>
+                </sc-for>
+              </div>
+              <span style="font-size: 12px; color: #A9ADB5; text-align: center">5 windows · 1 skylight from your scan</span>
+            </div>
+            <sc-if value="{{lAttached}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; left: 20px; bottom: 14px; font-size: 11px; color: #A9ADB5">Neighbour</span></sc-if>
+            <sc-if value="{{rAttached}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: 20px; bottom: 14px; font-size: 11px; color: #A9ADB5">Neighbour</span></sc-if>
+          </div>
+        </div>
+        <section aria-labelledby="first-h" style="flex: 1 1 340px; min-width: 0; box-sizing: border-box; padding: 20px 0; display: flex; flex-direction: column; gap: 12px; justify-content: center">
+          <h3 id="first-h" style="margin: 0; font-size: 16px; font-weight: 600">First floor</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-w1" style="font-size: 13px; color: #A9ADB5">External walls</label>
+              <select id="hf-w1" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Same as ground floor</option><option>Solid brick or stone</option><option>Cavity, unfilled</option><option>Cavity, filled</option><option>Solid, insulated</option><option>Timber frame</option><option>Tile or timber hung</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-g1" style="font-size: 13px; color: #A9ADB5">Windows</label>
+              <select id="hf-g1" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Same as ground floor</option><option>Single glazed</option><option>Double, pre-2002</option><option>Double, 2002 or later</option><option>Triple glazed</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-s1" style="font-size: 13px; color: #A9ADB5">Skylights</label>
+              <select id="hf-s1" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Double glazed</option><option>Single glazed</option><option>Triple glazed</option><option>Not sure</option></select>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 0 32px; align-items: stretch">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; justify-content: center">
+          <div style="position: relative; width: 100%; max-width: 480px; height: 180px; box-sizing: border-box; background: #1B2533">
+            <div aria-hidden="true" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; background: {{wallL}}"></div>
+            <div aria-hidden="true" style="position: absolute; right: 0; top: 0; bottom: 0; width: 14px; background: {{wallR}}"></div>
+            <div style="position: absolute; left: 28px; right: 28px; top: 16px; bottom: 16px; display: flex; flex-direction: column; justify-content: space-between">
+              <span style="font-size: 14px; font-weight: 600; color: #D4D6DB">Ground floor</span>
+              <div role="img" aria-label="4 windows and 2 external doors" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px">
+                <sc-for list="{{groundIcons}}" as="ic" hint-placeholder-count="6">
+                  <span style="width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: #17181C">
+                    <sc-if value="{{ic.window}}" hint-placeholder-val="{{ true }}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#7CC4F2" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="M12 4 V20 M4 12 H20"></path></svg></sc-if>
+                    <sc-if value="{{ic.sky}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F6B97E" stroke-width="2" stroke-linejoin="round"><path d="M3 19 L12 6 L21 19 Z"></path><rect x="9.5" y="12" width="5" height="4"></rect></svg></sc-if>
+                    <sc-if value="{{ic.door}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#E07B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 H20"></path><path d="M6 21 V4 H17 V21"></path><circle cx="14" cy="13" r="0.9" fill="#E07B35"></circle></svg></sc-if>
+                  </span>
+                </sc-for>
+              </div>
+              <span style="font-size: 12px; color: #A9ADB5; text-align: center">4 windows · 2 external doors from your scan</span>
+            </div>
+            <sc-if value="{{lAttached}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; left: 20px; bottom: 10px; font-size: 11px; color: #A9ADB5">Neighbour</span></sc-if>
+            <sc-if value="{{rAttached}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: 20px; bottom: 10px; font-size: 11px; color: #A9ADB5">Neighbour</span></sc-if>
+          </div>
+        </div>
+        <section aria-labelledby="ground-h" style="flex: 1 1 340px; min-width: 0; box-sizing: border-box; padding: 20px 0; display: flex; flex-direction: column; gap: 12px; justify-content: center">
+          <h3 id="ground-h" style="margin: 0; font-size: 16px; font-weight: 600">Ground floor</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-w0" style="font-size: 13px; color: #A9ADB5">External walls</label>
+              <select id="hf-w0" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Choose wall type</option><option>Solid brick or stone</option><option>Cavity, unfilled</option><option>Cavity, filled</option><option>Solid, insulated</option><option>Timber frame</option><option>Not sure</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-g0" style="font-size: 13px; color: #A9ADB5">Windows</label>
+              <select id="hf-g0" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Choose glazing</option><option>Single glazed</option><option>Double, pre-2002</option><option>Double, 2002 or later</option><option>Triple glazed</option><option>Mixed</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-d0" style="font-size: 13px; color: #A9ADB5">External doors</label>
+              <select id="hf-d0" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Choose door type</option><option>Solid timber</option><option>Part glazed</option><option>Composite, insulated</option><option>Glazed patio or bifold</option><option>Mixed</option></select>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 0 32px; align-items: stretch">
+        <div aria-hidden="true" style="flex: 1 1 440px; min-width: 0; display: flex; justify-content: center">
+          <div style="position: relative; width: 100%; max-width: 480px; height: 96px">
+            <div style="position: absolute; left: 0; right: 0; top: 0; height: {{floorInsH}}px; background: repeating-linear-gradient(90deg, #F6B97E 0 8px, #C98A4E 8px 16px)"></div>
+            <div style="position: absolute; left: 0; right: 0; top: {{slabTop}}px; height: 14px; background: #5A6B80"></div>
+            <div style="position: absolute; left: -24px; right: -24px; top: {{earthTop}}px; bottom: 0; background: repeating-linear-gradient(135deg, #26282D 0 6px, #1C1D21 6px 12px)"></div>
+            <div style="position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 13px; font-weight: 600; color: #D4D6DB">{{floorName}}</div>
+          </div>
+        </div>
+        <section aria-labelledby="floor-h" style="flex: 1 1 340px; min-width: 0; box-sizing: border-box; padding: 20px 0; display: flex; flex-direction: column; gap: 12px; justify-content: center">
+          <h3 id="floor-h" style="margin: 0; font-size: 16px; font-weight: 600">Ground floor construction</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-ft" style="font-size: 13px; color: #A9ADB5">Floor type</label>
+              <select id="hf-ft" value="{{floorType}}" onChange="{{setFloorType}}" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option value="timber">Suspended timber</option><option value="solid">Solid concrete</option><option value="unknown">Not sure</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="hf-fi" style="font-size: 13px; color: #A9ADB5">Insulation</label>
+              <select id="hf-fi" value="{{floorIns}}" onChange="{{setFloorIns}}" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option value="none">None</option><option value="yes">Insulated</option><option value="unknown">Not sure</option></select>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <button type="button" style="align-self: flex-start; cursor: pointer; min-height: 44px; padding: 10px 16px; display: flex; align-items: center; gap: 8px; font-size: 15px; color: #F2F2F2; background: transparent; border: 1px dashed #4A4D55; border-radius: 10px">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2994A" stroke-width="2" stroke-linecap="round"><path d="M12 5 V19 M5 12 H19"></path></svg>
+      Part built differently? Add an extension or conservatory
+    </button>
+  </main>
+
+  <footer style="position: sticky; bottom: 0; box-sizing: border-box; padding: 14px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: #1E1F23; border-top: 1px solid #2C2E33">
+    <span style="font-size: 14px; color: #A9ADB5">Applies to every room. Doors, windows and skylights are counted from your rooms.</span>
+    <div style="display: flex; gap: 10px">
+      <a href="PlanEditor.dc.html" style="display: flex; align-items: center; min-height: 46px; box-sizing: border-box; padding: 10px 18px; font-size: 15px; color: #F2F2F2; border: 1px solid #4A4D55; border-radius: 8px; text-decoration: none">Cancel</a>
+      <a href="PlanEditor.dc.html" style="display: flex; align-items: center; min-height: 46px; box-sizing: border-box; padding: 10px 20px; font-size: 15px; color: #FFFFFF; background: #C8692A; border-radius: 8px; text-decoration: none">Apply to whole home</a>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { roof: 'pitched', loft: '100-200', floorType: 'timber', floorIns: 'none', ptype: 'semi' };
+  }
+  renderVals() {
+    const st = this.state;
+    const seg = (val) => {
+      const on = st.ptype === val;
+      return { on: on ? 'true' : 'false', fg: on ? '#FFFFFF' : '#A9ADB5', bg: on ? '#C8692A' : 'transparent', pick: () => this.setState({ ptype: val }) };
+    };
+    const leftAtt = st.ptype === 'terraced';
+    const rightAtt = st.ptype !== 'detached';
+    const ins = {
+      none: { h: 3, bg: '#F08A7A', label: 'No insulation', fg: '#F08A7A' },
+      lt100: { h: 6, bg: 'repeating-linear-gradient(90deg, #F6B97E 0 8px, #C98A4E 8px 16px)', label: 'Under 100 mm', fg: '#F6B97E' },
+      '100-200': { h: 12, bg: 'repeating-linear-gradient(90deg, #F6B97E 0 8px, #C98A4E 8px 16px)', label: '100–200 mm', fg: '#F6B97E' },
+      gt200: { h: 20, bg: 'repeating-linear-gradient(90deg, #F6B97E 0 8px, #C98A4E 8px 16px)', label: 'Over 200 mm', fg: '#F6B97E' },
+      unknown: { h: 10, bg: 'repeating-linear-gradient(90deg, #5A5D65 0 8px, #3A3C42 8px 16px)', label: 'Not sure', fg: '#A9ADB5' }
+    }[st.loft];
+    const roofNames = { pitched: 'Loft', rir: 'Room in roof', flat: 'Flat roof', above: 'Home above' };
+    const exposedWall = '#8FB0DD';
+    const attachedWall = 'repeating-linear-gradient(45deg, #5A5D65 0 4px, #2A2C31 4px 8px)';
+    const floorInsH = st.floorIns === 'yes' ? 10 : 0;
+    const W = (k) => ({ window: k === 'w', sky: k === 's', door: k === 'd' });
+    return {
+      pDet: seg('detached'), pSemi: seg('semi'), pTer: seg('terraced'),
+      lAttached: leftAtt, rAttached: rightAtt,
+      wallL: leftAtt ? attachedWall : exposedWall,
+      wallR: rightAtt ? attachedWall : exposedWall,
+      roof: st.roof, loft: st.loft, floorType: st.floorType, floorIns: st.floorIns,
+      setRoof: (e) => this.setState({ roof: e.target.value }),
+      setLoft: (e) => this.setState({ loft: e.target.value }),
+      setFloorType: (e) => this.setState({ floorType: e.target.value }),
+      setFloorIns: (e) => this.setState({ floorIns: e.target.value }),
+      roofName: roofNames[st.roof],
+      roofCellH: 158 + ins.h,
+      insH: ins.h, insBg: ins.bg, insBorder: 'none', insLabel: ins.label, insFg: ins.fg,
+      floorInsH, slabTop: floorInsH, earthTop: floorInsH + 14,
+      floorName: st.floorType === 'solid' ? 'Solid floor' : (st.floorType === 'timber' ? 'Suspended timber floor' : 'Ground floor'),
+      firstIcons: ['w', 'w', 'w', 'w', 'w', 's'].map(W),
+      groundIcons: ['w', 'w', 'w', 'w', 'd', 'd'].map(W)
+    };
+  }
+}
+</script>
+</body>
+</html>

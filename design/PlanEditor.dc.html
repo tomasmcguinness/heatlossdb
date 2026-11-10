@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>heatlossdb – Floor plan editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0;background:#17181C}
+a{color:#F2994A}a:hover{color:#FFC08A}
+button,input,select{font:inherit}
+</style>
+</helmet>
+<div style="position: relative; min-height: 100vh; display: flex; flex-direction: column; background: #17181C; color: #F2F2F2; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 8px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; background: #1E1F23; border-bottom: 1px solid #2C2E33">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true" style="border-radius: 7px"><rect width="100" height="100" fill="#12233B"></rect><polygon points="26,69.5 50,81.5 50,86.5 26,74.5" fill="#24507F"></polygon><polygon points="50,81.5 74,69.5 74,74.5 50,86.5" fill="#1B3F66"></polygon><polygon points="26,69.5 50,57.5 74,69.5 50,81.5" fill="#3B6EA5"></polygon><polygon points="26,49.5 50,61.5 50,66.5 26,54.5" fill="#24507F"></polygon><polygon points="50,61.5 74,49.5 74,54.5 50,66.5" fill="#1B3F66"></polygon><polygon points="26,49.5 50,37.5 74,49.5 50,61.5" fill="#3B6EA5"></polygon><polygon points="26,29.5 50,41.5 50,46.5 26,34.5" fill="#C4621A"></polygon><polygon points="50,41.5 74,29.5 74,34.5 50,46.5" fill="#A04E12"></polygon><polygon points="50,17.5 74,29.5 62,25.5 38,13.5" fill="#F6B97E"></polygon><polygon points="26,29.5 50,41.5 62,25.5 38,13.5" fill="#F2994A"></polygon><polygon points="50,41.5 74,29.5 62,25.5" fill="#A04E12"></polygon></svg>
+      <span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.02em">heatloss<span style="color: #F2994A">db</span></span>
+      <span style="width: 1px; height: 24px; background: #3A3C42"></span>
+      <span style="font-size: 14px; color: #A9ADB5">merged.json</span>
+    </div>
+
+    <div role="tablist" aria-label="Views" style="display: flex; gap: 4px; padding: 4px; background: #17181C; border-radius: 10px">
+      <button type="button" role="tab" aria-selected="{{tabOv.sel}}" onClick="{{tabOv.pick}}" style="cursor: pointer; min-height: 36px; padding: 6px 14px; border: none; border-radius: 7px; font-size: 14px; color: {{tabOv.fg}}; background: {{tabOv.bg}}">Overview</button>
+      <button type="button" role="tab" aria-selected="{{tabG.sel}}" onClick="{{tabG.pick}}" style="cursor: pointer; min-height: 36px; padding: 6px 14px; border: none; border-radius: 7px; font-size: 14px; color: {{tabG.fg}}; background: {{tabG.bg}}">Ground floor</button>
+      <button type="button" role="tab" aria-selected="{{tabF.sel}}" onClick="{{tabF.pick}}" style="cursor: pointer; min-height: 36px; padding: 6px 14px; border: none; border-radius: 7px; font-size: 14px; color: {{tabF.fg}}; background: {{tabF.bg}}">First floor</button>
+    </div>
+
+    <div style="margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+      <span style="font-size: 14px; color: #A9ADB5">{{checkedCount}} of {{roomTotal}} rooms checked</span>
+      <a href="HomeFabric.dc.html" style="min-height: 40px; box-sizing: border-box; padding: 8px 14px; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #F2F2F2; background: #2A2C31; border: 1px solid #4A4D55; border-radius: 8px; text-decoration: none">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2994A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"></path><path d="M5.5 9 V20.5 H18.5 V9"></path></svg>
+        Home fabric
+      </a>
+      <button type="button" style="cursor: pointer; min-height: 40px; padding: 8px 18px; font-size: 14px; color: #FFFFFF; background: #C8692A; border: none; border-radius: 8px">Save &amp; continue</button>
+    </div>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; min-height: 0">
+
+    <section aria-label="Floor plan canvas" style="position: relative; flex: 999 1 640px; min-width: 0; min-height: 600px; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 72px 88px; box-sizing: border-box; background-color: #17181C; background-image: linear-gradient(#202125 1px, transparent 1px), linear-gradient(90deg, #202125 1px, transparent 1px); background-size: 32px 32px">
+
+      <div role="toolbar" aria-label="Tools" aria-orientation="vertical" style="position: absolute; left: 16px; top: 16px; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: #202125; border: 1px solid #2C2E33; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.35)">
+        <button type="button" aria-label="Select" aria-pressed="true" style="cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 8px; background: #3A2614"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linejoin="round"><path d="M5 3 L19 12 L12 13.5 L9 20 Z"></path></svg></button>
+        <button type="button" aria-label="Add room" style="cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 8px; background: transparent"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" stroke-dasharray="3 3"></rect><path d="M12 9 V15 M9 12 H15"></path></svg></button>
+      </div>
+
+      <div style="position: absolute; right: 16px; top: 16px; max-width: 340px; padding: 10px 14px; font-size: 13px; line-height: 18px; color: #D4D6DB; background: #202125; border: 1px solid #2C2E33; border-radius: 10px">{{hint}}</div>
+
+      <sc-if value="{{isOverview}}" hint-placeholder-val="{{ true }}">
+        <div role="group" aria-label="Side view of all floors" style="display: flex; flex-direction: column; width: max-content; flex-shrink: 0">
+          <div aria-hidden="true" style="position: relative; height: 96px; background: #24364D; clip-path: polygon(50% 0, 100% 100%, 0 100%)">
+            <span style="position: absolute; left: 0; right: 0; bottom: 16px; text-align: center; font-size: 13px; font-weight: 600; color: #D4D6DB">Roof</span>
+          </div>
+          <sc-for list="{{overviewFloors}}" as="fl" hint-placeholder-count="2">
+            <div style="box-sizing: border-box; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; background: #1B2533; border-left: 6px solid #8FB0DD; border-right: 6px solid #8FB0DD; border-bottom: 6px solid #3A4A60">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 24px">
+                <span style="font-size: 14px; font-weight: 600; color: #F2F2F2">{{fl.label}}</span>
+                <span style="font-size: 13px; color: #A9ADB5">{{fl.totals}}</span>
+              </div>
+              <div style="display: flex; gap: 8px">
+                <sc-for list="{{fl.rooms}}" as="room" hint-placeholder-count="4">
+                  <div onMouseEnter="{{room.enter}}" onMouseLeave="{{room.leave}}" style="position: relative; min-width: 150px; height: 128px; box-sizing: border-box; border-radius: 4px; background: {{room.bg}}; box-shadow: {{room.ring}}">
+                    <button type="button" aria-label="{{room.aria}}" aria-pressed="{{room.selected}}" onClick="{{room.pick}}" onDoubleClick="{{room.edit}}" style="width: 100%; height: 100%; cursor: pointer; border: none; padding: 12px 52px 12px 14px; background: transparent; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 10px; color: {{room.fg}}; text-align: left">
+                      <span style="font-size: 15px; font-weight: 600; white-space: nowrap">{{room.name}}</span>
+                      <span style="display: flex; gap: 6px">
+                        <sc-for list="{{room.icons}}" as="ic" hint-placeholder-count="2">
+                          <span style="width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: #17181C">
+                            <sc-if value="{{ic.door}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="External door" fill="none" stroke="#E07B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 H20"></path><path d="M6 21 V4 H17 V21"></path><circle cx="14" cy="13" r="0.9" fill="#E07B35"></circle></svg></sc-if>
+                            <sc-if value="{{ic.window}}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Window" fill="none" stroke="#7CC4F2" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="M12 4 V20 M4 12 H20"></path></svg></sc-if>
+                            <sc-if value="{{ic.sky}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Skylight" fill="none" stroke="#F6B97E" stroke-width="2" stroke-linejoin="round"><path d="M3 19 L12 6 L21 19 Z"></path><rect x="9.5" y="12" width="5" height="4"></rect></svg></sc-if>
+                          </span>
+                        </sc-for>
+                      </span>
+                      <sc-if value="{{room.checked}}" hint-placeholder-val="{{ false }}">
+                        <span style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #7FD3A1"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="#7FD3A1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 L6.5 12 L13 4.5"></path></svg>Checked</span>
+                      </sc-if>
+                    </button>
+                    <button type="button" aria-label="{{room.editLabel}}" onClick="{{room.edit}}" style="position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #4A4D55; background: {{room.penBg}}">
+                      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L8.5 19 L19 8.5 L15.5 5 L5 15.5 Z"></path><path d="M13.5 7 L17 10.5"></path></svg>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <div aria-hidden="true" style="height: 28px; margin: 0 -24px; background: repeating-linear-gradient(135deg, #26282D 0 6px, #1C1D21 6px 12px)"></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isPlan}}" hint-placeholder-val="{{ false }}">
+      <div style="position: relative; width: 640px; height: 400px; flex-shrink: 0; background: #1B2533; box-shadow: 0 0 0 5px #8FB0DD">
+        <sc-for list="{{rooms}}" as="room" hint-placeholder-count="4">
+          <div onMouseEnter="{{room.enter}}" onMouseLeave="{{room.leave}}" style="position: absolute; left: {{room.x}}px; top: {{room.y}}px; width: {{room.w}}px; height: {{room.h}}px; box-sizing: border-box; background: {{room.bg}}; box-shadow: {{room.ring}}">
+            <button type="button" aria-label="{{room.aria}}" aria-pressed="{{room.selected}}" onClick="{{room.pick}}" onDoubleClick="{{room.edit}}" style="position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; border: none; padding: 12px; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: {{room.fg}}">
+              <span style="font-size: 15px; font-weight: 600">{{room.name}}</span>
+              <span style="display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 220px">
+                <sc-for list="{{room.icons}}" as="ic" hint-placeholder-count="2">
+                  <span style="width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: #17181C">
+                    <sc-if value="{{ic.door}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Door" fill="none" stroke="#E07B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 H20"></path><path d="M6 21 V4 H17 V21"></path><circle cx="14" cy="13" r="0.9" fill="#E07B35"></circle></svg></sc-if>
+                    <sc-if value="{{ic.window}}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Window" fill="none" stroke="#7CC4F2" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="M12 4 V20 M4 12 H20"></path></svg></sc-if>
+                    <sc-if value="{{ic.sky}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Skylight" fill="none" stroke="#F6B97E" stroke-width="2" stroke-linejoin="round"><path d="M3 19 L12 6 L21 19 Z"></path><rect x="9.5" y="12" width="5" height="4"></rect></svg></sc-if>
+                  </span>
+                </sc-for>
+              </span>
+              <sc-if value="{{room.checked}}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #7FD3A1"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="#7FD3A1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 L6.5 12 L13 4.5"></path></svg>Checked</span>
+              </sc-if>
+            </button>
+            <button type="button" aria-label="{{room.editLabel}}" onClick="{{room.edit}}" style="position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #4A4D55; background: {{room.penBg}}">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L8.5 19 L19 8.5 L15.5 5 L5 15.5 Z"></path><path d="M13.5 7 L17 10.5"></path></svg>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <div style="position: absolute; left: 16px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 14px; font-size: 13px; color: #D4D6DB; background: #202125; border: 1px solid #2C2E33; border-radius: 10px">
+        <span style="display: flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#7CC4F2" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="M12 4 V20 M4 12 H20"></path></svg>Window</span>
+        <span style="display: flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#E07B35" stroke-width="2" stroke-linecap="round"><path d="M4 21 H20"></path><path d="M6 21 V4 H17 V21"></path></svg>External door</span>
+        <span style="display: flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F6B97E" stroke-width="2" stroke-linejoin="round"><path d="M3 19 L12 6 L21 19 Z"></path></svg>Skylight</span>
+      </div>
+
+      <div style="position: absolute; right: 16px; bottom: 16px; display: flex; gap: 4px; padding: 4px; background: #202125; border: 1px solid #2C2E33; border-radius: 10px">
+        <button type="button" aria-label="Zoom out" style="cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 6px"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linecap="round"><path d="M5 12 H19"></path></svg></button>
+        <span style="display: flex; align-items: center; padding: 0 6px; font-size: 13px; color: #A9ADB5">100%</span>
+        <button type="button" aria-label="Zoom in" style="cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 6px"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linecap="round"><path d="M12 5 V19"></path><path d="M5 12 H19"></path></svg></button>
+        <button type="button" aria-label="Fit to screen" style="cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 6px"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 V4 H9"></path><path d="M15 4 H20 V9"></path><path d="M20 15 V20 H15"></path><path d="M9 20 H4 V15"></path></svg></button>
+      </div>
+    </section>
+
+    <aside aria-label="Inspector" style="flex: 1 1 340px; min-width: 0; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 20px; background: #1E1F23; border-left: 1px solid #2C2E33; overflow-y: auto">
+
+      <sc-if value="{{noSel}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700">Your home</h2>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #A9ADB5">Check each room’s doors, windows and skylights. Walls, roof and floor are set once for the whole home.</p>
+        </div>
+        <section aria-labelledby="fabric-h" style="padding: 16px; background: #202125; border: 1px solid #2C2E33; border-radius: 12px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+            <h3 id="fabric-h" style="margin: 0; font-size: 15px; font-weight: 600">Home fabric</h3>
+            <a href="HomeFabric.dc.html" style="font-size: 14px; padding: 8px 4px">Open</a>
+          </div>
+          <dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px">
+            <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 12px; color: #A9ADB5">Loft / roof</dt><dd style="margin: 0; font-size: 14px">[LOFT]</dd></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 12px; color: #A9ADB5">External walls</dt><dd style="margin: 0; font-size: 14px">[WALLS]</dd></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 12px; color: #A9ADB5">Glazing</dt><dd style="margin: 0; font-size: 14px">[GLAZING]</dd></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 12px; color: #A9ADB5">Ground floor</dt><dd style="margin: 0; font-size: 14px">[FLOOR]</dd></div>
+          </dl>
+        </section>
+        <section aria-labelledby="rooms-h" style="display: flex; flex-direction: column; gap: 8px">
+          <h3 id="rooms-h" style="margin: 0; font-size: 15px; font-weight: 600">{{floorName}} rooms</h3>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px">
+            <sc-for list="{{panelRooms}}" as="room" hint-placeholder-count="4">
+              <li onMouseEnter="{{room.enter}}" onMouseLeave="{{room.leave}}" style="display: flex; align-items: center; gap: 4px; padding-right: 4px; border-radius: 10px; border: 1px solid #2C2E33; background: {{room.listBg}}">
+                <button type="button" onClick="{{room.pick}}" style="flex: 1; min-width: 0; cursor: pointer; min-height: 48px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; color: #F2F2F2; text-align: left; background: transparent; border: none">
+                  <span style="display: flex; flex-direction: column; gap: 2px"><span>{{room.name}}</span><span style="font-size: 12px; color: #A9ADB5">{{room.floorTag}}</span></span>
+                  <span style="font-size: 13px; color: {{room.statusFg}}">{{room.status}}</span>
+                </button>
+                <button type="button" aria-label="{{room.editLabel}}" onClick="{{room.edit}}" style="cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: none; background: transparent">
+                  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#A9ADB5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L8.5 19 L19 8.5 L15.5 5 L5 15.5 Z"></path><path d="M13.5 7 L17 10.5"></path></svg>
+                </button>
+              </li>
+            </sc-for>
+          </ul>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{viewing}}" hint-placeholder-val="{{ false }}">
+        <button type="button" onClick="{{clearSel}}" style="align-self: flex-start; cursor: pointer; min-height: 36px; padding: 4px 0; display: flex; align-items: center; gap: 6px; font-size: 14px; color: #F2994A; background: transparent; border: none">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12 H5"></path><path d="M11 6 L5 12 L11 18"></path></svg>
+          All rooms
+        </button>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700">{{sel.name}}</h2>
+          <p style="margin: 0; font-size: 14px; color: #A9ADB5">[A] m² · ceiling [H] m · {{sel.status}}</p>
+        </div>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px">
+          <sc-for list="{{selSummary}}" as="row" hint-placeholder-count="2">
+            <li style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid #2C2E33; font-size: 15px"><span>{{row.label}}</span><span style="color: #A9ADB5">{{row.count}}</span></li>
+          </sc-for>
+        </ul>
+        <button type="button" onClick="{{editSel}}" style="cursor: pointer; min-height: 46px; padding: 10px 16px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; color: #FFFFFF; background: #C8692A; border: none; border-radius: 8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L8.5 19 L19 8.5 L15.5 5 L5 15.5 Z"></path><path d="M13.5 7 L17 10.5"></path></svg>
+          Edit room
+        </button>
+      </sc-if>
+
+      <sc-if value="{{editing}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+          <span style="font-size: 13px; font-weight: 600; color: #F6B97E">Editing room</span>
+          <button type="button" onClick="{{stopEdit}}" style="cursor: pointer; min-height: 36px; padding: 4px 8px; font-size: 14px; color: #F2994A; background: transparent; border: none">Done</button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px">
+            <label for="room-name" style="font-size: 12px; color: #A9ADB5">Room name</label>
+            <input id="room-name" type="text" value="{{sel.name}}" onChange="{{renameSel}}" style="height: 44px; box-sizing: border-box; padding: 0 12px; font-size: 17px; font-weight: 600; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="room-heated" style="font-size: 12px; color: #A9ADB5">Heated?</label>
+            <select id="room-heated" style="height: 44px; box-sizing: border-box; padding: 0 10px; font-size: 15px; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px"><option>Yes</option><option>No</option></select>
+          </div>
+        </div>
+
+        <section aria-labelledby="el-h" style="display: flex; flex-direction: column; gap: 10px">
+          <h3 id="el-h" style="margin: 0; font-size: 15px; font-weight: 600">External doors, windows &amp; skylights</h3>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px">
+            <sc-for list="{{selEls}}" as="el" hint-placeholder-count="2">
+              <li style="display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 12px; background: #202125; border: 1px solid #2C2E33; border-radius: 10px">
+                <span style="width: 30px; height: 30px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 7px; background: #17181C">
+                  <sc-if value="{{el.door}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#E07B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 H20"></path><path d="M6 21 V4 H17 V21"></path><circle cx="14" cy="13" r="0.9" fill="#E07B35"></circle></svg></sc-if>
+                  <sc-if value="{{el.window}}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#7CC4F2" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="M12 4 V20 M4 12 H20"></path></svg></sc-if>
+                  <sc-if value="{{el.sky}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F6B97E" stroke-width="2" stroke-linejoin="round"><path d="M3 19 L12 6 L21 19 Z"></path><rect x="9.5" y="12" width="5" height="4"></rect></svg></sc-if>
+                </span>
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px">{{el.name}}</span><span style="font-size: 12px; color: #A9ADB5">[W] × [H] m</span></span>
+                <button type="button" aria-label="{{el.removeLabel}}" onClick="{{el.remove}}" style="cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 8px"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#A9ADB5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7 H19"></path><path d="M9 7 V4.5 H15 V7"></path><path d="M7 7 L8 20 H16 L17 7"></path></svg></button>
+              </li>
+            </sc-for>
+          </ul>
+          <sc-if value="{{selEmpty}}" hint-placeholder-val="{{ false }}">
+            <p style="margin: 0; font-size: 14px; color: #A9ADB5">None yet.</p>
+          </sc-if>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+            <button type="button" onClick="{{addDoor}}" style="cursor: pointer; min-height: 44px; padding: 8px; font-size: 14px; color: #F2F2F2; background: #2A2C31; border: 1px solid #4A4D55; border-radius: 8px">+ Ext. door</button>
+            <button type="button" onClick="{{addWindow}}" style="cursor: pointer; min-height: 44px; padding: 8px; font-size: 14px; color: #F2F2F2; background: #2A2C31; border: 1px solid #4A4D55; border-radius: 8px">+ Window</button>
+            <button type="button" onClick="{{addSky}}" style="cursor: pointer; min-height: 44px; padding: 8px; font-size: 14px; color: #F2F2F2; background: #2A2C31; border: 1px solid #4A4D55; border-radius: 8px">+ Skylight</button>
+          </div>
+        </section>
+
+        <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid #2C2E33">
+          <button type="button" onClick="{{toggleChecked}}" style="cursor: pointer; min-height: 46px; padding: 10px 16px; font-size: 15px; color: {{checkFg}}; background: {{checkBg}}; border: {{checkBorder}}; border-radius: 8px">{{checkLabel}}</button>
+          <button type="button" onClick="{{deleteRoom}}" style="cursor: pointer; min-height: 40px; padding: 8px; font-size: 14px; color: #F08A7A; background: transparent; border: none">Remove this room</button>
+        </div>
+      </sc-if>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const R = (id, name, x, y, w, h, els) => ({ id, name, x, y, w, h, els });
+    const E = (id, kind, ext) => ({ id, kind, ext: !!ext });
+    this.state = {
+      floor: 'overview',
+      sel: null,
+      selFloor: null,
+      editing: false,
+      hover: null,
+      checked: {},
+      nextId: 100,
+      floors: {
+        ground: [
+          R('g1', 'Living room', 0, 0, 320, 240, [E(1, 'window'), E(2, 'window')]),
+          R('g2', 'Hall', 0, 240, 160, 160, [E(3, 'door', true)]),
+          R('g3', 'WC', 160, 240, 160, 160, [E(5, 'window')]),
+          R('g4', 'Kitchen / dining', 320, 0, 320, 400, [E(6, 'window'), E(7, 'door', true)])
+        ],
+        first: [
+          R('f1', 'Bedroom 1', 0, 0, 320, 240, [E(9, 'window')]),
+          R('f2', 'Bathroom', 0, 240, 160, 160, [E(11, 'window')]),
+          R('f3', 'Landing', 160, 240, 160, 160, [E(12, 'skylight')]),
+          R('f4', 'Bedroom 2', 320, 0, 320, 200, [E(13, 'window')]),
+          R('f5', 'Bedroom 3', 320, 200, 320, 200, [E(14, 'window'), E(15, 'window')])
+        ]
+      }
+    };
+  }
+
+  updateSel(fn) {
+    const f = this.state.selFloor;
+    if (!f) return;
+    const floors = Object.assign({}, this.state.floors);
+    floors[f] = floors[f].map((r) => (r.id === this.state.sel ? fn(r) : r));
+    this.setState({ floors });
+  }
+
+  addEl(kind) {
+    const id = this.state.nextId;
+    this.updateSel((r) => Object.assign({}, r, { els: r.els.concat([{ id, kind, ext: kind === 'door' }]) }));
+    this.setState({ nextId: id + 1 });
+  }
+
+  renderVals() {
+    const st = this.state;
+    const ov = st.floor === 'overview';
+    const floorLabels = { ground: 'Ground floor', first: 'First floor' };
+    const allRooms = st.floors.ground.concat(st.floors.first);
+    const checkedCount = allRooms.filter((r) => st.checked[r.id]).length;
+    const selRoom = st.selFloor ? (st.floors[st.selFloor].find((r) => r.id === st.sel) || null) : null;
+    const order = { door: 0, window: 1, skylight: 2 };
+
+    const item = (r, fk) => {
+      const on = r.id === st.sel;
+      const hov = r.id === st.hover;
+      const chk = !!st.checked[r.id];
+      const icons = r.els.slice().sort((a, b) => order[a.kind] - order[b.kind])
+        .map((e) => ({ door: e.kind === 'door', window: e.kind === 'window', sky: e.kind === 'skylight' }));
+      return {
+        name: r.name, x: r.x, y: r.y, w: r.w, h: r.h, icons,
+        aria: r.name + (chk ? ', checked' : ''),
+        editLabel: 'Edit ' + r.name,
+        selected: on ? 'true' : 'false',
+        checked: chk,
+        bg: on ? 'rgba(224,123,53,0.18)' : (hov ? 'rgba(143,176,221,0.18)' : 'transparent'),
+        ring: on ? 'inset 0 0 0 3px #E07B35' : (hov ? 'inset 0 0 0 3px #B7CDEB' : 'inset 0 0 0 2px #8FB0DD'),
+        fg: on || hov ? '#FFFFFF' : '#D4D6DB',
+        penBg: on || hov ? '#3A3C42' : '#202125',
+        listBg: hov ? '#262A31' : '#202125',
+        status: chk ? 'Checked' : 'To check',
+        statusFg: chk ? '#7FD3A1' : '#A9ADB5',
+        floorTag: ov ? floorLabels[fk] : '',
+        enter: () => this.setState({ hover: r.id }),
+        leave: () => this.setState({ hover: null }),
+        pick: () => this.setState({ sel: r.id, selFloor: fk, editing: false }),
+        edit: () => this.setState({ sel: r.id, selFloor: fk, editing: true })
+      };
+    };
+
+    const rooms = ov ? [] : st.floors[st.floor].map((r) => item(r, st.floor));
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const totals = (list) => {
+      const c = (k) => list.reduce((s, r) => s + r.els.filter((e) => e.kind === k).length, 0);
+      const parts = [plural(c('window'), 'window', 'windows')];
+      if (c('door')) parts.push(plural(c('door'), 'external door', 'external doors'));
+      if (c('skylight')) parts.push(plural(c('skylight'), 'skylight', 'skylights'));
+      return parts.join(' · ');
+    };
+    const overviewFloors = ['first', 'ground'].map((fk) => ({
+      label: floorLabels[fk],
+      totals: totals(st.floors[fk]),
+      rooms: st.floors[fk].map((r) => item(r, fk))
+    }));
+    const panelRooms = ov
+      ? ['ground', 'first'].reduce((acc, fk) => acc.concat(st.floors[fk].map((r) => item(r, fk))), [])
+      : rooms;
+
+    const kindName = { door: 'Door', window: 'Window', skylight: 'Skylight' };
+    const counts = {};
+    const selEls = selRoom ? selRoom.els.map((e) => {
+      counts[e.kind] = (counts[e.kind] || 0) + 1;
+      const name = (e.ext ? 'External door' : kindName[e.kind]) + ' ' + counts[e.kind];
+      return {
+        name, door: e.kind === 'door', window: e.kind === 'window', sky: e.kind === 'skylight',
+        removeLabel: 'Remove ' + name,
+        remove: () => this.updateSel((r) => Object.assign({}, r, { els: r.els.filter((x) => x.id !== e.id) }))
+      };
+    }) : [];
+    const tally = (k) => (selRoom ? selRoom.els.filter((e) => e.kind === k).length : 0);
+    const selSummary = [
+      { label: 'External doors', count: String(tally('door')) },
+      { label: 'Windows', count: String(tally('window')) },
+      { label: 'Skylights', count: String(tally('skylight')) }
+    ];
+
+    const selChecked = selRoom ? !!st.checked[selRoom.id] : false;
+    const tab = (id) => {
+      const on = st.floor === id;
+      return {
+        sel: on ? 'true' : 'false', fg: on ? '#FFFFFF' : '#A9ADB5', bg: on ? '#C8692A' : 'transparent',
+        pick: () => this.setState({ floor: id, sel: null, selFloor: null, editing: false })
+      };
+    };
+
+    return {
+      tabOv: tab('overview'), tabG: tab('ground'), tabF: tab('first'),
+      isOverview: ov, isPlan: !ov,
+      hint: ov
+        ? 'Side view of every floor. Hover to highlight a room, click to select, double-click or pencil to edit.'
+        : 'Hover to highlight a room. Click to select it, double-click or use the pencil to edit.',
+      floorName: ov ? 'All' : floorLabels[st.floor],
+      checkedCount, roomTotal: allRooms.length,
+      rooms, overviewFloors, panelRooms,
+
+      noSel: !selRoom,
+      viewing: !!selRoom && !st.editing,
+      editing: !!selRoom && st.editing,
+      sel: selRoom ? { name: selRoom.name, status: selChecked ? 'checked' : 'not checked yet' } : { name: '', status: '' },
+      selSummary,
+      editSel: () => this.setState({ editing: true }),
+      stopEdit: () => this.setState({ editing: false }),
+      clearSel: () => this.setState({ sel: null, selFloor: null, editing: false }),
+      renameSel: (e) => { const v = e.target.value; this.updateSel((r) => Object.assign({}, r, { name: v })); },
+      selEls, selEmpty: selEls.length === 0,
+      addDoor: () => this.addEl('door'),
+      addWindow: () => this.addEl('window'),
+      addSky: () => this.addEl('skylight'),
+      toggleChecked: () => { if (!selRoom) return; const c = Object.assign({}, st.checked); c[selRoom.id] = !c[selRoom.id]; this.setState({ checked: c }); },
+      checkLabel: selChecked ? 'Checked · undo' : 'Mark room as checked',
+      checkFg: selChecked ? '#7FD3A1' : '#FFFFFF',
+      checkBg: selChecked ? 'transparent' : '#C8692A',
+      checkBorder: selChecked ? '1px solid #7FD3A1' : 'none',
+      deleteRoom: () => {
+        const f = st.selFloor;
+        if (!f) return;
+        const floors = Object.assign({}, st.floors);
+        floors[f] = floors[f].filter((r) => r.id !== st.sel);
+        this.setState({ floors, sel: null, selFloor: null, editing: false });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

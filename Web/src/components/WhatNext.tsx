@@ -61,7 +61,8 @@ const OPTIONS: Option[] = [
         <path d="M9.25 13 L12 10.25 L14.75 13" />
       </>,
     ),
-    badge: { label: 'Free account required', kind: 'account' },
+    //badge: { label: 'Free account required', kind: 'account' },
+    comingSoon: true,
   },
   {
     id: 'explore',
@@ -98,7 +99,7 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 export function WhatNext({ profile, onView }: { profile: ShapeProfile | null; onView: () => void }) {
   const scan = useFabric((s) => s.scan)
   const scanName = useFabric((s) => s.scanName)
-  const [picked, setPicked] = useState<Choice>('share')
+  const [picked, setPicked] = useState<Choice>('view')
   if (!scan) return null
 
   const facts = [

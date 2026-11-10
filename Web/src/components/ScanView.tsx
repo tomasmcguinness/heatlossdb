@@ -106,6 +106,21 @@ export function ScanView({ stored, onBack }: { stored: boolean; onBack: () => vo
               )
             }
           />
+          <p className="plan-note">
+            {icon(
+              <>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11 V16.5" />
+                <path d="M12 7.5 V7.6" />
+              </>,
+              16,
+            )}
+            <span>
+              Parts of your scan may look incomplete. The phone’s LiDAR scanner can miss walls it can’t see clearly,
+              such as behind furniture, inside cupboards, or around glass and mirrors, so some walls may be short,
+              missing or slightly out of line.
+            </span>
+          </p>
         </section>
 
         <aside className="scan-view-side">

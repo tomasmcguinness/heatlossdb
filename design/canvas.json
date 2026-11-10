@@ -40,6 +40,26 @@
       "expand": "fill",
       "is_interactive": true
     },
+    "PlanEditor.dc.html": {
+      "h": 900,
+      "page": "page-x1j87x",
+      "title": "Screen · View my scan v2 (full-screen editor)",
+      "w": 1440,
+      "x": 1560,
+      "y": 2244,
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "HomeFabric.dc.html": {
+      "h": 1100,
+      "page": "page-x1j87x",
+      "title": "Screen · Home fabric (full-screen modal)",
+      "w": 1440,
+      "x": 3120,
+      "y": 2244,
+      "expand": "fill",
+      "is_interactive": true
+    },
     "FindSimilar.dc.html": {
       "h": 1100,
       "page": "page-x1j87x",
@@ -106,7 +126,9 @@
     "WhatNext.dc.html",
     "ViewScan.dc.html",
     "ShareHome.dc.html",
-    "FindSimilar.dc.html"
+    "FindSimilar.dc.html",
+    "PlanEditor.dc.html",
+    "HomeFabric.dc.html"
   ],
   "pages": [
     {
