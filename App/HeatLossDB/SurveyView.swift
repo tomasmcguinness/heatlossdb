@@ -18,6 +18,11 @@ import _SpriteKit_SwiftUI
 final class SurveySectionState {
     var isShowingResetConfirmation = false
     var isScanning = false
+    /// Tips shown before the first room is scanned.
+    var isShowingScanTips = false
+    /// Set when the tips are dismissed with "Start Scanning", so scanning starts once the sheet
+    /// has gone (pushing the scanner while the sheet is still dismissing can be dropped).
+    var startScanningAfterTips = false
     /// The room being renamed, and the name being typed for it.
     var renamingRoom: Room?
     var newRoomName = ""
@@ -40,13 +45,9 @@ struct SurveySection : View {
     var state: SurveySectionState
     
     private var rooms: [Room] {
-        property.rooms.sorted { ($0.floor, $0.scannedAt) < ($1.floor, $1.scannedAt) }
+        property.rooms.sorted { $0.scannedAt < $1.scannedAt }
     }
     
-    /// Floors are only worth labelling once there's more than one.
-    private var hasSeveralFloors: Bool {
-        Set(property.rooms.map(\.floor)).count > 1
-    }
 
     private var isSurveying: Bool {
         scanRoomModel.isSurveying(survey.surveyId)
@@ -130,23 +131,16 @@ struct SurveySection : View {
     }
     
     private func roomLabel(_ room: Room) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(room.name)
-                .foregroundStyle(.primary)
-            if hasSeveralFloors {
-                Text("Floor \(room.floor + 1)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        Text(room.name)
+            .foregroundStyle(.primary)
     }
     
     private func startScanning() {
-        // The first room sets up the capture session that every room in the survey shares.
-        if !scanRoomModel.isSurveying(survey.surveyId) {
-            scanRoomModel.startSurvey(surveyId: survey.surveyId)
+        if rooms.isEmpty {
+            state.isShowingScanTips = true
+        } else {
+            beginScanning(scanRoomModel: scanRoomModel, survey: survey, state: state)
         }
-        state.isScanning = true
     }
     
     /// Before the first room is scanned there is nothing to complete or reset, so the
@@ -265,6 +259,17 @@ struct SurveyPresentations: ViewModifier {
             } message: {
                 Text("All survey data will be lost, including every scanned room and the merged floorplan. This can't be undone.")
             }
+            .sheet(isPresented: $state.isShowingScanTips, onDismiss: {
+                if state.startScanningAfterTips {
+                    state.startScanningAfterTips = false
+                    beginScanning(scanRoomModel: scanRoomModel, survey: survey, state: state)
+                }
+            }) {
+                ScanTipsView {
+                    state.startScanningAfterTips = true
+                    state.isShowingScanTips = false
+                }
+            }
             .navigationDestination(isPresented: $state.isScanning) {
                 ScanRoomView(property: property, survey: survey)
             }
@@ -324,5 +329,68 @@ struct SurveyPresentations: ViewModifier {
         } catch {
             print("Failed to reset survey \(error)")
         }
+    }
+}
+
+/// Opens the scanner. The first room sets up the capture session that every room in the survey
+/// shares.
+@MainActor
+private func beginScanning(scanRoomModel: ScanRoomModel, survey: Survey, state: SurveySectionState) {
+    if !scanRoomModel.isSurveying(survey.surveyId) {
+        scanRoomModel.startSurvey(surveyId: survey.surveyId)
+    }
+    state.isScanning = true
+}
+
+/// Tips shown before the first room is scanned.
+struct ScanTipsView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var onStart: () -> Void
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                tip("Make it bright", "Turn the lights on and open the curtains and blinds, so the camera can see the walls and windows clearly.", systemImage: "sun.max")
+                tip("Open the doors", "Open the internal doors before you start, so you can walk from room to room without stopping.", systemImage: "door.left.hand.open")
+                tip("Go slowly", "Keep the camera up and move slowly round the edge of each room, taking in every wall, window and door.", systemImage: "figure.walk")
+                tip("Tap at each doorway", "Tap Next Room as you go through a doorway, and at the top or bottom of the stairs. Keep the camera up the whole time.", systemImage: "arrow.right.circle")
+                tip("Don't worry about names", "Rooms are numbered as you go. You can rename them later, here or online.", systemImage: "pencil")
+            }
+            .navigationTitle("Before you scan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: onStart) {
+                    Text("Start Scanning")
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                }
+                .padding()
+                .background(Color("AccentColor"))
+                .foregroundColor(.white)
+                .clipShape(Capsule())
+                .padding()
+            }
+        }
+    }
+    
+    private func tip(_ title: String, _ detail: String, systemImage: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).fontWeight(.semibold)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.tint)
+        }
+        .padding(.vertical, 4)
     }
 }

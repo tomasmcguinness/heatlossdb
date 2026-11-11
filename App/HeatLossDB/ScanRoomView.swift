@@ -11,14 +11,10 @@ import SwiftData
 import RoomPlan
 
 /// The camera view for the whole survey: one walk round the home, with a tap at each doorway.
-/// "Next room" ends the room being captured and starts the next straight away; "Finish floor"
-/// pauses for the stairs; "Finish home" completes the survey.
+/// "Next room" ends the room being captured and starts the next straight away (including at the
+/// top or bottom of the stairs); "Finish home" completes the survey. Rooms are named "Room 1", "Room 2"…
+/// and can be renamed from the survey; StructureBuilder works out which storey each is on.
 struct ScanRoomView : View {
-    
-    /// Names offered as chips while scanning. Picking one is optional.
-    private static let suggestedNames = [
-        "Kitchen", "Lounge", "Dining room", "Bedroom", "Bathroom", "Hall", "Landing", "WC", "Study", "Utility",
-    ]
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -27,10 +23,6 @@ struct ScanRoomView : View {
     var property: Property
     var survey: Survey
     
-    /// The name picked for the room being captured, if any.
-    @State private var pickedName: String?
-    /// After "Finish floor": tracking keeps running while the user takes the stairs.
-    @State private var isBetweenFloors = false
     @State private var isConfirmingFinish = false
     
     private var capturingRoom: WalkRoom? {
@@ -45,7 +37,10 @@ struct ScanRoomView : View {
     var body: some View {
         ZStack {
             if let roomCaptureView = scanRoomModel.roomCaptureView {
-                ScanRoomRepresentable(roomCaptureView: roomCaptureView).ignoresSafeArea()
+                ScanRoomRepresentable(roomCaptureView: roomCaptureView)
+                    // Each room gets a new capture view; this makes SwiftUI swap it in.
+                    .id(ObjectIdentifier(roomCaptureView))
+                    .ignoresSafeArea()
             } else {
                 Text("The scanning session isn't running")
             }
@@ -56,12 +51,7 @@ struct ScanRoomView : View {
                 if let failed = failedRoom {
                     failureBanner(failed)
                 }
-                if isBetweenFloors {
-                    betweenFloors
-                } else {
-                    namePicker
-                    controls
-                }
+                controls
             }
             .padding()
         }
@@ -90,7 +80,7 @@ struct ScanRoomView : View {
             Spacer()
             
             VStack(spacing: 2) {
-                Text(floorName(scanRoomModel.currentFloor))
+                Text(capturingRoom == nil ? "Paused" : "Room \(roomCount)")
                     .fontWeight(.bold)
                 Text(progressText)
                     .font(.footnote)
@@ -103,7 +93,7 @@ struct ScanRoomView : View {
             
             Spacer()
             
-            WalkSketch(rooms: scanRoomModel.walk, floor: scanRoomModel.currentFloor)
+            WalkSketch(rooms: scanRoomModel.walk)
         }
     }
     
@@ -114,42 +104,12 @@ struct ScanRoomView : View {
         return saving > 0 ? "\(rooms) · saving \(saving)" : rooms
     }
     
-    private var namePicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(pickedName ?? "Name this room (optional)")
-                .font(.footnote)
-                .fontWeight(pickedName == nil ? .regular : .semibold)
-                .padding(.horizontal, 4)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Self.suggestedNames, id: \.self) { name in
-                        let isPicked = pickedName == name
-                        Button(name) {
-                            pickedName = isPicked ? nil : name
-                        }
-                        .font(.subheadline)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(isPicked ? AnyShapeStyle(Color("AccentColor")) : AnyShapeStyle(.thinMaterial))
-                        .foregroundStyle(isPicked ? .white : .primary)
-                        .clipShape(Capsule())
-                        .accessibilityAddTraits(isPicked ? .isSelected : [])
-                    }
-                }
-            }
-        }
-        .disabled(capturingRoom == nil)
-    }
-    
     private var controls: some View {
         VStack(spacing: 10) {
             if scanRoomModel.lastFinishedRoom != nil {
                 redoButton
             }
             HStack(spacing: 10) {
-                secondaryButton("Finish floor", action: finishFloor)
-                    .disabled(capturingRoom == nil || scanRoomModel.isEndingRoom)
-                
                 Button(action: nextRoom) {
                     Label("Next room", systemImage: "arrow.right")
                         .fontWeight(.bold)
@@ -161,35 +121,6 @@ struct ScanRoomView : View {
                 .clipShape(Capsule())
                 .disabled(capturingRoom == nil || scanRoomModel.isEndingRoom)
                 .accessibilityHint("Saves this room and starts the next. Walk through the doorway with the camera up.")
-                
-                secondaryButton("Finish home") { isConfirmingFinish = true }
-                    .disabled(roomCount < 2 || scanRoomModel.isEndingRoom)
-            }
-        }
-    }
-    
-    private var betweenFloors: some View {
-        VStack(spacing: 12) {
-            Text("\(floorName(scanRoomModel.currentFloor)) done. Keep the camera up as you take the stairs, then start the next floor.")
-                .multilineTextAlignment(.center)
-                .padding()
-                .background(.thinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-            
-            if scanRoomModel.lastFinishedRoom != nil {
-                redoButton
-            }
-            HStack(spacing: 10) {
-                Button(action: startNextFloor) {
-                    Label("Start \(floorName(scanRoomModel.currentFloor + 1).lowercased())", systemImage: "stairs")
-                        .fontWeight(.bold)
-                        .frame(maxWidth: .infinity)
-                }
-                .padding()
-                .background(Color("AccentColor"))
-                .foregroundColor(.white)
-                .clipShape(Capsule())
-                .disabled(scanRoomModel.isEndingRoom)
                 
                 secondaryButton("Finish home") { isConfirmingFinish = true }
                     .disabled(roomCount < 2 || scanRoomModel.isEndingRoom)
@@ -249,41 +180,27 @@ struct ScanRoomView : View {
     
     private func start() {
         UIApplication.shared.isIdleTimerDisabled = true
-        guard capturingRoom == nil, !isBetweenFloors else { return }
-        // Carry on from the floor the last room was scanned on.
-        let floor = scanRoomModel.walk.isEmpty ? property.rooms.map(\.floor).max() : nil
-        scanRoomModel.startRoom(floor: floor)
+        guard capturingRoom == nil else { return }
+        scanRoomModel.startRoom()
     }
     
     /// Ends the room being captured and records it. Returns false if there wasn't one to end.
     @discardableResult
     private func finishRoom(startNext: Bool) -> Bool {
-        let name = uniqueName(pickedName ?? "Room \(property.rooms.count + 1)")
+        let name = uniqueName("Room \(property.rooms.count + 1)")
         guard let room = scanRoomModel.endRoom(name: name, startNext: startNext) else { return false }
         
-        modelContext.insert(Room(roomId: room.id, name: room.name, property: property, floor: room.floor))
+        modelContext.insert(Room(roomId: room.id, name: room.name, property: property))
         do {
             try modelContext.save()
         } catch {
             print("Failed to save room \(error)")
         }
-        pickedName = nil
         return true
     }
     
     private func nextRoom() {
         finishRoom(startNext: true)
-    }
-    
-    private func finishFloor() {
-        if finishRoom(startNext: false) {
-            isBetweenFloors = true
-        }
-    }
-    
-    private func startNextFloor() {
-        isBetweenFloors = false
-        scanRoomModel.startNextFloor()
     }
     
     private func finishHome() {
@@ -304,9 +221,6 @@ struct ScanRoomView : View {
             modelContext.delete(room)
             try? modelContext.save()
         }
-        // Scan it again under the same name.
-        pickedName = Self.suggestedNames.contains(removed.name) ? removed.name : nil
-        isBetweenFloors = false
     }
     
     private func close() {
@@ -327,18 +241,12 @@ struct ScanRoomView : View {
         }
         return "\(name) \(number)"
     }
-    
-    /// Floors are numbered from the one the survey started on, which may not be the ground floor.
-    private func floorName(_ floor: Int) -> String {
-        "Floor \(floor + 1)"
-    }
 }
 
-/// The rooms captured so far, seen from above, with the current floor drawn brighter. Every room
+/// The rooms captured so far, seen from above. Every room
 /// shares the session's coordinates, so they appear where they are relative to each other.
 private struct WalkSketch: View {
     var rooms: [WalkRoom]
-    var floor: Int
     
     var body: some View {
         let points = rooms.flatMap { room in room.walls.flatMap { [$0.a, $0.b] } }
@@ -360,8 +268,7 @@ private struct WalkSketch: View {
                         path.move(to: place(wall.a))
                         path.addLine(to: place(wall.b))
                     }
-                    let colour: Color = room.floor == floor ? .white : .white.opacity(0.3)
-                    context.stroke(path, with: .color(colour), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 }
             }
             .frame(width: 96, height: 96)
