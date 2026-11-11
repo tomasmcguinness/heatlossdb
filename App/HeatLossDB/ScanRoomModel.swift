@@ -5,9 +5,33 @@
 //  Created by Tomas McGuinness on 09/03/2024.
 //
 
+import CoreGraphics
 import Foundation
 import Observation
 import RoomPlan
+
+/// A room captured on the current walk round the home.
+struct WalkRoom: Identifiable {
+    enum Status: Equatable {
+        case capturing
+        case processing
+        case saved
+        case failed(String)
+    }
+    
+    let id: UUID
+    var name: String
+    /// 0 for the floor the walk started on, then 1, 2… after each "Finish floor".
+    let floor: Int
+    var status: Status
+    /// The room's walls seen from above (x, z in metres), once it's processed.
+    var walls: [WallLine] = []
+}
+
+struct WallLine {
+    let a: CGPoint
+    let b: CGPoint
+}
 
 /// Owns the single RoomCaptureSession shared by every room in a survey, along with the
 /// survey-in-progress and merge state, so that state outlives any one view.
@@ -49,13 +73,36 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     @ObservationIgnored
     private var roomCaptureSession: RoomCaptureSession?
     
-    // The room (and its survey) being captured, so the result is saved to the right place
-    // even if the survey is completed before RoomPlan finishes processing.
     @ObservationIgnored
-    private var roomId: UUID?
-    @ObservationIgnored
-    private var roomSurveyId: UUID?
+    private let roomBuilder = RoomBuilder(options: [.beautifyObjects])
     
+    /// Every room captured since the survey's session started, in order. The camera view shows
+    /// them as progress and a sketch.
+    private(set) var walk: [WalkRoom] = []
+    
+    /// The room being captured, if any.
+    private(set) var capturingRoomId: UUID?
+    
+    /// The floor the walk is on: 0 where it started, then one more after each "Finish floor".
+    private(set) var currentFloor = 0
+    
+    /// True from asking a room to end until RoomPlan hands over its data.
+    private(set) var isEndingRoom = false
+    
+    // The room that is ending, and what to do once it has.
+    @ObservationIgnored
+    private var endingRoom: (id: UUID, surveyId: UUID, discard: Bool)?
+    @ObservationIgnored
+    private var startAfterEnding: UUID?
+    
+    /// Rooms being processed in the background, so a merge can wait for them.
+    @ObservationIgnored
+    private var processing: [UUID: Task<Void, Never>] = [:]
+    
+    /// Rooms deleted while still being processed; their results are thrown away.
+    @ObservationIgnored
+    private var discardedRoomIds: Set<UUID> = []
+
     func encode(with coder: NSCoder) {
         fatalError("Error when initializing ScanRoomModel")
     }
@@ -106,82 +153,232 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         self.roomCaptureSession = roomCaptureSession
         self.roomCaptureView = roomCaptureView
         self.activeSurveyId = surveyId
-    }
-    
-    func startCapture(roomId: UUID) {
-        guard let activeSurveyId, let roomCaptureView else {
-            print("No survey in progress")
-            return
-        }
-        
-        print("Starting capture session for room \(roomId) - \(activeSurveyId)")
-        
-        self.roomId = roomId
-        self.roomSurveyId = activeSurveyId
-        self.scanError = nil
-        
-        roomCaptureView.captureSession.run(configuration: captureSessionConfig)
-    }
-    
-    func pauseCapture() {
-        print("Pausing capture session")
-        roomCaptureView?.captureSession.stop(pauseARSession: false)
+        self.walk = []
+        self.currentFloor = 0
     }
     
     func stopSurvey() {
         self.activeSurveyId = nil
+        capturingRoomId = nil
         roomCaptureView?.captureSession.stop()
         roomCaptureView = nil
         roomCaptureSession = nil
     }
     
+    // MARK: - Walking round the home
+    //
+    // The camera stays up for the whole walk. Each room ends with stop(pauseARSession: false), so
+    // tracking carries on into the next room while the ended one is processed in the background.
+    
+    /// The room being captured, if any.
+    var capturingRoom: WalkRoom? {
+        walk.first { $0.id == capturingRoomId }
+    }
+    
+    /// The most recent room that has finished capturing.
+    var lastFinishedRoom: WalkRoom? {
+        walk.last { $0.id != capturingRoomId }
+    }
+    
+    /// Starts capturing a new room on the given floor (the current one if nil).
+    @MainActor
+    func startRoom(floor: Int? = nil) {
+        guard activeSurveyId != nil, capturingRoomId == nil, !isEndingRoom else { return }
+        if let floor { currentFloor = floor }
+        let id = UUID()
+        walk.append(WalkRoom(id: id, name: "", floor: currentFloor, status: .capturing))
+        capturingRoomId = id
+        roomCaptureView?.captureSession.run(configuration: captureSessionConfig)
+    }
+    
+    /// Ends the room being captured with the name it's been given, and returns it so the caller
+    /// can record it. The room is processed in the background. With `startNext`, the next room's
+    /// capture starts straight away; otherwise tracking keeps running (e.g. while the user takes
+    /// the stairs) until `startRoom` or `startNextFloor`.
+    @MainActor
+    func endRoom(name: String, startNext: Bool) -> WalkRoom? {
+        // Only one room can be ending at a time; the next one starts once it has.
+        guard !isEndingRoom, let id = capturingRoomId, let surveyId = activeSurveyId,
+              let index = walk.firstIndex(where: { $0.id == id }) else { return nil }
+        
+        walk[index].name = name
+        walk[index].status = .processing
+        endingRoom = (id, surveyId, false)
+        capturingRoomId = nil
+        isEndingRoom = true
+        
+        if startNext {
+            // Shown as capturing straight away; RoomPlan starts it once the ended room is handed over.
+            let nextId = UUID()
+            walk.append(WalkRoom(id: nextId, name: "", floor: currentFloor, status: .capturing))
+            capturingRoomId = nextId
+            startAfterEnding = nextId
+        }
+        
+        roomCaptureView?.captureSession.stop(pauseARSession: false)
+        return walk[index]
+    }
+    
+    /// Moves on to the next floor after "Finish floor", once the user has taken the stairs.
+    @MainActor
+    func startNextFloor() {
+        startRoom(floor: currentFloor + 1)
+    }
+    
+    /// Throws away the room being captured, keeping tracking running.
+    @MainActor
+    func cancelRoom() {
+        guard let id = capturingRoomId else { return }
+        walk.removeAll { $0.id == id }
+        capturingRoomId = nil
+        startAfterEnding = nil
+        if let surveyId = activeSurveyId, !isEndingRoom {
+            endingRoom = (id, surveyId, true)
+            isEndingRoom = true
+            roomCaptureView?.captureSession.stop(pauseARSession: false)
+        }
+    }
+    
+    /// Throws away the last finished room (and anything captured since) and captures it again,
+    /// on the same floor. Returns the room that was thrown away, so the caller can remove its
+    /// record and reuse its name.
+    @MainActor
+    func redoLastRoom() -> WalkRoom? {
+        guard let last = lastFinishedRoom, let surveyId = activeSurveyId else { return nil }
+        
+        deleteRoomFiles(surveyId: surveyId, roomId: last.id)
+        walk.removeAll { $0.id == last.id }
+        currentFloor = last.floor
+        
+        let redoId = UUID()
+        if let current = capturingRoomId {
+            // Replace the room in progress with the redo. If RoomPlan is still handing over the
+            // last room, the redo starts once it has; otherwise end the one in progress first.
+            walk.removeAll { $0.id == current }
+            if !isEndingRoom {
+                endingRoom = (current, surveyId, true)
+                isEndingRoom = true
+                roomCaptureView?.captureSession.stop(pauseARSession: false)
+            }
+            walk.append(WalkRoom(id: redoId, name: "", floor: currentFloor, status: .capturing))
+            capturingRoomId = redoId
+            startAfterEnding = redoId
+        } else {
+            capturingRoomId = nil
+            startRoom()
+        }
+        return last
+    }
+    
     func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: (any Error)?) {
-        if let error {
-            print("Error ending capture session; \(error)")
-        }
-    }
-    
-    func captureView(shouldPresent roomDataForProcessing: CapturedRoomData, error: Error?) async -> Bool {
-        print("captureView finished")
-        return true
-    }
-    
-    func captureView(didPresent processedResult: CapturedRoom, error: Error?) {
-        guard let roomId, let roomSurveyId else {
-            print("captureView presented a room with no room or survey to save it to")
-            return
-        }
-        
-        if let error {
-            print("captureView presented captured room - \(error)")
-            Task { @MainActor in
-                self.scanError = (roomId, error.localizedDescription)
-            }
-            return
-        }
-        
         Task { @MainActor in
+            self.roomEnded(data: data, error: error)
+        }
+    }
+    
+    @MainActor
+    private func roomEnded(data: CapturedRoomData, error: (any Error)?) {
+        let ended = endingRoom
+        endingRoom = nil
+        isEndingRoom = false
+        
+        if let ended, !ended.discard, !discardedRoomIds.contains(ended.id) {
+            if let error {
+                print("Error ending capture session; \(error)")
+                setStatus(.failed(error.localizedDescription), for: ended.id)
+                scanError = (ended.id, error.localizedDescription)
+            } else {
+                process(data, roomId: ended.id, surveyId: ended.surveyId)
+            }
+        }
+        
+        if let next = startAfterEnding, next == capturingRoomId {
+            startAfterEnding = nil
+            roomCaptureView?.captureSession.run(configuration: captureSessionConfig)
+        }
+    }
+    
+    /// Turns a room's raw capture into a CapturedRoom and saves it, in the background.
+    @MainActor
+    private func process(_ data: CapturedRoomData, roomId: UUID, surveyId: UUID) {
+        processing[roomId] = Task { @MainActor in
+            defer { self.processing[roomId] = nil }
             do {
-                let destinationFolderURL = scanFolderURL(surveyId: roomSurveyId)
-                let destinationURL = destinationFolderURL.appending(path: "\(roomId).usdz")
-                let capturedRoomURL = destinationFolderURL.appending(path: "\(roomId).json")
-                
-                try FileManager.default.createDirectory(at: destinationFolderURL, withIntermediateDirectories: true)
-                
-                let jsonEncoder = JSONEncoder()
-                let jsonData = try jsonEncoder.encode(processedResult)
-                try jsonData.write(to: capturedRoomURL)
-                
-                try processedResult.export(to: destinationURL)
-                
+                let room = try await self.roomBuilder.capturedRoom(from: data)
+                // Deleted (or redone) while it was being processed.
+                guard !self.discardedRoomIds.contains(roomId) else { return }
+                try self.save(room, roomId: roomId, surveyId: surveyId)
                 self.savedRoomIds.insert(roomId)
+                if let index = self.walk.firstIndex(where: { $0.id == roomId }) {
+                    self.walk[index].status = .saved
+                    self.walk[index].walls = room.walls.map(Self.wallLine)
+                }
             } catch {
-                print("Failed to save scan \(error)")
+                print("Failed to process or save room \(error)")
+                self.setStatus(.failed(error.localizedDescription), for: roomId)
                 self.scanError = (roomId, error.localizedDescription)
             }
         }
     }
     
+    private func save(_ room: CapturedRoom, roomId: UUID, surveyId: UUID) throws {
+        let destinationFolderURL = scanFolderURL(surveyId: surveyId)
+        try FileManager.default.createDirectory(at: destinationFolderURL, withIntermediateDirectories: true)
+        try JSONEncoder().encode(room).write(to: destinationFolderURL.appending(path: "\(roomId).json"))
+        try room.export(to: destinationFolderURL.appending(path: "\(roomId).usdz"))
+    }
+    
+    /// A wall's centre line seen from above.
+    private static func wallLine(_ wall: CapturedRoom.Surface) -> WallLine {
+        let t = wall.transform
+        let half = wall.dimensions.x / 2
+        let (cx, cz) = (t.columns.3.x, t.columns.3.z)
+        let (dx, dz) = (t.columns.0.x * half, t.columns.0.z * half)
+        return WallLine(a: CGPoint(x: CGFloat(cx - dx), y: CGFloat(cz - dz)),
+                        b: CGPoint(x: CGFloat(cx + dx), y: CGFloat(cz + dz)))
+    }
+    
+    @MainActor
+    private func setStatus(_ status: WalkRoom.Status, for roomId: UUID) {
+        if let index = walk.firstIndex(where: { $0.id == roomId }) {
+            walk[index].status = status
+        }
+    }
+    
+    /// Waits for every room still being handed over or processed, e.g. before merging.
+    @MainActor
+    func waitForProcessing() async {
+        // RoomPlan normally hands a room over within a second; don't wait forever if it doesn't.
+        var handOverWait = 0
+        while isEndingRoom || !processing.isEmpty {
+            if let task = processing.values.first {
+                await task.value
+            } else if handOverWait < 100 {
+                handOverWait += 1
+                try? await Task.sleep(for: .milliseconds(100))
+            } else {
+                print("Gave up waiting for RoomPlan to hand over the last room")
+                return
+            }
+        }
+    }
+    
+    /// Ends the survey's scanning session and merges its rooms, once every room is processed.
+    @MainActor
+    func completeSurvey(surveyId: UUID) async {
+        await waitForProcessing()
+        if isSurveying(surveyId) {
+            stopSurvey()
+        }
+        await mergeRooms(surveyId: surveyId)
+    }
+    
+    /// Rooms are processed by the model as they end, so RoomCaptureView doesn't show its own
+    /// results screen between rooms.
+    func captureView(shouldPresent roomDataForProcessing: CapturedRoomData, error: Error?) async -> Bool {
+        return false
+    }
+
     func scanError(for roomId: UUID) -> String? {
         return scanError?.roomId == roomId ? scanError?.message : nil
     }
@@ -196,11 +393,10 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
             }
         }
         savedRoomIds.remove(roomId)
-        // If this room is still being processed, drop the result rather than saving it later.
-        if self.roomId == roomId {
-            self.roomId = nil
-            self.roomSurveyId = nil
-        }
+        // If this room is still being handed over or processed, drop the result rather than
+        // saving it later.
+        discardedRoomIds.insert(roomId)
+        walk.removeAll { $0.id == roomId }
     }
     
     /// Removes every scan file for a survey, e.g. when restarting it.
