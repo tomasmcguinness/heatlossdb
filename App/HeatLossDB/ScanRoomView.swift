@@ -48,7 +48,9 @@ struct ScanRoomView : View {
             VStack(spacing: 12) {
                 topBar
                 Spacer()
-                if let failed = failedRoom {
+                if let reason = scanRoomModel.stoppedReason {
+                    stoppedBanner(reason)
+                } else if let failed = failedRoom {
                     failureBanner(failed)
                 }
                 controls
@@ -176,6 +178,25 @@ struct ScanRoomView : View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
+    /// RoomPlan stopped capturing this room by itself; Next room saves what it got and carries on.
+    private func stoppedBanner(_ reason: String) -> some View {
+        HStack(alignment: .top) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Scanning stopped: \(reason)")
+                    .font(.subheadline)
+                Text("Tap Next room to save what was captured and carry on.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding()
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
     // MARK: - Actions
     
     private func start() {

@@ -101,6 +101,19 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     @ObservationIgnored
     private var startAfterEnding: UUID?
     
+    /// A room RoomPlan ended on its own (lost tracking, too hot, too big…) before it was asked
+    /// to. It's kept so ending the room uses it, rather than stopping a session that has already
+    /// stopped and waiting for a hand-over that never comes.
+    @ObservationIgnored
+    private var endedEarly: (data: CapturedRoomData, error: (any Error)?)?
+
+    /// Why RoomPlan stopped capturing the current room on its own, if it has.
+    private(set) var stoppedReason: String?
+
+    /// How long to wait for RoomPlan to hand over a room before giving up on it.
+    @ObservationIgnored
+    private let handOverTimeout: Duration = .seconds(10)
+
     /// Rooms being processed in the background, so a merge can wait for them.
     @ObservationIgnored
     private var processing: [UUID: Task<Void, Never>] = [:]
@@ -163,6 +176,8 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     func stopSurvey() {
         self.activeSurveyId = nil
         capturingRoomId = nil
+        endedEarly = nil
+        stoppedReason = nil
         roomCaptureView?.captureSession.stop()
         roomCaptureView = nil
         retiredCaptureViews = []
@@ -186,7 +201,34 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
             roomCaptureView = makeCaptureView(arSession: roomCaptureSession.arSession)
         }
         captureViewUsed = true
+        endedEarly = nil
+        stoppedReason = nil
         roomCaptureView?.captureSession.run(configuration: captureSessionConfig)
+    }
+
+    /// Asks RoomPlan to end the current room, which it hands over in didEndWith. If it already
+    /// ended the room on its own, that room is handed over straight away instead. Either way
+    /// `endingRoom` must be set first.
+    @MainActor
+    private func stopCapture() {
+        if let early = endedEarly {
+            endedEarly = nil
+            // Even when RoomPlan stopped with an error, what it captured up to then may still
+            // build into a room; if it doesn't, processing marks the room failed.
+            print("[scan] using the room RoomPlan ended on its own (error: \(String(describing: early.error)))")
+            roomEnded(data: early.data, error: nil)
+            return
+        }
+        roomCaptureView?.captureSession.stop(pauseARSession: false)
+
+        // If RoomPlan never hands the room over, give up on it rather than leaving the walk stuck.
+        let roomId = endingRoom?.id
+        Task { @MainActor in
+            try? await Task.sleep(for: self.handOverTimeout)
+            guard self.isEndingRoom, self.endingRoom?.id == roomId else { return }
+            print("[scan] RoomPlan didn't hand over room \(String(describing: roomId)); giving up on it")
+            self.roomEnded(data: nil, error: nil)
+        }
     }
     
     // MARK: - Walking round the home
@@ -240,8 +282,9 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         }
         
         print("[scan] ending room \(id), startNext: \(startNext)")
-        roomCaptureView?.captureSession.stop(pauseARSession: false)
-        return walk[index]
+        let ended = walk[index]
+        stopCapture()
+        return ended
     }
     
     /// Throws away the room being captured, keeping tracking running.
@@ -254,7 +297,7 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         if let surveyId = activeSurveyId, !isEndingRoom {
             endingRoom = (id, surveyId, true)
             isEndingRoom = true
-            roomCaptureView?.captureSession.stop(pauseARSession: false)
+            stopCapture()
         }
     }
     
@@ -273,14 +316,15 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
             // Replace the room in progress with the redo. If RoomPlan is still handing over the
             // last room, the redo starts once it has; otherwise end the one in progress first.
             walk.removeAll { $0.id == current }
-            if !isEndingRoom {
-                endingRoom = (current, surveyId, true)
-                isEndingRoom = true
-                roomCaptureView?.captureSession.stop(pauseARSession: false)
-            }
+            // Set up the redo first: if RoomPlan already ended the room, it's handed over at once.
             walk.append(WalkRoom(id: redoId, name: "", status: .capturing))
             capturingRoomId = redoId
             startAfterEnding = redoId
+            if !isEndingRoom {
+                endingRoom = (current, surveyId, true)
+                isEndingRoom = true
+                stopCapture()
+            }
         } else {
             capturingRoomId = nil
             startRoom()
@@ -288,27 +332,49 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         return last
     }
     
-    /// RoomPlan always calls this when a room ends, so it's where the room is handed over.
+    /// RoomPlan calls this when a room ends, whether it was asked to or stopped on its own, so
+    /// it's where the room is handed over.
     func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: (any Error)?) {
         print("[scan] didEndWith (error: \(String(describing: error)))")
+        let sessionId = ObjectIdentifier(session)
         Task { @MainActor in
-            self.roomEnded(data: data, error: error)
+            // Earlier rooms' views are kept alive and share this delegate; only the current one counts.
+            guard let current = self.roomCaptureView, ObjectIdentifier(current.captureSession) == sessionId else {
+                print("[scan] ignoring didEndWith from an earlier room's session")
+                return
+            }
+            if self.isEndingRoom {
+                self.roomEnded(data: data, error: error)
+            } else if self.capturingRoomId != nil {
+                // RoomPlan stopped by itself. Keep what it captured for when the room is ended.
+                print("[scan] RoomPlan ended room \(String(describing: self.capturingRoomId)) on its own")
+                self.endedEarly = (data, error)
+                self.stoppedReason = error?.localizedDescription ?? "Scanning stopped unexpectedly."
+            } else {
+                print("[scan] ignoring didEndWith with no room capturing or ending")
+            }
         }
     }
-    
+
+    /// Hands over the room that was ending: `data` is what RoomPlan captured, or nil if it never
+    /// handed the room over. Then starts the next room, if one is waiting.
     @MainActor
-    private func roomEnded(data: CapturedRoomData, error: (any Error)?) {
+    private func roomEnded(data: CapturedRoomData?, error: (any Error)?) {
         let ended = endingRoom
         endingRoom = nil
         isEndingRoom = false
-        
+
         if let ended, !ended.discard, !discardedRoomIds.contains(ended.id) {
             if let error {
                 print("Error ending capture session; \(error)")
                 setStatus(.failed(error.localizedDescription), for: ended.id)
                 scanError = (ended.id, error.localizedDescription)
-            } else {
+            } else if let data {
                 process(data, roomId: ended.id, surveyId: ended.surveyId)
+            } else {
+                let message = "RoomPlan didn't finish this room."
+                setStatus(.failed(message), for: ended.id)
+                scanError = (ended.id, message)
             }
         }
         
