@@ -1,10 +1,15 @@
 import { useState } from 'react'
+import { isHomeFabricSet } from '../../fabric/home'
 import { effectiveRole, useFabric } from '../../fabric/store'
+import { resendConfirmation, useShare } from '../../share/share'
+import { HomeFabricDialog } from '../fabric/HomeFabricDialog'
+import { ShareDialog } from '../share/ShareDialog'
 import { FloorCanvas, type Bounds } from './FloorCanvas'
 import { BackIcon, DoorIcon, HomeIcon, SkylightIcon, WindowIcon } from './icons'
 import { useEditorFloors, type RoomActions } from './model'
 import { OverviewCanvas } from './OverviewCanvas'
 import { RoomPanel } from './RoomPanel'
+import { ScanActions } from './ScanActions'
 
 type View = 'overview' | number
 
@@ -19,6 +24,10 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const home = useFabric((s) => s.home)
+  const [fabricOpen, setFabricOpen] = useState(false)
+  const shared = useShare()
 
   const floor = view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
   const rooms = floors.flatMap((f) => f.rooms)
@@ -96,12 +105,18 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
           <span className="muted">
             {counted.filter((r) => r.checked).length} of {counted.length} rooms checked
           </span>
-          <button className="button subtle fabric-button" disabled title="Coming soon">
+          <button
+            className={isHomeFabricSet(home) ? 'button subtle fabric-button' : 'button subtle fabric-button to-do'}
+            onClick={() => setFabricOpen(true)}
+          >
             <HomeIcon />
             Home fabric
           </button>
+          <ScanActions onShare={() => setSharing(true)} />
         </div>
       </header>
+
+      {shared && <PendingBanner email={shared.email} name={shared.name} />}
 
       <div className="editor-body">
         <section className="editor-canvas" aria-label={floor ? `${floor.name} plan` : 'Side view'}>
@@ -147,8 +162,45 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
           actions={actions}
           onRenaming={setRenaming}
           onClear={clear}
+          onFabric={() => setFabricOpen(true)}
         />
       </div>
+
+      {fabricOpen && <HomeFabricDialog onClose={() => setFabricOpen(false)} />}
+
+      {sharing && (
+        <ShareDialog
+          rooms={counted}
+          onClose={() => setSharing(false)}
+          onFabric={() => {
+            setSharing(false)
+            setFabricOpen(true)
+          }}
+          onCheckRooms={() => {
+            setSharing(false)
+            const next = counted.find((r) => !r.checked)
+            if (!next) return
+            setView(next.story)
+            setSelectedId(next.id)
+            setRenaming(false)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+/** Shown while a shared home waits for its owner to confirm their email address. */
+function PendingBanner({ email, name }: { email: string; name: string }) {
+  const [resent, setResent] = useState(false)
+  return (
+    <p className="pending-banner" role="status">
+      <span>
+        <strong>Pending.</strong> Confirm your email ({email}) and your home will appear in search as “{name}”.
+      </span>
+      <button className="link" disabled={resent} onClick={() => void resendConfirmation(email).then(() => setResent(true))}>
+        {resent ? 'Email sent' : 'Resend email'}
+      </button>
+    </p>
   )
 }

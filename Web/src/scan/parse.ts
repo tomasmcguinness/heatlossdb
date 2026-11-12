@@ -5,6 +5,9 @@ import type { ElementKind, RawObject, RawStructure, RawSurface, Scan, ScanElemen
 
 export class ScanParseError extends Error {}
 
+/** The newest HeatLossDB file format this website reads. */
+export const HEATLOSSDB_VERSION = 1
+
 const SURFACE_KINDS: Record<string, ElementKind> = {
   wall: 'wall',
   door: 'door',
@@ -198,6 +201,9 @@ export function parseScan(json: unknown): Scan {
   if (typeof raw !== 'object' || raw === null || !Array.isArray(raw.walls)) {
     throw new ScanParseError("This doesn't look like a RoomPlan merged.json file: it has no walls.")
   }
+  if (typeof raw.heatlossdbVersion === 'number' && raw.heatlossdbVersion > HEATLOSSDB_VERSION) {
+    throw new ScanParseError('This file was made by a newer version of HeatLossDB. Reload the page and try again.')
+  }
 
   const surfaces = [
     ...raw.walls,
@@ -235,6 +241,7 @@ export function parseScan(json: unknown): Scan {
     stories,
     outlines,
     sections: raw.sections ?? [],
+    raw: { ...raw, edits: undefined },
   }
 }
 

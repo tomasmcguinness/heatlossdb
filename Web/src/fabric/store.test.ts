@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { openFile } from '../components/files'
 import { parseScan } from '../scan/parse'
 import type { RawSurface } from '../scan/types'
 import { editedRoom, effectiveField, effectiveRole, effectiveUValue, isFabricDocument, useFabric } from './store'
@@ -148,10 +149,54 @@ describe('rooms', () => {
     expect(state().rooms[room.id]).toEqual({ checked: true })
   })
 
+  it('keeps the home fabric', () => {
+    state().applyHome({ propertyType: 'detached', ageBand: '1945-1964' })
+    const doc = state().exportFabric()!
+    state().loadScan(scan)
+    state().importFabric(doc)
+    expect(state().home).toEqual({ propertyType: 'detached', ageBand: '1945-1964', applied: true })
+    const { home: _, ...older } = doc
+    expect(isFabricDocument(older)).toBe(true)
+    state().importFabric(older)
+    expect(state().home).toEqual({})
+  })
+
+  it('replaces elements’ own fabric when applied, but keeps their roles', () => {
+    state().setRole('outer', 'party')
+    state().setUValue('outer', 0.3)
+    state().setField('middle', 'construction', 'brick')
+    state().applyHome({ walls: 'solid' })
+    expect(state().elements).toEqual({ outer: { role: 'party' } })
+  })
+
   it('still accepts documents saved before rooms were added', () => {
     const { rooms: _, ...older } = state().exportFabric()!
     expect(isFabricDocument(older)).toBe(true)
     state().importFabric(older)
     expect(state().rooms).toEqual({})
+  })
+})
+
+describe('saved files', () => {
+  // What Save writes: the scan as opened, its format version and the edits.
+  const saved = () => ({ ...state().scan!.raw, heatlossdbVersion: 1, edits: state().exportFabric() })
+
+  it('keep the scan without any edits', () => {
+    state().setRole('outer', 'party')
+    const reopened = parseScan(saved())
+    expect(reopened.hash).toBe(scan.hash)
+    expect(reopened.raw?.edits).toBeUndefined()
+  })
+
+  it('open with their edits', async () => {
+    state().setRole('outer', 'party')
+    const file = new File([JSON.stringify(saved())], 'home.json')
+    state().setRole('outer', undefined)
+    await openFile(file)
+    expect(effectiveRole(state(), 'outer')).toBe('party')
+  })
+
+  it('are refused when made by a newer version', () => {
+    expect(() => parseScan({ ...saved(), heatlossdbVersion: 2 })).toThrow(/newer version/)
   })
 })

@@ -30,6 +30,23 @@ export interface RoomSettings {
   added?: AddedElement[]
 }
 
+/** How the whole home is built, as answered in Home fabric. Values come from fabric/home.ts;
+ *  anything unanswered uses typical values for the home's age. */
+export interface HomeFabric {
+  propertyType?: string
+  ageBand?: string
+  walls?: string
+  loft?: string
+  /** Only when the loft is insulated: whether it comes up above the joists. */
+  loftDepth?: string
+  windows?: string
+  doors?: string
+  floorType?: string
+  floorInsulation?: string
+  /** Set once the user has applied their answers to the whole home. */
+  applied?: boolean
+}
+
 export interface KindDefaults {
   fields: Record<string, string>
   uValue?: number
@@ -46,6 +63,7 @@ export interface FabricDocument {
   alignment?: Record<string, StoreyAlignment>
   /** The user's checks and corrections, keyed by room id. */
   rooms?: Record<string, RoomSettings>
+  home?: HomeFabric
 }
 
 export type CameraPreset = 'perspective' | 'plan'
@@ -72,6 +90,7 @@ interface FabricState {
   elements: Record<string, ElementSettings>
   alignment: Record<number, StoreyAlignment>
   rooms: Record<string, RoomSettings>
+  home: HomeFabric
   /** The automatic alignment, so the user can return to it after nudging. */
   autoAlignment: Record<number, StoreyAlignment>
   selectedId: string | null
@@ -98,6 +117,9 @@ interface FabricState {
   setDefaultUValue: (kind: ElementKind, value: number | undefined) => void
   setAlignment: (story: number, alignment: StoreyAlignment) => void
   setRoom: (id: string, update: (current: RoomSettings) => RoomSettings) => void
+  /** Applies Home fabric to the whole home, replacing any element's own fabric details and
+   *  U-value (but not its role). */
+  applyHome: (home: HomeFabric) => void
 
   exportFabric: () => FabricDocument | null
   importFabric: (doc: FabricDocument) => void
@@ -182,6 +204,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
   elements: {},
   alignment: {},
   rooms: {},
+  home: {},
   autoAlignment: {},
   selectedId: null,
   hoveredId: null,
@@ -203,6 +226,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
       elements: valid?.elements ?? {},
       alignment: { ...automatic, ...valid?.alignment },
       rooms: valid?.rooms ?? {},
+      home: valid?.home ?? {},
       autoAlignment: automatic,
       selectedId: null,
       hoveredId: null,
@@ -244,11 +268,17 @@ export const useFabric = create<FabricState>()((set, get) => ({
 
   setAlignment: (story, alignment) => set({ alignment: { ...get().alignment, [story]: alignment } }),
   setRoom: (id, update) => set({ rooms: { ...get().rooms, [id]: update(get().rooms[id] ?? {}) } }),
+  applyHome: (home) => {
+    const elements = Object.fromEntries(
+      Object.entries(get().elements).flatMap(([id, settings]) => (settings.role ? [[id, { role: settings.role }]] : [])),
+    )
+    set({ home: { ...home, applied: true }, elements })
+  },
 
   exportFabric: () => {
-    const { scan, defaults, elements, alignment, rooms } = get()
+    const { scan, defaults, elements, alignment, rooms, home } = get()
     if (!scan) return null
-    return { format: 'heatlossdb.fabric', version: 1, scanHash: scan.hash, defaults, elements, alignment, rooms }
+    return { format: 'heatlossdb.fabric', version: 1, scanHash: scan.hash, defaults, elements, alignment, rooms, home }
   },
 
   importFabric: (doc) => {
@@ -260,6 +290,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
       elements,
       alignment: { ...get().autoAlignment, ...doc.alignment },
       rooms: doc.rooms ?? {},
+      home: doc.home ?? {},
     })
   },
 }))
@@ -271,7 +302,8 @@ useFabric.subscribe((state, previous) => {
     state.defaults === previous.defaults &&
     state.elements === previous.elements &&
     state.alignment === previous.alignment &&
-    state.rooms === previous.rooms
+    state.rooms === previous.rooms &&
+    state.home === previous.home
   ) {
     return
   }

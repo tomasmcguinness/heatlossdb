@@ -81,6 +81,35 @@ export const HomeIcon = (props: IconProps) => (
   </Icon>
 )
 
+export const SearchIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <path d="M15.5 15.5 L21 21" />
+  </Icon>
+)
+
+export const ShareIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M12 15 V3.5" />
+    <path d="M8 7.5 L12 3.5 L16 7.5" />
+    <path d="M5 12 V20.5 H19 V12" />
+  </Icon>
+)
+
+export const SaveIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M12 3.5 V15" />
+    <path d="M8 11 L12 15 L16 11" />
+    <path d="M4.5 20.5 H19.5" />
+  </Icon>
+)
+
+export const ChevronIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M6 9 L12 15 L18 9" />
+  </Icon>
+)
+
 export const InfoIcon = (props: IconProps) => (
   <Icon size={16} {...props}>
     <circle cx="12" cy="12" r="9" />

@@ -44,7 +44,12 @@ export interface RawStructure {
   floors?: RawSurface[]
   objects?: RawObject[]
   sections?: RawSection[]
+  /** RoomPlan's own format version. */
   version?: number
+  /** HeatLossDB's file format version, added by the app and by the website's Save. */
+  heatlossdbVersion?: number
+  /** In a file saved by the website: the user's edits. */
+  edits?: unknown
 }
 
 export type ElementKind = 'wall' | 'window' | 'door' | 'opening' | 'floor' | 'ceiling' | 'storage'
@@ -90,4 +95,7 @@ export interface Scan {
   stories: number[]
   outlines: StoreyOutline[]
   sections: RawSection[]
+  /** The scan as opened, without any edits, so Save can write it back out. Missing for scans
+   *  restored from browsers that saved them before Save existed. */
+  raw?: RawStructure
 }

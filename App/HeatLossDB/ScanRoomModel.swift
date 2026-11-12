@@ -569,6 +569,10 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         return documentsDirectory
     }
     
+    /// HeatLossDB's version of merged.json, saved as "heatlossdbVersion" beside RoomPlan's own
+    /// "version" so the website knows what it's reading. Increase it when the file changes shape.
+    @ObservationIgnored
+    private let heatlossdbVersion = 1
     @ObservationIgnored
     private let mergedStructureFileName = "merged.json"
     @ObservationIgnored
@@ -590,7 +594,9 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         guard let inputsData = try? Data(contentsOf: inputsURL),
               let inputs = try? JSONDecoder().decode([String: Date].self, from: inputsData),
               inputs == expectedInputs,
-              let data = try? Data(contentsOf: url) else { return nil }
+              let data = try? Data(contentsOf: url),
+              // A merge saved before the current file format is merged again, so it's saved in it.
+              (try? JSONDecoder().decode(FileVersion.self, from: data))?.heatlossdbVersion == heatlossdbVersion else { return nil }
         
         return try? JSONDecoder().decode(CapturedStructure.self, from: data)
     }
@@ -617,7 +623,7 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     func exportJson(from capturedStructure: CapturedStructure, to url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(capturedStructure)
+        let data = try encoder.encode(VersionedStructure(structure: capturedStructure, heatlossdbVersion: heatlossdbVersion))
         try data.write(to: url)
     }
     
@@ -629,6 +635,27 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         let metadataURL = url.deletingPathExtension().appendingPathExtension("plist")
         try structure.export(to: url, metadataURL: metadataURL, exportOptions: [.mesh])
     }
+}
+
+/// A captured structure with HeatLossDB's file version alongside RoomPlan's own keys.
+private struct VersionedStructure: Encodable {
+    let structure: CapturedStructure
+    let heatlossdbVersion: Int
+    
+    private enum CodingKeys: String, CodingKey {
+        case heatlossdbVersion
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        try structure.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(heatlossdbVersion, forKey: .heatlossdbVersion)
+    }
+}
+
+/// Reads just the file version from merged.json.
+private struct FileVersion: Decodable {
+    let heatlossdbVersion: Int?
 }
 
 /// A survey uploaded to heatlossdb: its id and its private link on the website.

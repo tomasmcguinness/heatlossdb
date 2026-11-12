@@ -1,5 +1,5 @@
 import { isFabricDocument, useFabric } from '../fabric/store'
-import { parseScan, ScanParseError } from '../scan/parse'
+import { HEATLOSSDB_VERSION, parseScan, ScanParseError } from '../scan/parse'
 
 async function readJson(file: File): Promise<unknown> {
   try {
@@ -9,7 +9,8 @@ async function readJson(file: File): Promise<unknown> {
   }
 }
 
-/** Loads a dropped or chosen file: a scan (merged.json) or exported fabric settings. */
+/** Loads a dropped or chosen file: a scan (merged.json), a scan saved with its edits, or exported
+ *  fabric settings. */
 export async function openFile(file: File): Promise<void> {
   const json = await readJson(file)
   const store = useFabric.getState()
@@ -27,6 +28,9 @@ export async function openFile(file: File): Promise<void> {
   }
 
   store.loadScan(parseScan(json), file.name)
+  // A file from Save carries its edits, which replace any kept in this browser.
+  const edits = (json as { edits?: unknown }).edits
+  if (isFabricDocument(edits)) store.importFabric(edits)
 }
 
 /** Closes the open scan. Leaves a survey link too, so a reload doesn't reopen it. */
@@ -42,6 +46,20 @@ export function downloadFabric() {
   const link = document.createElement('a')
   link.href = url
   link.download = `fabric-${doc.scanHash}.json`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+/** Downloads the scan with the user's edits, as one file that opens on its own. */
+export function saveHome() {
+  const { scan, exportFabric } = useFabric.getState()
+  const edits = exportFabric()
+  if (!scan?.raw || !edits) return
+  const file = { ...scan.raw, heatlossdbVersion: HEATLOSSDB_VERSION, edits }
+  const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `home-${scan.hash}.json`
   link.click()
   URL.revokeObjectURL(url)
 }

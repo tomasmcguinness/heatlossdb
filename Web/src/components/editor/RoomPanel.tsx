@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { useFabric, type EditedRoom, type RoomElement } from '../../fabric/store'
+import { FLOOR_TYPES, isHomeFabricSet, labelIn, LOFTS, WALLS, WINDOWS } from '../../fabric/home'
+import { useFabric, type EditedRoom, type HomeFabric, type RoomElement } from '../../fabric/store'
 import { BackIcon, BinIcon, InfoIcon, KindIcon, PencilIcon } from './icons'
 import { kindName, type ItemKind } from './kinds'
 import { squareMetres, type EditorFloor, type RoomActions } from './model'
@@ -14,6 +15,8 @@ interface RoomPanelProps {
   actions: RoomActions
   onRenaming: (renaming: boolean) => void
   onClear: () => void
+  /** Opens Home fabric. */
+  onFabric: () => void
 }
 
 /** The side panel: every room to check, or the selected room ready to correct. */
@@ -26,8 +29,26 @@ export function RoomPanel(props: RoomPanelProps) {
   )
 }
 
-function AllRooms({ floors, floor, actions }: RoomPanelProps) {
+/** How the loft reads on the Home fabric card, such as "Insulated, well above the joists". */
+function loftFact(home: HomeFabric): string | undefined {
+  if (home.loft === 'none') return 'No loft'
+  if (home.loft === 'no') return 'Not insulated'
+  if (home.loft !== 'yes') return labelIn(LOFTS, home.loft)
+  const depth = home.loftDepth === 'below' ? 'up to the joists' : home.loftDepth === 'above' ? 'well above the joists' : null
+  return depth ? `Insulated, ${depth}` : 'Insulated'
+}
+
+/** The Home fabric card's four facts. */
+const fabricFacts = (home: HomeFabric): [string, string | undefined][] => [
+  ['Loft', loftFact(home)],
+  ['Outside walls', labelIn(WALLS, home.walls)],
+  ['Windows', labelIn(WINDOWS, home.windows)],
+  ['Ground floor', labelIn(FLOOR_TYPES, home.floorType)],
+]
+
+function AllRooms({ floors, floor, actions, onFabric }: RoomPanelProps) {
   const setRoom = useFabric((s) => s.setRoom)
+  const home = useFabric((s) => s.home)
   const shown = floor ? [floor] : floors
   const rooms = shown.flatMap((f) => f.rooms.map((room) => ({ room, floorName: f.name })))
   const active = rooms.filter(({ room }) => !room.removed)
@@ -52,13 +73,18 @@ function AllRooms({ floors, floor, actions }: RoomPanelProps) {
       <section className="panel-card" aria-labelledby="fabric-title">
         <div className="panel-card-head">
           <h3 id="fabric-title">Home fabric</h3>
-          <span className="badge badge-soon">Coming soon</span>
+          <button className="button subtle" onClick={onFabric}>
+            {isHomeFabricSet(home) ? 'Edit' : 'Set up'}
+          </button>
         </div>
+        {!isHomeFabricSet(home) && (
+          <p className="small muted">Start here: tell us how your home is built. It applies to every room.</p>
+        )}
         <dl className="fabric-facts">
-          {['Loft / roof', 'External walls', 'Glazing', 'Ground floor'].map((label) => (
+          {fabricFacts(home).map(([label, value]) => (
             <div key={label}>
               <dt>{label}</dt>
-              <dd className="muted">Not set</dd>
+              <dd className={value ? '' : 'muted'}>{value ?? 'Not set'}</dd>
             </div>
           ))}
         </dl>
