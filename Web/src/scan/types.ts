@@ -36,6 +36,13 @@ export interface RawSection {
   story?: number
 }
 
+/** One room as the app scanned it (a CapturedRoom inside the merged CapturedStructure). Its
+ *  surfaces are in the same coordinates as the structure's. */
+export interface RawRoom {
+  floors?: RawSurface[]
+  story?: number
+}
+
 export interface RawStructure {
   walls: RawSurface[]
   doors: RawSurface[]
@@ -43,7 +50,10 @@ export interface RawStructure {
   openings: RawSurface[]
   floors?: RawSurface[]
   objects?: RawObject[]
+  /** RoomPlan's guesses at what each area is for. Not used: rooms come from `rooms`. */
   sections?: RawSection[]
+  /** The rooms the user scanned, one per "Room done" in the app. */
+  rooms?: RawRoom[]
   /** RoomPlan's own format version. */
   version?: number
   /** HeatLossDB's file format version, added by the app and by the website's Save. */
@@ -78,7 +88,9 @@ export interface ScanElement {
   elevation?: number
 }
 
-/** A storey's floor outlines in world x/z, as scanned and with narrow notches closed. */
+/** A storey's floor outlines in world x/z, as scanned and with narrow notches closed. When the
+ *  scan has rooms, this is their floors joined up, not RoomPlan's merged floor, which can
+ *  take in space no room covers. */
 export interface StoreyOutline {
   story: number
   raw: [number, number][][]
@@ -88,13 +100,22 @@ export interface StoreyOutline {
   wallHeight: number
 }
 
+/** A room the user scanned: its floor in world x/z. */
+export interface ScanRoom {
+  /** Its position in the file's `rooms`, which is stable for a given scan. */
+  index: number
+  story: number
+  floor: [number, number][]
+}
+
 export interface Scan {
   /** A fingerprint of the scan's element ids, used to key saved fabric settings. */
   hash: string
   elements: ScanElement[]
   stories: number[]
   outlines: StoreyOutline[]
-  sections: RawSection[]
+  /** The rooms the user scanned, in the file's order. */
+  rooms: ScanRoom[]
   /** The scan as opened, without any edits, so Save can write it back out. Missing for scans
    *  restored from browsers that saved them before Save existed. */
   raw?: RawStructure

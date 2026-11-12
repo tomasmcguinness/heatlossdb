@@ -27,7 +27,7 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         {
             base.Dispose(disposing);
             var account = new StorageAccount(Storage);
-            account.Blobs.DeleteBlobContainer(name);
+            account.Blobs.GetBlobContainerClient(name).DeleteIfExists();
             account.Tables.DeleteTable(name + "surveys");
             account.Tables.DeleteTable(name + "codes");
         }
@@ -139,7 +139,7 @@ public class MatchingCandidateTests : IClassFixture<SurveyUploadTests.Api>
     private const string Scan = """{"walls":[{"identifier":"A"}],"doors":[],"windows":[],"openings":[]}""";
 
     private record Upload(string Id, string Url);
-    private record CandidateDto(string Id, string CreatedAt, System.Text.Json.JsonElement Profile);
+    private record CandidateDto(string Id, string CreatedAt, System.Text.Json.JsonElement Profile, System.Text.Json.JsonElement? Share);
 
     private async Task<string> UploadAsync(string appSurveyId)
     {
@@ -196,9 +196,52 @@ public class MatchingCandidateTests : IClassFixture<SurveyUploadTests.Api>
         Assert.Equal(HttpStatusCode.BadRequest, (await PutProfileAsync(id, profile)).StatusCode);
     }
 
+    private Task<HttpResponseMessage> PutShareAsync(string id, string share) =>
+        client.PutAsync($"/api/surveys/{id}/share", new StringContent(share, Encoding.UTF8, "application/json"));
+
+    private const string Share = """{"name":"Semi-detached, 1945–64 home","postcodeDistrict":"SW1A","shareRoomNames":false,"home":{"propertyType":"semi-detached"}}""";
+
+    [Fact]
+    public async Task EveryHomeWithAProfileIsACandidateForAScanThatIsntUploaded()
+    {
+        var theirs = await UploadAsync("survey-for-local");
+        await PutProfileAsync(theirs, """{"version":1,"floorArea":70}""");
+
+        var candidates = await client.GetFromJsonAsync<List<CandidateDto>>("/api/candidates");
+        Assert.Equal(70, candidates!.Single(c => c.Id == theirs).Profile.GetProperty("floorArea").GetInt32());
+    }
+
+    [Fact]
+    public async Task CandidatesCarryTheirShareDetails()
+    {
+        var mine = await UploadAsync("survey-share-mine");
+        var theirs = await UploadAsync("survey-share-theirs");
+        await PutProfileAsync(theirs, """{"version":1,"floorArea":95}""");
+        Assert.Equal(HttpStatusCode.NoContent, (await PutShareAsync(theirs, Share)).StatusCode);
+
+        var candidates = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{mine}/candidates");
+        var share = candidates!.Single(c => c.Id == theirs).Share!.Value;
+        Assert.Equal("SW1A", share.GetProperty("postcodeDistrict").GetString());
+        Assert.False(share.GetProperty("shareRoomNames").GetBoolean());
+        Assert.Equal("semi-detached", share.GetProperty("home").GetProperty("propertyType").GetString());
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("""{"postcodeDistrict":"SW1A","shareRoomNames":false}""")]
+    [InlineData("""{"name":"Home","postcodeDistrict":"SW1A 1AA","shareRoomNames":false}""")]
+    [InlineData("""{"name":"Home","postcodeDistrict":"SW1A"}""")]
+    [InlineData("""{"name":"Home","postcodeDistrict":"SW1A","shareRoomNames":false,"home":"detached"}""")]
+    public async Task RejectsInvalidShareDetails(string share)
+    {
+        var id = await UploadAsync("survey-invalid-share");
+        Assert.Equal(HttpStatusCode.BadRequest, (await PutShareAsync(id, share)).StatusCode);
+    }
+
     [Fact]
     public async Task UnknownSurveysAreNotFound()
     {
+        Assert.Equal(HttpStatusCode.NotFound, (await PutShareAsync("AAAAAAAAAAAAAAAAAAAAAA", Share)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await PutProfileAsync("AAAAAAAAAAAAAAAAAAAAAA", """{"version":1}""")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/surveys/AAAAAAAAAAAAAAAAAAAAAA/candidates")).StatusCode);
     }

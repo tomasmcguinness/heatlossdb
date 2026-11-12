@@ -258,7 +258,7 @@ struct SurveySection : View {
         } else if !survey.isComplete && !rooms.isEmpty && !isSurveying {
             Text("The scanning session was interrupted. Rooms scanned now won't line up with the earlier ones. Complete the survey with the rooms you have, or reset it.")
         } else if !survey.isComplete && rooms.count < 2 {
-            Text("Walk round the home with the camera up, tapping Next Room at each doorway. You must scan at least two rooms to complete the survey.")
+            Text("Scan one room at a time: tap Room done when a room is finished, walk into the next with the camera up, then tap Scan next room. You must scan at least two rooms to complete the survey.")
         }
     }
     
@@ -315,7 +315,9 @@ struct SurveyPresentations: ViewModifier {
                     beginScanning(scanRoomModel: scanRoomModel, survey: survey, state: state)
                 }
             }) {
-                ScanTipsView {
+                ScanTipsView(initialRoomCount: survey.plannedRoomCount ?? 6) { roomCount in
+                    survey.plannedRoomCount = roomCount
+                    try? modelContext.save()
                     state.startScanningAfterTips = true
                     state.isShowingScanTips = false
                 }
@@ -373,6 +375,7 @@ struct SurveyPresentations: ViewModifier {
         survey.uploadedAt = nil
         survey.uploadCode = nil
         survey.uploadCodeExpiresAt = nil
+        survey.plannedRoomCount = nil
         for room in property.rooms {
             modelContext.delete(room)
         }
@@ -394,20 +397,40 @@ private func beginScanning(scanRoomModel: ScanRoomModel, survey: Survey, state: 
     state.isScanning = true
 }
 
-/// Tips shown before the first room is scanned.
+/// Tips shown before the first room is scanned, and how many rooms there are to scan.
 struct ScanTipsView: View {
     @Environment(\.dismiss) private var dismiss
     
-    var onStart: () -> Void
+    /// Starts scanning with the number of rooms the user expects to scan.
+    var onStart: (Int) -> Void
+    
+    @State private var roomCount: Int
+    
+    init(initialRoomCount: Int, onStart: @escaping (Int) -> Void) {
+        self.onStart = onStart
+        _roomCount = State(initialValue: initialRoomCount)
+    }
     
     var body: some View {
         NavigationStack {
             List {
-                tip("Make it bright", "Turn the lights on and open the curtains and blinds, so the camera can see the walls and windows clearly.", systemImage: "sun.max")
-                tip("Open the doors", "Open the internal doors before you start, so you can walk from room to room without stopping.", systemImage: "door.left.hand.open")
-                tip("Go slowly", "Keep the camera up and move slowly round the edge of each room, taking in every wall, window and door.", systemImage: "figure.walk")
-                tip("Tap at each doorway", "Tap Next Room as you go through a doorway, and at the top or bottom of the stairs. Keep the camera up the whole time.", systemImage: "arrow.right.circle")
-                tip("Don't worry about names", "Rooms are numbered as you go. You can rename them later, here or online.", systemImage: "pencil")
+                Section {
+                    Stepper(value: $roomCount, in: ScanRoomView.minimumRooms...50) {
+                        LabeledContent("Rooms to scan", value: "\(roomCount)")
+                    }
+                } header: {
+                    Text("How many rooms?")
+                } footer: {
+                    Text("Count every room you'll walk through, including halls, landings and bathrooms. It's just to keep track; you can scan more or fewer.")
+                }
+                
+                Section("Before you scan") {
+                    tip("Make it bright", "Turn the lights on and open the curtains and blinds, so the camera can see the walls and windows clearly.", systemImage: "sun.max")
+                    tip("Open the doors", "Open the internal doors before you start, so you can walk from room to room without stopping.", systemImage: "door.left.hand.open")
+                    tip("Go slowly", "Keep the camera up and move slowly round the edge of each room, taking in every wall, window and door.", systemImage: "figure.walk")
+                    tip("One room at a time", "Tap Room done once you've got every wall of a room. Walk into the next with the camera up, then tap Scan next room. Treat the stairs as a room of their own.", systemImage: "checkmark.circle")
+                    tip("Don't worry about names", "Rooms are numbered as you go. You can rename them later, here or online.", systemImage: "pencil")
+                }
             }
             .navigationTitle("Before you scan")
             .navigationBarTitleDisplayMode(.inline)
@@ -417,7 +440,7 @@ struct ScanTipsView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button(action: onStart) {
+                Button { onStart(roomCount) } label: {
                     Text("Start Scanning")
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity)

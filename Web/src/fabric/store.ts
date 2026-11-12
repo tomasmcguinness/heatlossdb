@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { autoAlign, IDENTITY, type StoreyAlignment } from '../scan/align'
 import { classify, type Role } from '../scan/classify'
-import { indexScan } from '../scan/parse'
+import { indexScan, parseScan } from '../scan/parse'
 import type { PlanElement, PlanRoom } from '../scan/plan'
 import { ELEMENT_KINDS, type ElementKind, type Scan, type ScanElement } from '../scan/types'
 
@@ -48,6 +48,9 @@ export interface RoomFabric {
 /** How the whole home is built, as answered in Home fabric. Values come from fabric/home.ts;
  *  anything unanswered uses typical values for the home's age. */
 export interface HomeFabric {
+  /** The first part of the postcode, such as "SW1A", for the local climate. Never the full
+   *  postcode. */
+  postcodeDistrict?: string
   propertyType?: string
   ageBand?: string
   walls?: string
@@ -344,7 +347,17 @@ useFabric.subscribe((state, previous) => {
 /** The last scan opened in this browser, so a reload doesn't lose it. */
 export function restoreLastScan(): Scan | null {
   const scan = readStorage<Scan>(SCAN_KEY)
-  return scan && Array.isArray(scan.elements) && typeof scan.hash === 'string' ? scan : null
+  if (!scan || !Array.isArray(scan.elements) || typeof scan.hash !== 'string') return null
+  // Saved before scans kept their rooms: read it again from the original file, if it was kept.
+  if (!Array.isArray(scan.rooms)) {
+    if (!scan.raw) return { ...scan, rooms: [] }
+    try {
+      return parseScan(scan.raw)
+    } catch {
+      return { ...scan, rooms: [] }
+    }
+  }
+  return scan
 }
 
 // MARK: - Derived values
@@ -391,6 +404,12 @@ export function storeyName(stories: number[], story: number): string {
   const names = ['Ground floor', 'First floor', 'Second floor', 'Third floor']
   const index = stories.indexOf(story)
   return names[index] ?? `Storey ${index + 1}`
+}
+
+/** Names for a plan's storeys, lowest first: "Ground floor", "First floor"… */
+export function storeyLabels(count: number): string[] {
+  const stories = Array.from({ length: count }, (_, i) => i)
+  return stories.map((s) => storeyName(stories, s))
 }
 
 export function alignmentOf(state: Pick<FabricState, 'alignment'>, story: number): StoreyAlignment {

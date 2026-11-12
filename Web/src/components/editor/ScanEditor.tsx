@@ -10,11 +10,12 @@ import { useEditorFloors, type RoomActions } from './model'
 import { OverviewCanvas } from './OverviewCanvas'
 import { RoomPanel } from './RoomPanel'
 import { ScanActions } from './ScanActions'
+import { AccountButton } from '../AccountButton'
 
 type View = 'overview' | number
 
 /** View my scan: every room to check and correct, as a side view of the home or floor by floor. */
-export function ScanEditor({ onBack }: { onBack: () => void }) {
+export function ScanEditor({ onBack, startSharing = false }: { onBack: () => void; startSharing?: boolean }) {
   const scanName = useFabric((s) => s.scanName)
   const elements = useFabric((s) => s.elements)
   const autoRoles = useFabric((s) => s.autoRoles)
@@ -24,7 +25,8 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [sharing, setSharing] = useState(false)
+  // "Share your home" on What next opens the editor with Share already open.
+  const [sharing, setSharing] = useState(startSharing)
   const home = useFabric((s) => s.home)
   const [fabricOpen, setFabricOpen] = useState(false)
   const shared = useShare()
@@ -112,6 +114,7 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
             Home fabric
           </button>
           <ScanActions onShare={() => setSharing(true)} />
+          <AccountButton />
         </div>
       </header>
 

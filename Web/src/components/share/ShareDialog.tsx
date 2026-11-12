@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { useFabric, type EditedRoom } from '../../fabric/store'
 import { answeredCount, isHomeFabricSet, QUESTION_COUNT } from '../../fabric/home'
 import { listingName } from '../../share/listing'
+import { outwardCode } from '../../share/postcode'
 import { createAccount, resendConfirmation, saveShare, submitShare, useShare } from '../../share/share'
 import { EMPTY_HEAT_PUMP_FORM, heatPumpRecord, isHeatPumpFormEmpty, type HeatPumpForm } from '../../share/heatPumpForm'
 import type { HeatPumpData } from '../../match/heatPump'
@@ -38,6 +39,11 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
   const shared = useShare()
   const [step, setStep] = useState<Step>(shared ? 'done' : 'check')
   const [agreed, setAgreed] = useState(false)
+  // Prefilled from Home fabric, where finding similar homes asks for it too.
+  const [postcode, setPostcode] = useState(home.postcodeDistrict ?? '')
+  const [postcodeTouched, setPostcodeTouched] = useState(false)
+  // Room names can say who lives there ("Sophie’s room"), so they're hidden unless the owner says.
+  const [shareRoomNames, setShareRoomNames] = useState(false)
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -57,6 +63,8 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
   const roomsChecked = rooms.length > 0 && checked === rooms.length
   const ready = fabricSet && roomsChecked
   const name = listingName(home)
+  const postcodeDistrict = outwardCode(postcode)
+  const postcodeError = postcodeTouched && !postcodeDistrict ? 'Enter the first part of your postcode, like SW1A or M1.' : null
   const close = () => dialog.current?.close()
   const setHeatPumpField = (field: keyof HeatPumpForm) => (e: ChangeEvent<HTMLInputElement>) =>
     setHeatPumpForm((form) => ({ ...form, [field]: e.target.value }))
@@ -94,7 +102,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
     setBusy(true)
     try {
       await createAccount(address)
-      await submitShare(name, heatPump)
+      await submitShare(name, { postcodeDistrict: postcodeDistrict!, shareRoomNames, home }, heatPump)
       if (scanHash) saveShare(scanHash, { status: 'pending', email: address, name, sharedAt: new Date().toISOString() })
       setStep('done')
     } catch {
@@ -164,6 +172,43 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
                 <strong>{name}</strong>
                 <span className="small muted">Your full postcode, address and email are never shown.</span>
               </div>
+              <label className="field">
+                <span className="field-label">First part of your postcode</span>
+                <input
+                  className="share-postcode"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  placeholder="SW1A"
+                  value={postcode}
+                  aria-invalid={postcodeError ? true : undefined}
+                  aria-describedby={postcodeError ? 'share-postcode-error' : 'share-postcode-note'}
+                  onChange={(e) => setPostcode(e.target.value)}
+                  onBlur={() => {
+                    setPostcodeTouched(true)
+                    // A full postcode is cut down here, so only the first part is ever kept.
+                    if (postcodeDistrict) setPostcode(postcodeDistrict)
+                  }}
+                />
+              </label>
+              {postcodeError ? (
+                <p id="share-postcode-error" className="share-error" role="alert">
+                  {postcodeError}
+                </p>
+              ) : (
+                <p id="share-postcode-note" className="small muted">
+                  Just the area, so others can find homes in a similar climate.
+                </p>
+              )}
+              <label className="share-consent">
+                <input type="checkbox" checked={shareRoomNames} onChange={(e) => setShareRoomNames(e.target.checked)} />
+                <span>
+                  Show my room names
+                  <span className="small muted share-consent-note">
+                    Otherwise rooms are shown as Room 1, Room 2 and so on.
+                  </span>
+                </span>
+              </label>
               <label className="share-consent">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
                 <span>I’m happy with my scan and agree to share it and my home’s details anonymously.</span>
@@ -175,7 +220,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
             <button className="button subtle" onClick={close}>
               Cancel
             </button>
-            <button className="button" disabled={!ready || !agreed} onClick={() => setStep('heatPump')}>
+            <button className="button" disabled={!ready || !agreed || !postcodeDistrict} onClick={() => setStep('heatPump')}>
               Continue
             </button>
           </div>
@@ -208,13 +253,13 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
               <input type="number" inputMode="decimal" step="any" value={heatPumpForm.heatLossKw} onChange={setHeatPumpField('heatLossKw')} />
             </label>
             <label className="field">
-              <span className="field-label">Design flow temperature (°C)</span>
+              <span className="field-label">Design outdoor temperature (°C)</span>
+              {/* Text, not number: phone number pads often have no minus key, and this is usually below zero. */}
               <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={heatPumpForm.flowTemperature}
-                onChange={setHeatPumpField('flowTemperature')}
+                inputMode="text"
+                placeholder="−2"
+                value={heatPumpForm.outdoorTemperature}
+                onChange={setHeatPumpField('outdoorTemperature')}
               />
             </label>
           </div>

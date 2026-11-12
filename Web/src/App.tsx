@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
+import { AccountButton } from './components/AccountButton'
 import { DropZone } from './components/DropZone'
-import { WhatNext } from './components/WhatNext'
+import { ExplorePage } from './components/ExplorePage'
+import { MatchesPage } from './components/MatchesPage'
+import { WhatNext, type Choice } from './components/WhatNext'
 import { ScanEditor } from './components/editor/ScanEditor'
+import { HomeFabricDialog } from './components/fabric/HomeFabricDialog'
 import { errorMessage, loadDevScan, loadSurvey, surveyIdFromPath } from './components/files'
+import { isHomeFabricSet } from './fabric/home'
 import { restoreLastScan, useFabric } from './fabric/store'
 import { useProfile } from './match/useProfile'
 
-type Page = 'next' | 'scan'
+type Page = 'next' | 'scan' | 'share' | 'matches' | 'explore'
+
+/** The page each What next choice opens. Sharing starts in the editor, with Share open. */
+const PAGE_FOR: Record<Choice, Page> = { view: 'scan', share: 'share', search: 'matches', explore: 'explore' }
 
 export default function App() {
   const scan = useFabric((s) => s.scan)
@@ -19,7 +27,14 @@ export default function App() {
   const page: Page = scan && pageFor?.hash === scan.hash ? pageFor.page : 'next'
   const setPage = (p: Page) => scan && setPageFor({ hash: scan.hash, page: p })
   const profile = useProfile(surveyId)
-  const editing = scan !== null && !loadingSurvey && page === 'scan'
+  const editing = scan !== null && !loadingSurvey && (page === 'scan' || page === 'share')
+  const [fabricOpen, setFabricOpen] = useState(false)
+
+  const choose = (choice: Choice) => {
+    setPage(PAGE_FOR[choice])
+    // Matching needs a few answers about the home first: its postcode, age and type.
+    if (choice === 'search' && !isHomeFabricSet(useFabric.getState().home)) setFabricOpen(true)
+  }
 
   useEffect(() => {
     if (surveyId) {
@@ -49,6 +64,7 @@ export default function App() {
               heatloss<span className="brand-db">db</span>
             </span>
           </h1>
+          <AccountButton />
         </header>
       )}
 
@@ -59,10 +75,22 @@ export default function App() {
       ) : !scan ? (
         <DropZone error={error} onError={setError} />
       ) : page === 'next' ? (
-        <WhatNext profile={profile} onView={() => setPage('scan')} />
+        <WhatNext profile={profile} onChoose={choose} />
+      ) : page === 'matches' ? (
+        profile ? (
+          <MatchesPage surveyId={surveyId} profile={profile} onBack={() => setPage('next')} onFabric={() => setFabricOpen(true)} />
+        ) : (
+          <div className="dropzone">
+            <p className="muted">This scan has no floor outline to match yet.</p>
+          </div>
+        )
+      ) : page === 'explore' ? (
+        <ExplorePage surveyId={surveyId} onBack={() => setPage('next')} />
       ) : (
-        <ScanEditor onBack={() => setPage('next')} />
+        <ScanEditor onBack={() => setPage('next')} startSharing={page === 'share'} />
       )}
+
+      {fabricOpen && scan && !editing && <HomeFabricDialog onClose={() => setFabricOpen(false)} />}
     </div>
   )
 }

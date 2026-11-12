@@ -2538,3 +2538,78 @@ span.panel-room {
     margin-left: 0;
   }
 }
+
+.share-postcode {
+  max-width: 10ch;
+  text-transform: uppercase;
+}
+
+.share-consent-note {
+  display: block;
+}
+
+.fabric-postcode input {
+  max-width: 12ch;
+  min-height: 40px;
+  box-sizing: border-box;
+  font: inherit;
+  text-transform: uppercase;
+}
+
+.page-back {
+  grid-column: 1 / -1;
+}
+
+.match-name {
+  margin: 0;
+}
+
+.explore-page {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 16px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.explore-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.explore-filters input,
+.explore-filters select {
+  min-height: 40px;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.explore-home h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+}
+
+/* Sign in, or the account menu: always the top right. */
+.account {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.editor-status .account {
+  margin-left: 0;
+}
+
+.account-sign-in {
+  white-space: nowrap;
+}

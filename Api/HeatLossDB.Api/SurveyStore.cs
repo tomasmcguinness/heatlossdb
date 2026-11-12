@@ -104,25 +104,32 @@ public partial class SurveyStore
         SetAsync(id, nameof(SurveyEntity.Profile), Encoding.UTF8.GetString(profile), cancellationToken);
 
     /// <summary>
-    /// Every other survey that has a profile, to match against. Uploads of the same app survey
-    /// (e.g. "Upload Again") are left out, so a home never matches itself.
+    /// Every survey that has a profile, to match against or browse. With an id, that survey and
+    /// other uploads of the same app survey (e.g. "Upload Again") are left out, so a home never
+    /// matches itself. Without one (a scan opened from a file), every home is a candidate.
     /// </summary>
-    public async Task<List<Candidate>> CandidatesForAsync(string id, CancellationToken cancellationToken)
+    public async Task<List<Candidate>> CandidatesForAsync(string? id, CancellationToken cancellationToken)
     {
-        var mine = (await GetAsync(id, [nameof(SurveyEntity.AppSurveyId)], cancellationToken))?.AppSurveyId;
+        var mine = id is null ? null : (await GetAsync(id, [nameof(SurveyEntity.AppSurveyId)], cancellationToken))?.AppSurveyId;
 
         // Every row: fine for thousands of homes, as matching needs every profile anyway.
         var candidates = new List<(DateTimeOffset CreatedAt, Candidate Candidate)>();
-        string[] columns = [nameof(SurveyEntity.PartitionKey), nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.AppSurveyId), nameof(SurveyEntity.Profile), nameof(SurveyEntity.HeatPump)];
+        string[] columns = [nameof(SurveyEntity.PartitionKey), nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.AppSurveyId), nameof(SurveyEntity.Profile), nameof(SurveyEntity.HeatPump), nameof(SurveyEntity.Share)];
         await foreach (var survey in surveys.QueryAsync<SurveyEntity>(select: columns, cancellationToken: cancellationToken))
         {
             if (survey.PartitionKey == id || survey.Profile is null) continue;
             if (mine is not null && survey.AppSurveyId == mine) continue;
             var heatPump = survey.HeatPump is null ? (JsonElement?)null : ParseJson(survey.HeatPump);
-            candidates.Add((survey.CreatedAt, new Candidate(survey.PartitionKey, survey.CreatedAt.ToString("O"), ParseJson(survey.Profile), heatPump)));
+            var share = survey.Share is null ? (JsonElement?)null : ParseJson(survey.Share);
+            candidates.Add((survey.CreatedAt, new Candidate(survey.PartitionKey, survey.CreatedAt.ToString("O"), ParseJson(survey.Profile), heatPump, share)));
         }
         return candidates.OrderByDescending(c => c.CreatedAt).Select(c => c.Candidate).ToList();
     }
+
+    /// <summary>Saves what the owner said when sharing: the listing name, postcode district,
+    /// whether room names may be shown, and the answers about how the home is built.</summary>
+    public Task SaveShareAsync(string id, byte[] share, CancellationToken cancellationToken) =>
+        SetAsync(id, nameof(SurveyEntity.Share), Encoding.UTF8.GetString(share), cancellationToken);
 
     /// <summary>Saves a survey's heat loss and heat pump figures (real or sample).</summary>
     public Task SaveHeatPumpAsync(string id, byte[] record, CancellationToken cancellationToken) =>
@@ -189,7 +196,7 @@ public partial class SurveyStore
     private static partial Regex IdPattern();
 }
 
-/// <summary>A survey's row, keyed by its id. Profile and HeatPump are JSON, each at most 32 KB
+/// <summary>A survey's row, keyed by its id. Profile, HeatPump and Share are JSON, each at most 32 KB
 /// (Table Storage keeps text properties under 64 KB).</summary>
 public class SurveyEntity : ITableEntity
 {
@@ -203,6 +210,7 @@ public class SurveyEntity : ITableEntity
     public int SizeBytes { get; set; }
     public string? Profile { get; set; }
     public string? HeatPump { get; set; }
+    public string? Share { get; set; }
 }
 
 /// <summary>An upload code, keyed by the code itself.</summary>
@@ -219,4 +227,4 @@ public class CodeEntity : ITableEntity
 
 public record SavedSurvey(string Id, string Code, DateTimeOffset CodeExpiresAt);
 
-public record Candidate(string Id, string CreatedAt, JsonElement Profile, JsonElement? HeatPump);
+public record Candidate(string Id, string CreatedAt, JsonElement Profile, JsonElement? HeatPump, JsonElement? Share);

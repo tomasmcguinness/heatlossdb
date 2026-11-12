@@ -5,7 +5,7 @@ import { uprightRotation } from '../match/similarity'
 import { closeScan } from './files'
 import { PlanSvg } from './PlanSvg'
 
-type Choice = 'view' | 'search' | 'share' | 'explore'
+export type Choice = 'view' | 'search' | 'share' | 'explore'
 
 interface Option {
   id: Choice
@@ -47,7 +47,6 @@ const OPTIONS: Option[] = [
         <path d="M7.5 11 L10.5 8.5 L13.5 11 V13.5 H7.5 Z" />
       </>,
     ),
-    comingSoon: true,
   },
   {
     id: 'share',
@@ -61,8 +60,6 @@ const OPTIONS: Option[] = [
         <path d="M9.25 13 L12 10.25 L14.75 13" />
       </>,
     ),
-    //badge: { label: 'Free account required', kind: 'account' },
-    comingSoon: true,
   },
   {
     id: 'explore',
@@ -75,12 +72,11 @@ const OPTIONS: Option[] = [
         <path d="M15 6.5 V20" />
       </>,
     ),
-    comingSoon: true,
   },
 ]
 
 const HINTS: Record<Choice, string> = {
-  view: 'Your scan stays in this browser only. You can search or share it later.',
+  view: 'Your scan stays in this browser only, unless you decide to save it or share it.',
   search: 'Next, a few quick questions about your home: postcode, age and type, and how it’s built.',
   share: 'Next, a few quick questions about your home. You’ll create a free account before your floor plan is saved.',
   explore: 'Your scan stays loaded, so you can search or share it at any point.',
@@ -96,7 +92,7 @@ const ACTIONS: Record<Choice, string> = {
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
 /** Shown once a scan is open: what the scan is, and the choice of what to do with it. */
-export function WhatNext({ profile, onView }: { profile: ShapeProfile | null; onView: () => void }) {
+export function WhatNext({ profile, onChoose }: { profile: ShapeProfile | null; onChoose: (choice: Choice) => void }) {
   const scan = useFabric((s) => s.scan)
   const scanName = useFabric((s) => s.scanName)
   const [picked, setPicked] = useState<Choice>('view')
@@ -104,12 +100,10 @@ export function WhatNext({ profile, onView }: { profile: ShapeProfile | null; on
 
   const facts = [
     plural(scan.stories.length, 'floor'),
-    scan.sections.length > 0 && plural(scan.sections.length, 'room'),
+    scan.rooms.length > 0 && plural(scan.rooms.length, 'room'),
     profile && `${Math.round(profile.floorArea)} m² floor area`,
   ].filter(Boolean)
 
-  // Only viewing exists so far; the share flow comes next.
-  const ready = picked === 'view'
 
   return (
     <main className="what-next">
@@ -176,7 +170,7 @@ export function WhatNext({ profile, onView }: { profile: ShapeProfile | null; on
 
         <div className="next-footer">
           <p className="muted">{HINTS[picked]}</p>
-          <button className="button next-action" disabled={!ready} onClick={onView}>
+          <button className="button next-action" onClick={() => onChoose(picked)}>
             {ACTIONS[picked]}
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12 H19" />

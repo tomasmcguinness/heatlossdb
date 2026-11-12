@@ -1,7 +1,7 @@
 import { Matrix4, Vector3 } from 'three'
 import { wallPointAt, worldOutlineXZ } from './geometry'
-import { closeOutline, distanceBesideSegment, edgesOf, type Point2 } from './outline'
-import type { ElementKind, RawObject, RawStructure, RawSurface, Scan, ScanElement, StoreyOutline } from './types'
+import { closeOutline, distanceBesideSegment, edgesOf, joinFloors, type Point2 } from './outline'
+import type { ElementKind, RawObject, RawStructure, RawSurface, Scan, ScanElement, ScanRoom, StoreyOutline } from './types'
 
 export class ScanParseError extends Error {}
 
@@ -101,11 +101,25 @@ function storageElement(object: RawObject): ScanElement | null {
   }
 }
 
-function outlinesFor(stories: number[], floors: ScanElement[], walls: ScanElement[]): StoreyOutline[] {
+/** The rooms the user scanned, each with its floor. */
+function roomsOf(raw: RawStructure): ScanRoom[] {
+  return (raw.rooms ?? []).flatMap((room, index) => {
+    const floor = (room.floors ?? [])
+      .filter(isSurface)
+      .map(toElement)
+      .find((e) => e?.kind === 'floor' && e.polygon.length >= 3)
+    return floor ? [{ index, story: room.story ?? floor.story, floor: worldOutlineXZ(floor) }] : []
+  })
+}
+
+function outlinesFor(stories: number[], floors: ScanElement[], walls: ScanElement[], rooms: ScanRoom[]): StoreyOutline[] {
   return stories.map((story) => {
     const storeyFloors = floors.filter((f) => f.story === story)
     const storeyWalls = walls.filter((w) => w.story === story)
-    const raw = storeyFloors.map(worldOutlineXZ)
+    const storeyRooms = rooms.filter((r) => r.story === story)
+    // RoomPlan's merged floor can take in space no room covers, so the rooms' floors are used
+    // where there are any.
+    const raw = storeyRooms.length ? joinFloors(storeyRooms.map((r) => r.floor)) : storeyFloors.map(worldOutlineXZ)
     return {
       story,
       raw,
@@ -222,25 +236,35 @@ export function parseScan(json: unknown): Scan {
   const floors = elements.filter((e) => e.kind === 'floor' && e.polygon.length >= 3)
   const storage = (raw.objects ?? []).map(storageElement).filter((e): e is ScanElement => e !== null)
   const stories = [...new Set(elements.map((e) => e.story))].sort((a, b) => a - b)
-  const outlines = outlinesFor(stories, floors, walls)
+  const rooms = roomsOf(raw)
+  const outlines = outlinesFor(stories, floors, walls, rooms)
 
-  // Draw floors from the closed outline, so built-in storage doesn't leave holes in them.
+  // Draw floors from the closed outline, so built-in storage doesn't leave holes in them. An
+  // outline with no floor of its own (rooms that don't join up) gets one copied from the storey's.
+  const extraFloors: ScanElement[] = []
   for (const outline of outlines) {
-    floors
-      .filter((f) => f.story === outline.story)
-      .forEach((floor, index) => {
-        floor.outline = outline.closed[index]
-        floor.elevation = outline.floorY
-      })
+    const storeyFloors = floors.filter((f) => f.story === outline.story)
+    outline.closed.forEach((closed, index) => {
+      const floor =
+        storeyFloors[index] ??
+        (storeyFloors[0] && { ...storeyFloors[0], id: `${storeyFloors[0].id}-part-${index}`, synthetic: true })
+      if (!floor) return
+      floor.outline = closed
+      floor.elevation = outline.floorY
+      if (!storeyFloors.includes(floor)) extraFloors.push(floor)
+    })
+    // RoomPlan's floors beyond the rooms' outlines would draw the space no room covers.
+    for (const floor of storeyFloors.slice(outline.closed.length)) if (rooms.length) floor.outline = []
   }
+  const allFloors = [...floors, ...extraFloors]
 
   return {
     // Only RoomPlan's own ids, so settings survive changes to what the viewer derives.
     hash: fingerprint(elements.map((e) => e.id)),
-    elements: [...elements, ...infillWalls(outlines, walls), ...ceilingsFor(floors, walls), ...storage],
+    elements: [...elements, ...extraFloors, ...infillWalls(outlines, walls), ...ceilingsFor(allFloors, walls), ...storage],
     stories,
     outlines,
-    sections: raw.sections ?? [],
+    rooms,
     raw: { ...raw, edits: undefined },
   }
 }

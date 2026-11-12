@@ -104,3 +104,22 @@ export function overlap(a: Point2[][], b: Point2[][]): number {
   const union = booleanArea(a, b, ClipperLib.ClipType.ctUnion)
   return union > 0 ? booleanArea(a, b, ClipperLib.ClipType.ctIntersection) / union : 0
 }
+
+/** Rooms' floors stop at their walls, so neighbouring rooms are this far apart (m) at most. */
+export const WALL_GAP = 0.2
+
+/**
+ * A storey's outline from its rooms' floors: joined across the walls between them (grown by
+ * `gap`, merged, then shrunk back), largest first. Only outer edges are kept; a gap no room
+ * covers that's enclosed by rooms (a stairwell) becomes part of the floor.
+ */
+export function joinFloors(floors: Point2[][], gap = WALL_GAP): Point2[][] {
+  const paths = floors.filter((f) => f.length >= 3).map(toPath)
+  if (!paths.length) return []
+  // Offsetting several paths at once merges where they overlap.
+  const joined = offset(offset(paths, gap), -gap)
+  return joined
+    .filter((path) => ClipperLib.Clipper.Orientation(path) && Math.abs(ClipperLib.Clipper.Area(path)) > 0.25 * SCALE * SCALE)
+    .sort((a, b) => Math.abs(ClipperLib.Clipper.Area(b)) - Math.abs(ClipperLib.Clipper.Area(a)))
+    .map((path) => fromPath(ClipperLib.Clipper.CleanPolygon(path, 0.01 * SCALE)))
+}

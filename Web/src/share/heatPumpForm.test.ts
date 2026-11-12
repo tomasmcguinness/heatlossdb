@@ -5,14 +5,14 @@ const form = (fields: Partial<HeatPumpForm>) => ({ ...EMPTY_HEAT_PUMP_FORM, ...f
 
 describe('heatPumpRecord', () => {
   it('turns the form into the figures the API stores', () => {
-    const result = heatPumpRecord(form({ makeAndModel: ' Vaillant  aroTHERM plus 7 ', outputKw: '7', heatLossKw: '6,2', flowTemperature: '45' }))
+    const result = heatPumpRecord(form({ makeAndModel: ' Vaillant  aroTHERM plus 7 ', outputKw: '7', heatLossKw: '6,2', outdoorTemperature: '−2' }))
     expect(result).toEqual({
       record: {
         source: 'owner',
         designHeatLossW: 6200,
         heatLossBasis: 'survey',
         heatPump: { make: 'Vaillant', model: 'aroTHERM plus 7', capacityKw: 7 },
-        designFlowTemperature: 45,
+        designOutdoorTemperature: -2,
       },
     })
   })
@@ -30,7 +30,7 @@ describe('heatPumpRecord', () => {
   it('rejects figures that are out of range or not numbers', () => {
     expect(heatPumpRecord(form({ heatLossKw: '5000' }))).toHaveProperty('error')
     expect(heatPumpRecord(form({ heatLossKw: 'lots' }))).toHaveProperty('error')
-    expect(heatPumpRecord(form({ heatLossKw: '5', flowTemperature: '120' }))).toHaveProperty('error')
+    expect(heatPumpRecord(form({ heatLossKw: '5', outdoorTemperature: '25' }))).toHaveProperty('error')
   })
 
   it('treats a blank form as skipped', () => {

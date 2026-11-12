@@ -100,10 +100,31 @@ app.MapPut("/api/surveys/{id}/profile", async (
     return Results.NoContent();
 });
 
-// Other homes to match against. For now every upload with a profile is a candidate; sharing
-// consent comes with the "do you have a heat pump?" flow.
+// Other homes to match against. For now every upload with a profile is a candidate; once
+// accounts are confirmed, only shared homes will be. Matching itself runs in the browser.
 app.MapGet("/api/surveys/{id}/candidates", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
     await store.ExistsAsync(id, cancellationToken) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound());
+
+// The same, for a scan opened from a file (which isn't on the server), and for browsing.
+app.MapGet("/api/candidates", async (SurveyStore store, CancellationToken cancellationToken) =>
+    Results.Ok(await store.CandidatesForAsync(null, cancellationToken)));
+
+// What the owner said when sharing the home (see ScanValidator.ValidateShare).
+app.MapPut("/api/surveys/{id}/share", async (
+    string id,
+    HttpRequest request,
+    SurveyStore store,
+    CancellationToken cancellationToken) =>
+{
+    if (!await store.ExistsAsync(id, cancellationToken)) return Results.NotFound();
+    var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxProfileBytes, cancellationToken);
+    if (body is null)
+        return Results.Problem("The share details are too large.", statusCode: StatusCodes.Status413PayloadTooLarge);
+    if (ScanValidator.ValidateShare(body) is { } error)
+        return Results.BadRequest(new { error });
+    await store.SaveShareAsync(id, body, cancellationToken);
+    return Results.NoContent();
+});
 
 // A survey's heat loss and heat pump figures. Real ones will come from HeatPumpMonitor or a
 // heat loss survey; until then, sample figures fill the gap (see below).

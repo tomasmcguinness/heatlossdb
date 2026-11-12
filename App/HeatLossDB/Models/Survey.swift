@@ -25,6 +25,10 @@ final class Survey {
     var uploadCode: String?
     var uploadCodeExpiresAt: Date?
     
+    /// How many rooms the user expects to scan, asked before the first. Only for showing
+    /// progress ("Room 3 of 7"); more or fewer can be scanned.
+    var plannedRoomCount: Int?
+    
     init(date: Date, property: Property) {
         self.surveyId = UUID()
         self.date = date

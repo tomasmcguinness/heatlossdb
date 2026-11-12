@@ -10,6 +10,9 @@ import type { Scan } from '../scan/types'
  */
 export interface ShapeProfile {
   version: 1
+  /** The scan's fingerprint (Scan.hash), the same however it's opened, edited or uploaded, so
+   *  a home is never matched against itself. Missing from profiles saved before it was added. */
+  scanHash?: string
   /** Heated floor area across all storeys (m²), including built-in storage. */
   floorArea: number
   storeys: number
@@ -41,6 +44,7 @@ export function computeProfile(
 
   return {
     version: 1,
+    scanHash: scan.hash,
     floorArea: round(aligned.flat().reduce((total, outline) => total + polygonArea(outline), 0)),
     storeys: aligned.length,
     externalWallArea: round(sum('wall', 'external')),

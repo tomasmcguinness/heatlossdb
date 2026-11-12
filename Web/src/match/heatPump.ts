@@ -1,10 +1,12 @@
+import { DEFAULT_INDOOR_TEMPERATURE } from './climate'
+
 /** A home's heat loss and heat pump figures, as the API stores them. */
 export interface HeatPumpData {
   /** Where the figures came from. "sample" means made up, for development; "owner" means typed
    *  in by the home's owner when sharing. */
   source: 'sample' | 'heatpumpmonitor' | 'survey' | 'owner' | string
   designHeatLossW: number
-  /** Not known for figures the owner typed in. */
+  /** The outdoor temperature the heat loss was calculated at. Owners may not know it. */
   designOutdoorTemperature?: number
   designIndoorTemperature?: number
   /** Whether the heat loss was measured from a running system or calculated in a survey. */
@@ -28,6 +30,17 @@ export interface Estimate {
   scop: [number, number] | null
   annualHeatKwh: [number, number] | null
   sample: boolean
+  /** The outdoor temperature the heat loss is for (your area's), or null when the figures are
+   *  as quoted because the temperatures weren't known. */
+  designTemperature: number | null
+}
+
+export interface EstimateMatch {
+  score: number
+  floorArea: number
+  heatPump: HeatPumpData | null
+  /** Their area's design temperature, for figures that don't say what they were quoted at. */
+  designTemperature?: number | null
 }
 
 /** Matches at least this good inform the estimate. */
@@ -37,13 +50,28 @@ const ESTIMATE_MAX_HOMES = 5
 const range = (values: number[]): [number, number] => [Math.min(...values), Math.max(...values)]
 
 /**
- * What your home might need, going by its closest matches: their heat loss and heat use per m²
- * scaled to your floor area, and their heat pumps' sizes and efficiency as they are. A range from
- * real homes, not a heat loss calculation.
+ * A match's heat loss for your home. Heat losses are quoted for a design outdoor temperature,
+ * which is colder in some places than others, so where both are known the heat loss is turned
+ * into watts per degree and back out at your area's design temperature. Otherwise it's as quoted.
+ */
+function heatLossW(match: EstimateMatch, yourDesignTemperature: number | null): { watts: number; rescaled: boolean } {
+  const data = match.heatPump!
+  const outdoor = data.designOutdoorTemperature ?? match.designTemperature ?? null
+  const indoor = data.designIndoorTemperature ?? DEFAULT_INDOOR_TEMPERATURE
+  if (yourDesignTemperature === null || outdoor === null || indoor <= outdoor) return { watts: data.designHeatLossW, rescaled: false }
+  const wattsPerKelvin = data.designHeatLossW / (indoor - outdoor)
+  return { watts: wattsPerKelvin * (DEFAULT_INDOOR_TEMPERATURE - yourDesignTemperature), rescaled: true }
+}
+
+/**
+ * What your home might need, going by its closest matches: their heat loss (at your area's
+ * design temperature, when known) and heat use per m² scaled to your floor area, and their heat
+ * pumps' sizes and efficiency as they are. A range from real homes, not a heat loss calculation.
  */
 export function estimateFor(
   yourFloorArea: number,
-  matches: { score: number; floorArea: number; heatPump: HeatPumpData | null }[],
+  matches: EstimateMatch[],
+  yourDesignTemperature: number | null = null,
 ): Estimate | null {
   const close = matches
     .filter((m) => m.score >= ESTIMATE_MIN_SCORE && m.heatPump && m.floorArea > 0)
@@ -54,13 +82,15 @@ export function estimateFor(
   const scale = (m: (typeof close)[number]) => yourFloorArea / m.floorArea
   const withAnnual = close.filter((m) => m.heatPump!.annual)
   const withHeatPump = close.filter((m) => m.heatPump!.heatPump)
+  const heatLosses = close.map((m) => heatLossW(m, yourDesignTemperature))
   return {
     basedOn: close.length,
-    heatLossKw: range(close.map((m) => (m.heatPump!.designHeatLossW / 1000) * scale(m))),
+    heatLossKw: range(close.map((m, i) => (heatLosses[i].watts / 1000) * scale(m))),
     heatPumpKw: withHeatPump.length ? range(withHeatPump.map((m) => m.heatPump!.heatPump!.capacityKw)) : null,
     scop: withAnnual.length ? range(withAnnual.map((m) => m.heatPump!.annual!.scop)) : null,
     annualHeatKwh: withAnnual.length ? range(withAnnual.map((m) => m.heatPump!.annual!.heatDeliveredKwh * scale(m))) : null,
     sample: close.some((m) => m.heatPump!.source === 'sample'),
+    designTemperature: heatLosses.some((h) => h.rescaled) ? yourDesignTemperature : null,
   }
 }
 

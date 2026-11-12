@@ -1,6 +1,17 @@
 import { alignStorey, applyAlignment, dominantAngle, pivotOf, type StoreyAlignment } from '../scan/align'
 import { overlap, type Point2 } from '../scan/outline'
+import { AGE_BANDS, NOT_SURE } from '../fabric/home'
+import type { HomeFabric } from '../fabric/store'
+import { listingName } from '../share/listing'
+import { climateFor } from './climate'
+import { formatTemperature } from './heatPump'
 import type { ShapeProfile } from './profile'
+
+/** What's known about a home beyond its shape: how it's built and where it is. */
+export interface HomeDetails {
+  home?: HomeFabric | null
+  postcodeDistrict?: string | null
+}
 
 /** How another home's plan is placed over yours: optionally mirrored, then lined up. */
 export interface Placement extends StoreyAlignment {
@@ -8,7 +19,7 @@ export interface Placement extends StoreyAlignment {
 }
 
 export interface Factor {
-  key: 'size' | 'layout' | 'envelope' | 'glazing' | 'storeys' | 'party'
+  key: 'size' | 'layout' | 'envelope' | 'glazing' | 'storeys' | 'party' | 'fabric' | 'climate'
   label: string
   /** 0 (nothing alike) to 1 (the same). */
   similarity: number
@@ -29,16 +40,51 @@ export interface Match {
 
 /**
  * How much each factor counts. Size and layout dominate because they set how much envelope a
- * home has; fabric will join these once owners describe it. To be tuned against measured heat
- * demand once there's enough data.
+ * home has; fabric sets how much heat goes through it. Climate counts a little: heat losses are
+ * compared at your area's design temperature anyway, so a far-off home that's otherwise alike is
+ * still a good match. To be tuned against measured heat demand once there's enough data.
  */
 const WEIGHTS: Record<Factor['key'], number> = {
-  size: 0.25,
-  layout: 0.3,
-  envelope: 0.2,
-  glazing: 0.1,
-  storeys: 0.1,
-  party: 0.05,
+  size: 0.2,
+  layout: 0.25,
+  envelope: 0.15,
+  glazing: 0.08,
+  storeys: 0.08,
+  party: 0.04,
+  fabric: 0.15,
+  climate: 0.05,
+}
+
+/** The Home fabric answers compared, as far as both owners gave them. */
+const FABRIC_KEYS = ['propertyType', 'ageBand', 'walls', 'loft', 'windows', 'floorType'] as const
+const AGE_ORDER = AGE_BANDS.map((c) => c.value).filter((v) => v !== NOT_SURE)
+
+const known = (value: string | undefined): value is string => !!value && value !== NOT_SURE
+
+/** Share of the questions both answered that agree (neighbouring age bands count half), and how
+ *  many could be compared. */
+function fabricSimilarity(yours: HomeFabric, theirs: HomeFabric): { similarity: number; compared: number } {
+  let total = 0
+  let compared = 0
+  for (const key of FABRIC_KEYS) {
+    const a = yours[key]
+    const b = theirs[key]
+    if (!known(a) || !known(b)) continue
+    compared++
+    if (a === b) total += 1
+    else if (key === 'ageBand' && Math.abs(AGE_ORDER.indexOf(a) - AGE_ORDER.indexOf(b)) === 1) total += 0.5
+  }
+  return { similarity: compared ? total / compared : 0, compared }
+}
+
+/** Design temperatures within 3 °C of each other are somewhat alike. */
+const temperatureSimilarity = (a: number, b: number) => Math.max(0, 1 - Math.abs(a - b) / 3)
+
+const describeHome = (details: HomeDetails | undefined) => (details?.home ? listingName(details.home) : 'Not described')
+
+function climateLabel(district: string | null | undefined): string {
+  const climate = climateFor(district)
+  return climate ? `${formatTemperature(climate.designTemperature)} (${climate.area})` : 'Unknown'
 }
 
 /** 1 when equal, falling to 0 when one is double (or half) the other. */
@@ -95,7 +141,11 @@ function bestPlacement(yours: ShapeProfile, theirs: ShapeProfile): { placement: 
 const m2 = (v: number) => `${Math.round(v)} m²`
 const percent = (v: number) => `${Math.round(v * 100)}%`
 
-export function compare(yours: ShapeProfile, theirs: ShapeProfile): Match {
+export function compare(
+  yours: ShapeProfile,
+  theirs: ShapeProfile,
+  details: { yours?: HomeDetails; theirs?: HomeDetails } = {},
+): Match {
   const { placement, overlap: layout } = bestPlacement(yours, theirs)
 
   const envelope = (p: ShapeProfile) => (p.floorArea ? p.externalWallArea / p.floorArea : 0)
@@ -105,6 +155,9 @@ export function compare(yours: ShapeProfile, theirs: ShapeProfile): Match {
     return walls ? p.partyWallArea / walls : 0
   }
   const storeyDifference = Math.abs(yours.storeys - theirs.storeys)
+  const fabric = fabricSimilarity(details.yours?.home ?? {}, details.theirs?.home ?? {})
+  const yourClimate = climateFor(details.yours?.postcodeDistrict)
+  const theirClimate = climateFor(details.theirs?.postcodeDistrict)
 
   const factors: Factor[] = [
     {
@@ -160,6 +213,24 @@ export function compare(yours: ShapeProfile, theirs: ShapeProfile): Match {
       yours: yours.partyWallArea ? percent(party(yours)) : 'None marked',
       theirs: theirs.partyWallArea ? percent(party(theirs)) : 'None marked',
       informative: yours.partyWallArea > 0 || theirs.partyWallArea > 0,
+    },
+    {
+      key: 'fabric',
+      label: 'How it’s built',
+      similarity: fabric.similarity,
+      weight: WEIGHTS.fabric,
+      yours: describeHome(details.yours),
+      theirs: describeHome(details.theirs),
+      informative: fabric.compared > 0,
+    },
+    {
+      key: 'climate',
+      label: 'Winter design temperature',
+      similarity: yourClimate && theirClimate ? temperatureSimilarity(yourClimate.designTemperature, theirClimate.designTemperature) : 0,
+      weight: WEIGHTS.climate,
+      yours: climateLabel(details.yours?.postcodeDistrict),
+      theirs: climateLabel(details.theirs?.postcodeDistrict),
+      informative: yourClimate !== null && theirClimate !== null,
     },
   ]
 

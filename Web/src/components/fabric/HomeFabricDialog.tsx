@@ -15,6 +15,7 @@ import {
   type Choice,
 } from '../../fabric/home'
 import { useFabric, type HomeFabric } from '../../fabric/store'
+import { outwardCode } from '../../share/postcode'
 import { DoorIcon, HomeIcon, InfoIcon, WindowIcon } from '../editor/icons'
 
 /** One question, answered by tapping one of its choices. */
@@ -115,6 +116,8 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
   const applyHome = useFabric((s) => s.applyHome)
   const [home, setDraft] = useState<HomeFabric>(saved)
   const [confirming, setConfirming] = useState(false)
+  const [postcode, setPostcode] = useState(saved.postcodeDistrict ?? '')
+  const [postcodeError, setPostcodeError] = useState<string | null>(null)
   const custom = customFabricCount(elements, rooms)
 
   useEffect(() => {
@@ -129,6 +132,27 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
   const apply = () => {
     applyHome(home)
     close()
+  }
+  // The postcode is optional, but one that's typed must be a postcode. Only its first part is kept.
+  const checkPostcode = () => {
+    const district = outwardCode(postcode)
+    if (postcode.trim() && !district) {
+      setPostcodeError('Enter the first part of your postcode, like SW1A or M1, or leave it blank.')
+      return false
+    }
+    setPostcodeError(null)
+    setPostcode(district ?? '')
+    set({ postcodeDistrict: district ?? undefined })
+    return true
+  }
+  const applyClicked = () => {
+    if (!checkPostcode()) return
+    if (custom) setConfirming(true)
+    else {
+      // The draft's postcode is set in the same click, so apply what checkPostcode just stored.
+      applyHome({ ...home, postcodeDistrict: outwardCode(postcode) ?? undefined })
+      close()
+    }
   }
 
   return (
@@ -164,6 +188,23 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
         </p>
 
         <Card id="fabric-home" title="Your home" icon={<HomeIcon size={22} />}>
+          <label className="field fabric-postcode">
+            <span className="field-label">First part of your postcode</span>
+            <input
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              placeholder="SW1A"
+              value={postcode}
+              aria-invalid={postcodeError ? true : undefined}
+              aria-describedby="fabric-postcode-note"
+              onChange={(e) => setPostcode(e.target.value)}
+              onBlur={checkPostcode}
+            />
+            <span id="fabric-postcode-note" className={postcodeError ? 'share-error' : 'small muted'} role={postcodeError ? 'alert' : undefined}>
+              {postcodeError ?? 'For your area’s winter temperatures. Just the first part, never your full postcode.'}
+            </span>
+          </label>
           <Question label="What type of property is it?" choices={PROPERTY_TYPES} value={home.propertyType} onChange={(v) => set({ propertyType: v })} />
           <Question label="Roughly when was it built?" choices={AGE_BANDS} value={home.ageBand} onChange={(v) => set({ ageBand: v })} />
         </Card>
@@ -221,7 +262,7 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
           <button className="button subtle" onClick={close}>
             Cancel
           </button>
-          <button className="button" onClick={() => (custom ? setConfirming(true) : apply())}>
+          <button className="button" onClick={applyClicked}>
             Apply to whole home
           </button>
         </div>

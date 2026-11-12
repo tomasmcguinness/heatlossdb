@@ -1,55 +1,40 @@
-// Parked: matching against other homes. Not shown until "Find similar homes" opens.
-import { useEffect, useState } from 'react'
-import { storeyName, useFabric } from '../fabric/store'
+// Find similar homes: your scan matched against shared homes, in the browser.
+import { useEffect, useMemo, useState } from 'react'
+import { isHomeFabricSet } from '../fabric/home'
+import { storeyLabels, useFabric } from '../fabric/store'
+import { otherHomes, useCandidates, type Candidate } from '../match/candidates'
+import { climateFor, designTemperatureFor } from '../match/climate'
 import {
   estimateFor,
   formatKw,
   formatKwh,
   formatRange,
   formatTemperature,
-  isHeatPumpData,
   type Estimate,
   type HeatPumpData,
 } from '../match/heatPump'
-import { isShapeProfile, type ShapeProfile } from '../match/profile'
-import { compare, placePlans, summarise, uprightRotation, type Match } from '../match/similarity'
+import type { ShapeProfile } from '../match/profile'
+import { compare, placePlans, summarise, uprightRotation, type HomeDetails, type Match } from '../match/similarity'
+import { listingName } from '../share/listing'
 import { PlanSvg } from './PlanSvg'
 
-interface Candidate {
-  id: string
-  createdAt: string
-  profile: unknown
-  heatPump?: unknown
-}
-
-interface ScoredCandidate {
-  id: string
-  createdAt: string
-  profile: ShapeProfile
-  heatPump: HeatPumpData | null
+interface ScoredCandidate extends Candidate {
   match: Match
-}
-
-/** The result of one request for candidates, tagged with which request it answered. */
-interface Fetched {
-  request: string
-  candidates: Candidate[] | null
 }
 
 const m2 = (v: number) => `${Math.round(v)} m²`
 
-function storeyLabels(count: number): string[] {
-  const stories = Array.from({ length: count }, (_, i) => i)
-  return stories.map((s) => storeyName(stories, s))
-}
-
-function YourHome({ profile }: { profile: ShapeProfile }) {
+function YourHome({ profile, onFabric }: { profile: ShapeProfile; onFabric: () => void }) {
+  const home = useFabric((s) => s.home)
+  const climate = climateFor(home.postcodeDistrict)
   const rows: [string, string][] = [
     ['Floor area', m2(profile.floorArea)],
     ['Storeys', String(profile.storeys)],
     ['Outside walls', m2(profile.externalWallArea)],
     ['Party walls', profile.partyWallArea ? m2(profile.partyWallArea) : 'None marked'],
     ['Windows', m2(profile.windowArea)],
+    ['Built', isHomeFabricSet(home) ? listingName(home) : 'Not described yet'],
+    ['Area', climate ? `${home.postcodeDistrict} · ${formatTemperature(climate.designTemperature)} design` : 'Not given'],
   ]
   return (
     <section className="card your-home">
@@ -71,6 +56,9 @@ function YourHome({ profile }: { profile: ShapeProfile }) {
       <p className="muted small">
         Measured from your scan. Mark party walls in the Scan view: they change which homes match.
       </p>
+      <button className="button subtle" onClick={onFabric}>
+        {isHomeFabricSet(home) ? 'Edit postcode and fabric' : 'Add postcode and fabric'}
+      </button>
     </section>
   )
 }
@@ -145,7 +133,11 @@ function EstimateCard({ estimate }: { estimate: Estimate }) {
       </dl>
       <p className="muted small">
         From your {estimate.basedOn === 1 ? 'closest match' : `${estimate.basedOn} closest matches`}. Heat loss and heat
-        use are scaled to your floor area. A guide from real homes, not a heat loss survey.
+        use are scaled to your floor area
+        {estimate.designTemperature !== null
+          ? `, and heat loss to ${formatTemperature(estimate.designTemperature)}, your area’s design temperature`
+          : ''}
+        . A guide from real homes, not a heat loss survey.
       </p>
     </section>
   )
@@ -162,6 +154,11 @@ function MatchCard({ yours, candidate }: { yours: ShapeProfile; candidate: Score
           match · uploaded {new Date(candidate.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
         </span>
       </header>
+      {candidate.share && (
+        <p className="match-name">
+          <strong>{candidate.share.name}</strong> <span className="muted small">in {candidate.share.postcodeDistrict}</span>
+        </p>
+      )}
       <PlanSvg
         storeys={yours.plans}
         overlay={placed}
@@ -208,28 +205,28 @@ function MatchCard({ yours, candidate }: { yours: ShapeProfile; candidate: Score
   )
 }
 
-export function MatchesPage({ surveyId, profile }: { surveyId: string; profile: ShapeProfile }) {
+interface MatchesPageProps {
+  /** The uploaded survey, or null for a scan opened from a file (which isn't on the server). */
+  surveyId: string | null
+  profile: ShapeProfile
+  onBack: () => void
+  /** Opens Home fabric, where the postcode and how the home is built are asked for. */
+  onFabric: () => void
+}
+
+export function MatchesPage({ surveyId, profile, onBack, onFabric }: MatchesPageProps) {
   const scan = useFabric((s) => s.scan)
+  const home = useFabric((s) => s.home)
   const [reload, setReload] = useState(0)
-  const request = `${surveyId}#${reload}`
-  const [fetched, setFetched] = useState<Fetched | null>(null)
-  // Scores belong to one set of candidates and one version of your profile; stale ones aren't shown.
-  const [scoredFor, setScoredFor] = useState<{ source: Candidate[]; profile: ShapeProfile; list: ScoredCandidate[] }>()
-
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/surveys/${surveyId}/candidates`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((list: Candidate[]) => !cancelled && setFetched({ request, candidates: list }))
-      .catch(() => !cancelled && setFetched({ request, candidates: null }))
-    return () => {
-      cancelled = true
-    }
-  }, [surveyId, request])
-
-  const current = fetched?.request === request ? fetched : null
-  const status = !current ? 'loading' : current.candidates ? 'ready' : 'error'
-  const candidates = current?.candidates
+  const state = useCandidates(surveyId, reload)
+  const scanHash = scan?.hash
+  // The server leaves out an uploaded survey itself, but not your scan opened from a file, or
+  // uploaded again from another of the app's surveys.
+  const loaded = state.status === 'ready' ? state.candidates : null
+  const candidates = useMemo(() => (loaded && scanHash ? otherHomes(loaded, scanHash) : null), [loaded, scanHash])
+  // Scores belong to one set of candidates, one version of your profile and one set of your
+  // answers; stale ones aren't shown.
+  const [scoredFor, setScoredFor] = useState<{ source: Candidate[]; profile: ShapeProfile; home: unknown; list: ScoredCandidate[] }>()
 
   // Matching takes a few tens of milliseconds per home; score one at a time so the page stays
   // responsive, showing results as they arrive.
@@ -237,19 +234,12 @@ export function MatchesPage({ surveyId, profile }: { surveyId: string; profile: 
     if (!candidates) return
     let cancelled = false
     const results: ScoredCandidate[] = []
-    const valid = candidates.filter((c) => isShapeProfile(c.profile))
+    const yours: HomeDetails = { home, postcodeDistrict: home.postcodeDistrict }
     const next = (i: number) => {
-      if (cancelled || i >= valid.length) return
-      const c = valid[i]
-      const theirs = c.profile as ShapeProfile
-      results.push({
-        id: c.id,
-        createdAt: c.createdAt,
-        profile: theirs,
-        heatPump: isHeatPumpData(c.heatPump) ? c.heatPump : null,
-        match: compare(profile, theirs),
-      })
-      setScoredFor({ source: candidates, profile, list: [...results].sort((a, b) => b.match.score - a.match.score) })
+      if (cancelled || i >= candidates.length) return
+      const c = candidates[i]
+      results.push({ ...c, match: compare(profile, c.profile, { yours, theirs: c.share ?? undefined }) })
+      setScoredFor({ source: candidates, profile, home, list: [...results].sort((a, b) => b.match.score - a.match.score) })
       setTimeout(() => next(i + 1))
     }
     const first = setTimeout(() => next(0))
@@ -257,23 +247,36 @@ export function MatchesPage({ surveyId, profile }: { surveyId: string; profile: 
       cancelled = true
       clearTimeout(first)
     }
-  }, [candidates, profile])
+  }, [candidates, profile, home])
 
   if (!scan) return null
   const scored =
-    candidates && scoredFor?.source === candidates && scoredFor.profile === profile ? scoredFor.list : []
-  const pending = (candidates ?? []).filter((c) => isShapeProfile(c.profile)).length - scored.length
+    candidates && scoredFor?.source === candidates && scoredFor.profile === profile && scoredFor.home === home
+      ? scoredFor.list
+      : []
+  const pending = (candidates?.length ?? 0) - scored.length
   const estimate =
     pending === 0
       ? estimateFor(
           profile.floorArea,
-          scored.map((c) => ({ score: c.match.score, floorArea: c.profile.floorArea, heatPump: c.heatPump })),
+          scored.map((c) => ({
+            score: c.match.score,
+            floorArea: c.profile.floorArea,
+            heatPump: c.heatPump,
+            designTemperature: designTemperatureFor(c.share?.postcodeDistrict),
+          })),
+          designTemperatureFor(home.postcodeDistrict),
         )
       : null
 
   return (
     <div className="matches-page">
-      <YourHome profile={profile} />
+      <div className="page-back">
+        <button className="link" onClick={onBack}>
+          ← What next?
+        </button>
+      </div>
+      <YourHome profile={profile} onFabric={onFabric} />
 
       <section className="matches">
         <div className="matches-heading">
@@ -283,17 +286,18 @@ export function MatchesPage({ surveyId, profile }: { surveyId: string; profile: 
           </button>
         </div>
         <p className="muted">
-          Matched on size, layout, outside wall, windows and storeys. Their floorplan is drawn dashed over yours. Fabric
-          and real heat pump results will be added as owners describe their homes.
+          Matched on size, layout, outside wall, windows and storeys, and on how it’s built and your area’s winter
+          temperature where you and the owner have said. Their floorplan is drawn dashed over yours.
+          {surveyId ? '' : ' Your scan stays in this browser: other homes are compared with it here.'}
         </p>
 
-        {status === 'loading' && <p className="muted">Finding homes to compare…</p>}
-        {status === 'error' && (
+        {state.status === 'loading' && <p className="muted">Finding homes to compare…</p>}
+        {state.status === 'error' && (
           <p className="error" role="alert">
             Couldn't load other homes. Try Refresh.
           </p>
         )}
-        {status === 'ready' && candidates?.length === 0 && (
+        {candidates?.length === 0 && (
           <div className="card empty">
             <p>No other homes to compare with yet.</p>
             <p className="muted small">Matches appear here as more people upload scans from the app.</p>

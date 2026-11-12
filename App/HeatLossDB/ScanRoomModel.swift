@@ -95,11 +95,9 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     /// True from asking a room to end until RoomPlan hands over its data.
     private(set) var isEndingRoom = false
     
-    // The room that is ending, and what to do once it has.
+    // The room that is ending, and whether to throw it away once RoomPlan hands it over.
     @ObservationIgnored
     private var endingRoom: (id: UUID, surveyId: UUID, discard: Bool)?
-    @ObservationIgnored
-    private var startAfterEnding: UUID?
     
     /// A room RoomPlan ended on its own (lost tracking, too hot, too big…) before it was asked
     /// to. It's kept so ending the room uses it, rather than stopping a session that has already
@@ -233,8 +231,10 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     
     // MARK: - Walking round the home
     //
-    // The camera stays up for the whole walk. Each room ends with stop(pauseARSession: false), so
-    // tracking carries on into the next room while the ended one is processed in the background.
+    // Each room is two steps: "Room done" ends it with stop(pauseARSession: false), so tracking
+    // carries on while RoomPlan hands it over and it's processed in the background; then "Scan
+    // next room" starts the next on a fresh capture view. Nothing starts until the user asks, so
+    // a room never starts while the last one is still being handed over.
     
     /// The room being captured, if any.
     var capturingRoom: WalkRoom? {
@@ -254,15 +254,15 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         let id = UUID()
         walk.append(WalkRoom(id: id, name: "", status: .capturing))
         capturingRoomId = id
+        print("[scan] starting room \(id)")
         runCapture()
     }
     
     /// Ends the room being captured with the name it's been given, and returns it so the caller
-    /// can record it. The room is processed in the background. With `startNext`, the next room's
-    /// capture starts straight away; otherwise (e.g. on "Finish home") nothing more is
-    /// captured until `startRoom`.
+    /// can record it. The room is processed in the background; nothing more is captured until
+    /// `startRoom`.
     @MainActor
-    func endRoom(name: String, startNext: Bool) -> WalkRoom? {
+    func endRoom(name: String) -> WalkRoom? {
         // Only one room can be ending at a time; the next one starts once it has.
         guard !isEndingRoom, let id = capturingRoomId, let surveyId = activeSurveyId,
               let index = walk.firstIndex(where: { $0.id == id }) else { return nil }
@@ -273,15 +273,7 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         capturingRoomId = nil
         isEndingRoom = true
         
-        if startNext {
-            // Shown as capturing straight away; RoomPlan starts it once the ended room is handed over.
-            let nextId = UUID()
-            walk.append(WalkRoom(id: nextId, name: "", status: .capturing))
-            capturingRoomId = nextId
-            startAfterEnding = nextId
-        }
-        
-        print("[scan] ending room \(id), startNext: \(startNext)")
+        print("[scan] ending room \(id)")
         let ended = walk[index]
         stopCapture()
         return ended
@@ -293,7 +285,6 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         guard let id = capturingRoomId else { return }
         walk.removeAll { $0.id == id }
         capturingRoomId = nil
-        startAfterEnding = nil
         if let surveyId = activeSurveyId, !isEndingRoom {
             endingRoom = (id, surveyId, true)
             isEndingRoom = true
@@ -301,34 +292,16 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         }
     }
     
-    /// Throws away the last finished room (and anything captured since) and captures it again,
-    /// Returns the room that was thrown away, so the caller can remove its
-    /// record and reuse its name.
+    /// Between rooms: throws away the last finished room and starts capturing it again.
+    /// Returns the room that was thrown away, so the caller can remove its record and reuse its
+    /// name.
     @MainActor
     func redoLastRoom() -> WalkRoom? {
-        guard let last = lastFinishedRoom, let surveyId = activeSurveyId else { return nil }
-        
+        guard capturingRoomId == nil, !isEndingRoom,
+              let last = lastFinishedRoom, let surveyId = activeSurveyId else { return nil }
+        // Also drops it from the walk, and its result if it's still being processed.
         deleteRoomFiles(surveyId: surveyId, roomId: last.id)
-        walk.removeAll { $0.id == last.id }
-        
-        let redoId = UUID()
-        if let current = capturingRoomId {
-            // Replace the room in progress with the redo. If RoomPlan is still handing over the
-            // last room, the redo starts once it has; otherwise end the one in progress first.
-            walk.removeAll { $0.id == current }
-            // Set up the redo first: if RoomPlan already ended the room, it's handed over at once.
-            walk.append(WalkRoom(id: redoId, name: "", status: .capturing))
-            capturingRoomId = redoId
-            startAfterEnding = redoId
-            if !isEndingRoom {
-                endingRoom = (current, surveyId, true)
-                isEndingRoom = true
-                stopCapture()
-            }
-        } else {
-            capturingRoomId = nil
-            startRoom()
-        }
+        startRoom()
         return last
     }
     
@@ -357,7 +330,7 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     }
 
     /// Hands over the room that was ending: `data` is what RoomPlan captured, or nil if it never
-    /// handed the room over. Then starts the next room, if one is waiting.
+    /// handed the room over.
     @MainActor
     private func roomEnded(data: CapturedRoomData?, error: (any Error)?) {
         let ended = endingRoom
@@ -376,13 +349,6 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
                 setStatus(.failed(message), for: ended.id)
                 scanError = (ended.id, message)
             }
-        }
-        
-        // Start the room waiting to start (from "Next room" or "Redo"), on a fresh view.
-        if let next = startAfterEnding, next == capturingRoomId, activeSurveyId != nil {
-            startAfterEnding = nil
-            print("[scan] starting next room \(next)")
-            runCapture()
         }
     }
     

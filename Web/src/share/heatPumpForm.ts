@@ -6,16 +6,18 @@ export interface HeatPumpForm {
   makeAndModel: string
   outputKw: string
   heatLossKw: string
-  flowTemperature: string
+  /** The outdoor temperature the heat loss was calculated at, such as -2. */
+  outdoorTemperature: string
 }
 
-export const EMPTY_HEAT_PUMP_FORM: HeatPumpForm = { makeAndModel: '', outputKw: '', heatLossKw: '', flowTemperature: '' }
+export const EMPTY_HEAT_PUMP_FORM: HeatPumpForm = { makeAndModel: '', outputKw: '', heatLossKw: '', outdoorTemperature: '' }
 
 export const isHeatPumpFormEmpty = (form: HeatPumpForm) => Object.values(form).every((v) => v.trim() === '')
 
 /** A number typed into the form, or undefined if blank. NaN if it isn't a number. */
 function parse(value: string): number | undefined {
-  const text = value.trim().replace(',', '.')
+  // Accept a typographic minus, as in "−2", and a decimal comma.
+  const text = value.trim().replace(',', '.').replace('−', '-')
   return text === '' ? undefined : Number(text)
 }
 
@@ -28,13 +30,13 @@ const within = (value: number | undefined, min: number, max: number) => value ==
 export function heatPumpRecord(form: HeatPumpForm): { record: HeatPumpData } | { error: string } {
   const heatLossKw = parse(form.heatLossKw)
   const outputKw = parse(form.outputKw)
-  const flowTemperature = parse(form.flowTemperature)
+  const outdoorTemperature = parse(form.outdoorTemperature)
   const makeAndModel = form.makeAndModel.trim().replace(/\s+/g, ' ')
 
   if (heatLossKw === undefined) return { error: 'Add the calculated heat loss to save these figures, or skip this step.' }
   if (!within(heatLossKw, 0.5, 50)) return { error: 'Heat loss should be between 0.5 and 50 kW.' }
   if (!within(outputKw, 1, 50)) return { error: 'Rated output should be between 1 and 50 kW.' }
-  if (!within(flowTemperature, 25, 80)) return { error: 'Flow temperature should be between 25 and 80 °C.' }
+  if (!within(outdoorTemperature, -20, 15)) return { error: 'Design outdoor temperature should be between −20 and 15 °C.' }
   if (outputKw !== undefined && !makeAndModel) return { error: 'Add the heat pump’s make and model, or clear its rated output.' }
   if (makeAndModel && outputKw === undefined) return { error: 'Add the heat pump’s rated output, or clear its make and model.' }
 
@@ -48,6 +50,6 @@ export function heatPumpRecord(form: HeatPumpForm): { record: HeatPumpData } | {
     const [make, ...model] = makeAndModel.split(' ')
     record.heatPump = { make, model: model.join(' '), capacityKw: outputKw }
   }
-  if (flowTemperature !== undefined) record.designFlowTemperature = flowTemperature
+  if (outdoorTemperature !== undefined) record.designOutdoorTemperature = outdoorTemperature
   return { record }
 }
