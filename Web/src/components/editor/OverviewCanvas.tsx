@@ -27,7 +27,7 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
               <span>Roof</span>
             </div>
             {[...floors].reverse().map((floor) => {
-              const rooms = floor.rooms.filter((room) => !room.removed)
+              const rooms = floor.rooms
               return (
                 <div key={floor.plan.story} className="overview-floor">
                   <div className="overview-floor-head">

@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useFabric, type EditedRoom } from '../../fabric/store'
 import { answeredCount, isHomeFabricSet, QUESTION_COUNT } from '../../fabric/home'
 import { listingName } from '../../share/listing'
 import { createAccount, resendConfirmation, saveShare, submitShare, useShare } from '../../share/share'
+import { EMPTY_HEAT_PUMP_FORM, heatPumpRecord, isHeatPumpFormEmpty, type HeatPumpForm } from '../../share/heatPumpForm'
+import type { HeatPumpData } from '../../match/heatPump'
 import { CheckIcon } from '../editor/icons'
 
-type Step = 'check' | 'account' | 'done'
+type Step = 'check' | 'heatPump' | 'account' | 'done'
 
 const STEPS: { id: Step; label: string }[] = [
   { id: 'check', label: 'Check' },
+  { id: 'heatPump', label: 'Heat pump' },
   { id: 'account', label: 'Account' },
   { id: 'done', label: 'Done' },
 ]
@@ -17,7 +20,7 @@ const STEPS: { id: Step; label: string }[] = [
 const looksLikeEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
 interface ShareDialogProps {
-  /** Every room still in the home (removed ones left out). */
+  /** Every room in the home. */
   rooms: EditedRoom[]
   onClose: () => void
   /** Closes the dialog and opens Home fabric. */
@@ -26,8 +29,8 @@ interface ShareDialogProps {
   onCheckRooms: () => void
 }
 
-/** Share your home: checks the scan is ready, creates an account, then waits for its email to
- *  be confirmed before the home is listed. */
+/** Share your home: checks the scan is ready, takes any heat pump figures, creates an account,
+ *  then waits for its email to be confirmed before the home is listed. */
 export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null)
   const scanHash = useFabric((s) => s.scan?.hash)
@@ -39,6 +42,10 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [resent, setResent] = useState(false)
+  const [heatPumpForm, setHeatPumpForm] = useState<HeatPumpForm>(EMPTY_HEAT_PUMP_FORM)
+  // Null when skipped.
+  const [heatPump, setHeatPump] = useState<HeatPumpData | null>(null)
+  const [heatPumpError, setHeatPumpError] = useState<string | null>(null)
 
   useEffect(() => {
     dialog.current?.showModal()
@@ -51,6 +58,30 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
   const ready = fabricSet && roomsChecked
   const name = listingName(home)
   const close = () => dialog.current?.close()
+  const setHeatPumpField = (field: keyof HeatPumpForm) => (e: ChangeEvent<HTMLInputElement>) =>
+    setHeatPumpForm((form) => ({ ...form, [field]: e.target.value }))
+
+  const skipHeatPump = () => {
+    setHeatPumpError(null)
+    setHeatPump(null)
+    setStep('account')
+  }
+
+  const continueFromHeatPump = (e: FormEvent) => {
+    e.preventDefault()
+    if (isHeatPumpFormEmpty(heatPumpForm)) {
+      skipHeatPump()
+      return
+    }
+    const result = heatPumpRecord(heatPumpForm)
+    if ('error' in result) {
+      setHeatPumpError(result.error)
+      return
+    }
+    setHeatPumpError(null)
+    setHeatPump(result.record)
+    setStep('account')
+  }
 
   const createAndShare = async (e: FormEvent) => {
     e.preventDefault()
@@ -63,7 +94,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
     setBusy(true)
     try {
       await createAccount(address)
-      await submitShare(name)
+      await submitShare(name, heatPump)
       if (scanHash) saveShare(scanHash, { status: 'pending', email: address, name, sharedAt: new Date().toISOString() })
       setStep('done')
     } catch {
@@ -144,11 +175,66 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
             <button className="button subtle" onClick={close}>
               Cancel
             </button>
-            <button className="button" disabled={!ready || !agreed} onClick={() => setStep('account')}>
+            <button className="button" disabled={!ready || !agreed} onClick={() => setStep('heatPump')}>
               Continue
             </button>
           </div>
         </div>
+      )}
+
+      {step === 'heatPump' && (
+        <form className="share-body" onSubmit={continueFromHeatPump} noValidate>
+          <p className="muted">
+            If you have a heat pump, these figures make your home far more useful to others. Your installer’s heat loss report has
+            them.
+          </p>
+          <label className="field">
+            <span className="field-label">Heat pump make and model</span>
+            <input
+              autoFocus
+              autoComplete="off"
+              placeholder="Vaillant aroTHERM plus 7"
+              value={heatPumpForm.makeAndModel}
+              onChange={setHeatPumpField('makeAndModel')}
+            />
+          </label>
+          <div className="share-field-row">
+            <label className="field">
+              <span className="field-label">Rated output (kW)</span>
+              <input type="number" inputMode="decimal" step="any" value={heatPumpForm.outputKw} onChange={setHeatPumpField('outputKw')} />
+            </label>
+            <label className="field">
+              <span className="field-label">Calculated heat loss (kW)</span>
+              <input type="number" inputMode="decimal" step="any" value={heatPumpForm.heatLossKw} onChange={setHeatPumpField('heatLossKw')} />
+            </label>
+            <label className="field">
+              <span className="field-label">Design flow temperature (°C)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={heatPumpForm.flowTemperature}
+                onChange={setHeatPumpField('flowTemperature')}
+              />
+            </label>
+          </div>
+          {heatPumpError && (
+            <p className="share-error" role="alert">
+              {heatPumpError}
+            </p>
+          )}
+          <div className="share-actions">
+            <button type="button" className="button subtle" onClick={() => setStep('check')}>
+              Back
+            </button>
+            <button type="button" className="button subtle" onClick={skipHeatPump}>
+              Skip for now
+            </button>
+            <button type="submit" className="button">
+              Continue
+            </button>
+          </div>
+        </form>
       )}
 
       {step === 'account' && (
@@ -176,7 +262,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
             </p>
           )}
           <div className="share-actions">
-            <button type="button" className="button subtle" onClick={() => setStep('check')}>
+            <button type="button" className="button subtle" onClick={() => setStep('heatPump')}>
               Back
             </button>
             <button type="submit" className="button" disabled={busy}>

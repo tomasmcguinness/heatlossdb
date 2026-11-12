@@ -91,7 +91,7 @@ function HeatPumpResults({ data, floorArea }: { data: HeatPumpData | null; floor
   const rows: [string, string][] = [
     [
       'Heat loss',
-      `${formatKw(data.designHeatLossW)} at ${formatTemperature(data.designOutdoorTemperature)} · ${Math.round(data.designHeatLossW / floorArea)} W/m²${
+      `${formatKw(data.designHeatLossW)}${data.designOutdoorTemperature !== undefined ? ` at ${formatTemperature(data.designOutdoorTemperature)}` : ''} · ${Math.round(data.designHeatLossW / floorArea)} W/m²${
         data.heatLossBasis ? (data.heatLossBasis === 'measured' ? ' · measured' : ' · from a survey') : ''
       }`,
     ],

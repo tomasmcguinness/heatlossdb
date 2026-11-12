@@ -1,4 +1,4 @@
-import type { ElementSettings, HomeFabric } from './store'
+import type { ElementSettings, HomeFabric, RoomFabric, RoomSettings } from './store'
 
 /** One answer to a Home fabric question. */
 export interface Choice {
@@ -111,3 +111,60 @@ export const isHomeFabricSet = (home: HomeFabric) => home.applied === true
  *  replaces. Roles (external, party, internal) aren't fabric, so they're kept. */
 export const hasCustomFabric = (settings: ElementSettings) =>
   Object.keys(settings.fields ?? {}).length > 0 || settings.uValue !== undefined
+
+/** Where a room sits, which decides which of its fabric can differ from the home's: only the
+ *  top storey has a roof above it, and only the ground storey has a floor on the ground. A room
+ *  in a single-storey home is both. */
+export interface RoomPlacement {
+  ground: boolean
+  top: boolean
+}
+
+const CEILING_KEYS: (keyof RoomFabric)[] = ['loft', 'loftDepth']
+const FLOOR_KEYS: (keyof RoomFabric)[] = ['floorType', 'floorInsulation']
+
+/** Whether a room in this placement can have its own value for this part of its fabric. */
+export function canChange(placement: RoomPlacement, key: keyof RoomFabric): boolean {
+  if (CEILING_KEYS.includes(key)) return placement.top
+  if (FLOOR_KEYS.includes(key)) return placement.ground
+  return true
+}
+
+export interface Resolved {
+  value: string | undefined
+  /** Whether the value is the room's or item's own, or the home's. */
+  own: boolean
+}
+
+/** One part of a room's fabric: its own answer where it has one, else the home's. Loft depth
+ *  follows the loft: a room with its own loft answer doesn't take the home's depth. */
+export function roomFabricValue(home: HomeFabric, settings: RoomSettings | undefined, placement: RoomPlacement, key: keyof RoomFabric): Resolved {
+  const fabric = settings?.fabric ?? {}
+  const own = canChange(placement, key) ? fabric[key] : undefined
+  if (own) return { value: own, own: true }
+  if (key === 'loftDepth' && canChange(placement, 'loft') && fabric.loft) return { value: undefined, own: true }
+  return { value: home[key], own: false }
+}
+
+/** The answers a door, window or skylight's own fabric is chosen from. */
+export const itemChoices = (kind: 'door' | 'window' | 'skylight'): Choice[] => (kind === 'door' ? DOORS : WINDOWS)
+
+/** A door's type, or a window's or skylight's glazing: its own where set, else the home's. */
+export function itemFabricValue(home: HomeFabric, settings: RoomSettings | undefined, item: { id: string; kind: 'door' | 'window' | 'skylight' }): Resolved {
+  const own = settings?.itemFabric?.[item.id]
+  if (own) return { value: own, own: true }
+  return { value: item.kind === 'door' ? home.doors : home.windows, own: false }
+}
+
+/** Whether the room, or any of its doors and windows, is built differently from the home. */
+export const hasRoomFabric = (settings: RoomSettings | undefined) =>
+  Object.keys(settings?.fabric ?? {}).length > 0 || Object.keys(settings?.itemFabric ?? {}).length > 0
+
+/** Changes that applying Home fabric replaces: each element with its own fabric, each room with
+ *  its own fabric, and each door or window with its own. */
+export function customFabricCount(elements: Record<string, ElementSettings>, rooms: Record<string, RoomSettings>): number {
+  const ownElements = Object.values(elements).filter(hasCustomFabric).length
+  const ownRooms = Object.values(rooms).filter((r) => Object.keys(r.fabric ?? {}).length > 0).length
+  const ownItems = Object.values(rooms).reduce((total, r) => total + Object.keys(r.itemFabric ?? {}).length, 0)
+  return ownElements + ownRooms + ownItems
+}

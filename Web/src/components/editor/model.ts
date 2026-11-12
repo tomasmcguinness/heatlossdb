@@ -6,7 +6,7 @@ import type { ItemKind } from './kinds'
 export interface EditorFloor {
   plan: FloorPlan
   name: string
-  /** Every room on the floor as the user has corrected it, removed ones included. */
+  /** Every room on the floor as the user has corrected it. */
   rooms: EditedRoom[]
 }
 

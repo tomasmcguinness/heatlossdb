@@ -24,10 +24,25 @@ export interface RoomSettings {
   /** Rooms are heated unless the user says otherwise. */
   heated?: boolean
   checked?: boolean
-  removed?: boolean
   /** Scanned doors and windows the user says aren't there. */
   removedElements?: string[]
   added?: AddedElement[]
+  /** Where the room is built differently from the rest of the home, such as an extension.
+   *  Anything unset is the same as Home fabric. */
+  fabric?: RoomFabric
+  /** Door types (doors) and glazing (windows and skylights) that differ from Home fabric, keyed
+   *  by the scanned or added item's id. Values come from DOORS and WINDOWS in fabric/home.ts. */
+  itemFabric?: Record<string, string>
+}
+
+/** The parts of Home fabric a room can change. Values are the same as HomeFabric's. Only rooms
+ *  on the top storey have a ceiling (loft) to change, and only ground storey rooms a floor. */
+export interface RoomFabric {
+  walls?: string
+  loft?: string
+  loftDepth?: string
+  floorType?: string
+  floorInsulation?: string
 }
 
 /** How the whole home is built, as answered in Home fabric. Values come from fabric/home.ts;
@@ -118,7 +133,7 @@ interface FabricState {
   setAlignment: (story: number, alignment: StoreyAlignment) => void
   setRoom: (id: string, update: (current: RoomSettings) => RoomSettings) => void
   /** Applies Home fabric to the whole home, replacing any element's own fabric details and
-   *  U-value (but not its role). */
+   *  U-value (but not its role), and any room's, door's or window's own fabric. */
   applyHome: (home: HomeFabric) => void
 
   exportFabric: () => FabricDocument | null
@@ -180,6 +195,18 @@ function tidy(settings: ElementSettings): ElementSettings | undefined {
   if (Object.keys(fields).length) next.fields = fields
   if (settings.uValue !== undefined && Number.isFinite(settings.uValue)) next.uValue = settings.uValue
   return Object.keys(next).length ? next : undefined
+}
+
+/** Drops "same as home" (empty) fabric answers, and the fabric records once they're empty. */
+function tidyRoom(settings: RoomSettings): RoomSettings {
+  const next = { ...settings }
+  const fabric = Object.fromEntries(Object.entries(settings.fabric ?? {}).filter(([, v]) => v))
+  const itemFabric = Object.fromEntries(Object.entries(settings.itemFabric ?? {}).filter(([, v]) => v))
+  if (Object.keys(fabric).length) next.fabric = fabric
+  else delete next.fabric
+  if (Object.keys(itemFabric).length) next.itemFabric = itemFabric
+  else delete next.itemFabric
+  return next
 }
 
 function withElement(
@@ -267,12 +294,16 @@ export const useFabric = create<FabricState>()((set, get) => ({
   },
 
   setAlignment: (story, alignment) => set({ alignment: { ...get().alignment, [story]: alignment } }),
-  setRoom: (id, update) => set({ rooms: { ...get().rooms, [id]: update(get().rooms[id] ?? {}) } }),
+  setRoom: (id, update) => set({ rooms: { ...get().rooms, [id]: tidyRoom(update(get().rooms[id] ?? {})) } }),
   applyHome: (home) => {
     const elements = Object.fromEntries(
       Object.entries(get().elements).flatMap(([id, settings]) => (settings.role ? [[id, { role: settings.role }]] : [])),
     )
-    set({ home: { ...home, applied: true }, elements })
+    // Rooms keep their checks and corrections, but not their own fabric.
+    const rooms = Object.fromEntries(
+      Object.entries(get().rooms).map(([id, settings]) => [id, tidyRoom({ ...settings, fabric: undefined, itemFabric: undefined })]),
+    )
+    set({ home: { ...home, applied: true }, elements, rooms })
   },
 
   exportFabric: () => {
@@ -373,7 +404,6 @@ export interface EditedRoom extends PlanRoom {
   scannedName: string
   heated: boolean
   checked: boolean
-  removed: boolean
   /** Scanned doors and windows the user hasn't removed, then the ones they added. */
   items: RoomElement[]
 }
@@ -387,7 +417,6 @@ export function editedRoom(room: PlanRoom, settings: RoomSettings = {}): EditedR
     scannedName: room.name,
     heated: settings.heated ?? true,
     checked: settings.checked ?? false,
-    removed: settings.removed ?? false,
     items: [
       ...room.elements.filter((e) => !removed.has(e.id)).map((e) => ({ ...e, added: false as const })),
       ...(settings.added ?? []).map((e) => ({ ...e, added: true as const })),

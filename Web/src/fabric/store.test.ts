@@ -169,6 +169,23 @@ describe('rooms', () => {
     expect(state().elements).toEqual({ outer: { role: 'party' } })
   })
 
+  it('drops a room’s fabric when it goes back to the same as home', () => {
+    state().setRoom('r', (s) => ({ ...s, fabric: { walls: 'solid' }, itemFabric: { w1: 'triple' } }))
+    state().setRoom('r', (s) => ({ ...s, fabric: { ...s.fabric, walls: undefined }, itemFabric: { ...s.itemFabric, w1: '' } }))
+    expect(state().rooms.r).toEqual({})
+  })
+
+  it('replaces rooms’ own fabric when applied, but keeps their corrections', () => {
+    const added = [{ id: 'a', kind: 'skylight' as const }]
+    state().setRoom('r', () => ({ name: 'Study', heated: false, checked: true, added, fabric: { walls: 'solid' }, itemFabric: { a: 'triple' } }))
+    const doc = state().exportFabric()!
+    state().loadScan(scan)
+    state().importFabric(doc)
+    expect(state().rooms.r.itemFabric).toEqual({ a: 'triple' })
+    state().applyHome({ walls: 'cavity-filled' })
+    expect(state().rooms.r).toEqual({ name: 'Study', heated: false, checked: true, added })
+  })
+
   it('still accepts documents saved before rooms were added', () => {
     const { rooms: _, ...older } = state().exportFabric()!
     expect(isFabricDocument(older)).toBe(true)

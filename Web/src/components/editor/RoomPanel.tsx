@@ -1,6 +1,20 @@
 import { useRef, useState } from 'react'
-import { FLOOR_TYPES, isHomeFabricSet, labelIn, LOFTS, WALLS, WINDOWS } from '../../fabric/home'
-import { useFabric, type EditedRoom, type HomeFabric, type RoomElement } from '../../fabric/store'
+import {
+  FLOOR_INSULATION,
+  FLOOR_TYPES,
+  hasRoomFabric,
+  isHomeFabricSet,
+  itemChoices,
+  itemFabricValue,
+  labelIn,
+  LOFT_DEPTHS,
+  LOFTS,
+  WALLS,
+  WINDOWS,
+  type Choice,
+  type RoomPlacement,
+} from '../../fabric/home'
+import { useFabric, type EditedRoom, type HomeFabric, type RoomElement, type RoomFabric, type RoomSettings } from '../../fabric/store'
 import { BackIcon, BinIcon, InfoIcon, KindIcon, PencilIcon } from './icons'
 import { kindName, type ItemKind } from './kinds'
 import { squareMetres, type EditorFloor, type RoomActions } from './model'
@@ -47,18 +61,16 @@ const fabricFacts = (home: HomeFabric): [string, string | undefined][] => [
 ]
 
 function AllRooms({ floors, floor, actions, onFabric }: RoomPanelProps) {
-  const setRoom = useFabric((s) => s.setRoom)
   const home = useFabric((s) => s.home)
+  const settings = useFabric((s) => s.rooms)
   const shown = floor ? [floor] : floors
   const rooms = shown.flatMap((f) => f.rooms.map((room) => ({ room, floorName: f.name })))
-  const active = rooms.filter(({ room }) => !room.removed)
-  const removed = rooms.filter(({ room }) => room.removed)
 
   return (
     <>
       <div className="panel-intro">
         <h2>Your home</h2>
-        <p className="muted">Check each room’s doors, windows and skylights. Walls, roof and floor are set once for the whole home.</p>
+        <p className="muted">Check each room’s doors, windows and skylights. Walls, roof and floor are set for the whole home in Home fabric. Change them room by room if parts are built differently.</p>
       </div>
 
       <p className="panel-note">
@@ -92,9 +104,9 @@ function AllRooms({ floors, floor, actions, onFabric }: RoomPanelProps) {
 
       <section className="panel-rooms" aria-labelledby="rooms-title">
         <h3 id="rooms-title">{floor ? `${floor.name} rooms` : 'All rooms'}</h3>
-        {active.length ? (
+        {rooms.length ? (
           <ul className="panel-room-list">
-            {active.map(({ room: r, floorName }) => (
+            {rooms.map(({ room: r, floorName }) => (
               <li
                 key={r.id}
                 className={r.id === actions.hoveredId ? 'hovered' : ''}
@@ -106,7 +118,10 @@ function AllRooms({ floors, floor, actions, onFabric }: RoomPanelProps) {
                     <span>{r.name}</span>
                     {!floor && <span className="small muted">{floorName}</span>}
                   </span>
-                  <span className={r.checked ? 'status-checked' : 'muted small'}>{r.checked ? 'Checked' : 'To check'}</span>
+                  <span className="panel-room-status">
+                    {isHomeFabricSet(home) && hasRoomFabric(settings[r.id]) &&<span className="tag tag-set">Own fabric</span>}
+                    <span className={r.checked ? 'status-checked' : 'muted small'}>{r.checked ? 'Checked' : 'To check'}</span>
+                  </span>
                 </button>
                 <button className="panel-room-edit" aria-label={`Rename ${r.name}`} onClick={() => actions.rename(r.id)}>
                   <PencilIcon />
@@ -119,24 +134,6 @@ function AllRooms({ floors, floor, actions, onFabric }: RoomPanelProps) {
         )}
       </section>
 
-      {removed.length > 0 && (
-        <section className="panel-rooms" aria-labelledby="removed-title">
-          <h3 id="removed-title">Removed</h3>
-          <ul className="panel-room-list">
-            {removed.map(({ room: r, floorName }) => (
-              <li key={r.id} className="removed">
-                <span className="panel-room-name panel-room">
-                  <span>{r.name}</span>
-                  {!floor && <span className="small muted">{floorName}</span>}
-                </span>
-                <button className="link restore" onClick={() => setRoom(r.id, (s) => ({ ...s, removed: false }))}>
-                  Restore
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </>
   )
 }
@@ -195,10 +192,131 @@ function RoomName({ room, renaming, onRenaming }: { room: EditedRoom; renaming: 
   )
 }
 
+/** A choice of one part of the fabric, starting on "Same as home". */
+function FabricOptions({
+  choices,
+  own,
+  inherited,
+  onChange,
+  label,
+}: {
+  choices: Choice[]
+  /** The room's or item's own answer, if it has one. */
+  own: string | undefined
+  /** What it is when it's the same as the home. */
+  inherited: string | undefined
+  onChange: (value: string | undefined) => void
+  /** For a choice without a visible label. */
+  label?: string
+}) {
+  return (
+    <select aria-label={label} value={own ?? ''} onChange={(e) => onChange(e.target.value || undefined)}>
+      <option value="">Same as home ({labelIn(choices, inherited) ?? 'not set'})</option>
+      {choices.map((c) => (
+        <option key={c.value} value={c.value}>
+          {c.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function FabricField({ label, ...props }: Omit<Parameters<typeof FabricOptions>[0], 'label'> & { label: string }) {
+  return (
+    <label className="panel-field">
+      <span>{label}</span>
+      <FabricOptions {...props} />
+    </label>
+  )
+}
+
+/** The room's walls, and its ceiling (top storey) and floor (ground storey), where they're
+ *  built differently from the rest of the home. Differences only make sense once the home's
+ *  fabric is set (and applying it would clear them), so until then it asks for that first. */
+function RoomFabricSection({
+  room,
+  settings,
+  placement,
+  onFabric,
+}: {
+  room: EditedRoom
+  settings: RoomSettings | undefined
+  placement: RoomPlacement
+  onFabric: () => void
+}) {
+  const setRoom = useFabric((s) => s.setRoom)
+  const home = useFabric((s) => s.home)
+  const own = (key: keyof RoomFabric) => settings?.fabric?.[key]
+  const set = (patch: RoomFabric) => setRoom(room.id, (s) => ({ ...s, fabric: { ...s.fabric, ...patch } }))
+
+  if (!isHomeFabricSet(home)) {
+    return (
+      <section className="room-fabric" aria-labelledby="room-fabric-title">
+        <h3 id="room-fabric-title">Fabric in this room</h3>
+        <div className="room-fabric-locked">
+          <p className="small muted">Set up Home fabric first. Then you can change anything this room does differently.</p>
+          <button className="button subtle" onClick={onFabric}>
+            Set up Home fabric
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="room-fabric" aria-labelledby="room-fabric-title">
+      <div>
+        <h3 id="room-fabric-title">Fabric in this room</h3>
+        <p className="small muted">Only change these if this room is built differently, such as an extension.</p>
+      </div>
+      <FabricField label="Outside walls" choices={WALLS} own={own('walls')} inherited={home.walls} onChange={(v) => set({ walls: v })} />
+      {placement.top && (
+        <>
+          <FabricField
+            label="Loft insulated?"
+            choices={LOFTS}
+            own={own('loft')}
+            inherited={home.loft}
+            // The depth only applies to an insulated loft, and goes with the room's own answer.
+            onChange={(v) => set({ loft: v, loftDepth: v === 'yes' ? own('loftDepth') : undefined })}
+          />
+          {own('loft') === 'yes' && (
+            <FabricField
+              label="Insulation above the joists?"
+              choices={LOFT_DEPTHS}
+              own={own('loftDepth')}
+              inherited={home.loft === 'yes' ? home.loftDepth : undefined}
+              onChange={(v) => set({ loftDepth: v })}
+            />
+          )}
+        </>
+      )}
+      {placement.ground && (
+        <>
+          <FabricField label="Floor" choices={FLOOR_TYPES} own={own('floorType')} inherited={home.floorType} onChange={(v) => set({ floorType: v })} />
+          <FabricField
+            label="Floor insulated?"
+            choices={FLOOR_INSULATION}
+            own={own('floorInsulation')}
+            inherited={home.floorInsulation}
+            onChange={(v) => set({ floorInsulation: v })}
+          />
+        </>
+      )}
+    </section>
+  )
+}
+
 /** The selected room: its name, whether it's heated, and its doors, windows and skylights, all
  *  editable. */
-function RoomDetails({ floors, room, renaming, onRenaming, onClear }: RoomPanelProps & { room: EditedRoom }) {
+function RoomDetails({ floors, room, renaming, onRenaming, onClear, onFabric }: RoomPanelProps & { room: EditedRoom }) {
   const setRoom = useFabric((s) => s.setRoom)
+  const home = useFabric((s) => s.home)
+  // Doors and windows can only differ from the home once its fabric is set.
+  const fabricSet = isHomeFabricSet(home)
+  const settings = useFabric((s) => s.rooms[room.id])
+  // Floors are lowest first: only the top one has a roof above, only the lowest a floor on the ground.
+  const placement: RoomPlacement = { ground: floors[0]?.plan.story === room.story, top: floors.at(-1)?.plan.story === room.story }
   const update = (patch: Parameters<typeof setRoom>[1]) => setRoom(room.id, patch)
   const names = itemNames(room.items)
   const height = floors.find((f) => f.plan.story === room.story)?.plan.wallHeight
@@ -206,12 +324,17 @@ function RoomDetails({ floors, room, renaming, onRenaming, onClear }: RoomPanelP
 
   const add = (kind: ItemKind) =>
     update((s) => ({ ...s, added: [...(s.added ?? []), { id: `added-${crypto.randomUUID()}`, kind }] }))
+  // A removed door or window takes its own fabric with it.
   const remove = (item: RoomElement) =>
-    update((s) =>
-      item.added
-        ? { ...s, added: (s.added ?? []).filter((a) => a.id !== item.id) }
-        : { ...s, removedElements: [...(s.removedElements ?? []), item.id] },
-    )
+    update((s) => {
+      const itemFabric = { ...s.itemFabric }
+      delete itemFabric[item.id]
+      return item.added
+        ? { ...s, itemFabric, added: (s.added ?? []).filter((a) => a.id !== item.id) }
+        : { ...s, itemFabric, removedElements: [...(s.removedElements ?? []), item.id] }
+    })
+  const setItemFabric = (item: RoomElement, value: string | undefined) =>
+    update((s) => ({ ...s, itemFabric: { ...s.itemFabric, [item.id]: value ?? '' } }))
 
   return (
     <>
@@ -234,6 +357,8 @@ function RoomDetails({ floors, room, renaming, onRenaming, onClear }: RoomPanelP
         </select>
       </label>
 
+      <RoomFabricSection room={room} settings={settings} placement={placement} onFabric={onFabric} />
+
       <section className="room-items" aria-labelledby="items-title">
         <h3 id="items-title">External doors, windows &amp; skylights</h3>
         {room.items.length ? (
@@ -248,6 +373,15 @@ function RoomDetails({ floors, room, renaming, onRenaming, onClear }: RoomPanelP
                   <span className="small muted">
                     {item.added ? 'Added by you' : `${item.width.toFixed(1)} × ${item.height.toFixed(1)} m`}
                   </span>
+                  {fabricSet && (
+                    <FabricOptions
+                      label={`${names[i]}: ${item.kind === 'door' ? 'door type' : 'glazing'}`}
+                      choices={itemChoices(item.kind)}
+                      own={settings?.itemFabric?.[item.id]}
+                      inherited={itemFabricValue(home, undefined, item).value}
+                      onChange={(v) => setItemFabric(item, v)}
+                    />
+                  )}
                 </span>
                 <button className="icon-only" aria-label={`Remove ${names[i]}`} onClick={() => remove(item)}>
                   <BinIcon />
@@ -277,15 +411,6 @@ function RoomDetails({ floors, room, renaming, onRenaming, onClear }: RoomPanelP
           onClick={() => update((s) => ({ ...s, checked: !room.checked }))}
         >
           {room.checked ? 'Checked · undo' : 'Mark room as checked'}
-        </button>
-        <button
-          className="link remove-room"
-          onClick={() => {
-            update((s) => ({ ...s, removed: true }))
-            onClear()
-          }}
-        >
-          Remove this room
         </button>
       </div>
     </>

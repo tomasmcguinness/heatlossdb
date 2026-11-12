@@ -2,10 +2,10 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   AGE_BANDS,
   answeredCount,
+  customFabricCount,
   DOORS,
   FLOOR_INSULATION,
   FLOOR_TYPES,
-  hasCustomFabric,
   LOFT_DEPTHS,
   LOFTS,
   PROPERTY_TYPES,
@@ -103,17 +103,19 @@ const WarningIcon = () =>
 /**
  * Home fabric: a few plain-language questions about how the whole home is built, for people
  * who don't know much about it. Anything left unanswered uses typical values for the home's
- * age. Applying replaces any element's own fabric details, so it asks first if there are any.
+ * age. Applying replaces any room's, door's, window's or element's own fabric, so it asks first
+ * if there are any.
  */
 export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const keepButton = useRef<HTMLButtonElement>(null)
   const saved = useFabric((s) => s.home)
   const elements = useFabric((s) => s.elements)
+  const rooms = useFabric((s) => s.rooms)
   const applyHome = useFabric((s) => s.applyHome)
   const [home, setDraft] = useState<HomeFabric>(saved)
   const [confirming, setConfirming] = useState(false)
-  const custom = Object.values(elements).filter(hasCustomFabric).length
+  const custom = customFabricCount(elements, rooms)
 
   useEffect(() => {
     dialog.current?.showModal()
@@ -236,7 +238,7 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
             </div>
             <p id="fabric-confirm-body">
               This applies your answers to every wall, window, door and floor in the home. The {custom}{' '}
-              {custom === 1 ? 'change' : 'changes'} you’ve made to individual elements will be lost.
+              {custom === 1 ? 'change' : 'changes'} you’ve made to individual rooms, doors and windows will be lost.
             </p>
             <div className="fabric-foot-actions">
               <button ref={keepButton} className="button subtle" onClick={() => setConfirming(false)}>

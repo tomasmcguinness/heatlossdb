@@ -31,8 +31,7 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
 
   const floor = view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
   const rooms = floors.flatMap((f) => f.rooms)
-  const room = rooms.find((r) => r.id === selectedId && !r.removed) ?? null
-  const counted = rooms.filter((r) => !r.removed)
+  const room = rooms.find((r) => r.id === selectedId) ?? null
 
   const actions: RoomActions = {
     hoveredId,
@@ -103,7 +102,7 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
 
         <div className="editor-status">
           <span className="muted">
-            {counted.filter((r) => r.checked).length} of {counted.length} rooms checked
+            {rooms.filter((r) => r.checked).length} of {rooms.length} rooms checked
           </span>
           <button
             className={isHomeFabricSet(home) ? 'button subtle fabric-button' : 'button subtle fabric-button to-do'}
@@ -170,7 +169,7 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
 
       {sharing && (
         <ShareDialog
-          rooms={counted}
+          rooms={rooms}
           onClose={() => setSharing(false)}
           onFabric={() => {
             setSharing(false)
@@ -178,7 +177,7 @@ export function ScanEditor({ onBack }: { onBack: () => void }) {
           }}
           onCheckRooms={() => {
             setSharing(false)
-            const next = counted.find((r) => !r.checked)
+            const next = rooms.find((r) => !r.checked)
             if (!next) return
             setView(next.story)
             setSelectedId(next.id)

@@ -37,7 +37,6 @@ export function FloorCanvas({
   const toX = (x: number) => (x - bounds.minX + pad) * scale
   const toY = (z: number) => (z - bounds.minZ + pad) * scale
 
-  const visible = rooms.filter((room) => !room.removed)
   const line = (key: string, className: string, a: [number, number], b: [number, number]) => (
     <line key={key} className={className} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} vectorEffect="non-scaling-stroke" />
   )
@@ -66,7 +65,7 @@ export function FloorCanvas({
               {plan.outlines.map((outline, i) => (
                 <polygon key={i} className="fp-floor" points={outline.map((p) => p.join(',')).join(' ')} />
               ))}
-              {visible.map((room) => (
+              {rooms.map((room) => (
                 <path
                   key={room.id}
                   d={room.shape}
@@ -82,7 +81,7 @@ export function FloorCanvas({
               {plan.doors.map((door) => line(door.id, 'fp-door', door.a, door.b))}
               {plan.windows.map((window) => line(window.id, 'fp-window', window.a, window.b))}
             </svg>
-            {visible.map((room) => {
+            {rooms.map((room) => {
               const state = room.id === actions.selectedId ? ' selected' : room.id === actions.hoveredId ? ' hovered' : ''
               return (
                 <div

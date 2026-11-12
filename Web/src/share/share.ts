@@ -1,5 +1,7 @@
 import { create } from 'zustand'
+import { surveyIdFromPath } from '../components/files'
 import { useFabric } from '../fabric/store'
+import type { HeatPumpData } from '../match/heatPump'
 
 /**
  * A home the user has shared. It's listed in search once they've confirmed their email address,
@@ -56,12 +58,25 @@ export async function createAccount(email: string): Promise<void> {
   void email
 }
 
-/** Sends the scan, its edits and its listing name to HeatLossDB, to be listed once confirmed. */
-export async function submitShare(name: string): Promise<void> {
+/** Sends the scan, its edits, its listing name and any heat pump figures to HeatLossDB, to be
+ *  listed once confirmed. */
+export async function submitShare(name: string, heatPump: HeatPumpData | null): Promise<void> {
   // TODO: API. Upload the scan with its edits (as Save writes them) if it isn't uploaded yet, then
   // store the listing name against the survey with the status "pending" until Clerk confirms the
   // account's email address.
   void name
+  // Scans opened from the app's link are uploaded already, so their figures can be saved now.
+  const surveyId = surveyIdFromPath(location.pathname)
+  if (heatPump && surveyId) await saveHeatPump(surveyId, heatPump)
+}
+
+export async function saveHeatPump(surveyId: string, heatPump: HeatPumpData): Promise<void> {
+  const response = await fetch(`/api/surveys/${surveyId}/heat-pump`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(heatPump),
+  })
+  if (!response.ok) throw new Error(`Saving the heat pump figures failed: ${response.status}`)
 }
 
 /** Sends the confirmation email again. */

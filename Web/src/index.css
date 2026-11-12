@@ -1114,23 +1114,40 @@ details summary {
   border-color: var(--accent);
 }
 
-/* Home fabric: a few plain-language questions about the whole home, full screen. */
+/* Home fabric: a few plain-language questions about the whole home, in a modal over the editor. */
 .fabric-dialog {
-  width: 100vw;
+  width: min(820px, calc(100vw - 32px));
   max-width: none;
-  height: 100dvh;
+  height: min(900px, calc(100dvh - 32px));
   max-height: none;
-  margin: 0;
   padding: 0;
-  border: 0;
   box-sizing: border-box;
+  overflow: hidden;
   color: var(--text);
   background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.35);
+}
+
+.fabric-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
 }
 
 .fabric-dialog[open] {
   display: flex;
   flex-direction: column;
+}
+
+/* On a phone there's no room around it, so it takes the whole screen. */
+@media (max-width: 600px) {
+  .fabric-dialog {
+    width: 100vw;
+    height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
 }
 
 .fabric-head {
@@ -1312,7 +1329,7 @@ details summary {
 }
 
 .fabric-confirm-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 10;
   padding: 24px;
@@ -1618,6 +1635,13 @@ details summary {
   min-height: 40px;
   padding: 8px 16px;
   font: inherit;
+}
+
+.share-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  align-items: end;
 }
 
 .share-body .field input {
@@ -2116,11 +2140,6 @@ details summary {
   background: var(--surface-2);
 }
 
-.panel-room-list li.removed {
-  border-style: dashed;
-  background: transparent;
-}
-
 .panel-room {
   flex: 1;
   min-width: 0;
@@ -2169,10 +2188,6 @@ span.panel-room {
 .panel-room-edit:hover {
   color: var(--text);
   background: var(--surface-2);
-}
-
-.restore {
-  padding: 10px 12px;
 }
 
 .back-link {
@@ -2290,6 +2305,54 @@ span.panel-room {
   gap: 2px;
 }
 
+/* A door's or window's own fabric, under its size. */
+.room-item-text select {
+  margin-top: 4px;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Walls, ceiling and floor where a room is built differently from the rest of the home. */
+.room-fabric {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.room-fabric h3 {
+  margin: 0 0 4px;
+}
+
+.room-fabric p {
+  margin: 0;
+}
+
+/* Until Home fabric is set: a prompt to set it up first. */
+.room-fabric-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.panel-room-status {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .add-items {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2319,12 +2382,6 @@ span.panel-room {
   color: var(--ok);
   background: transparent;
   border-color: var(--ok);
-}
-
-.remove-room {
-  align-self: center;
-  padding: 10px;
-  color: var(--error);
 }
 
 @media (max-width: 900px) {

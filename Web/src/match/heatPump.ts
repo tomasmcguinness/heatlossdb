@@ -1,9 +1,11 @@
 /** A home's heat loss and heat pump figures, as the API stores them. */
 export interface HeatPumpData {
-  /** Where the figures came from. "sample" means made up, for development. */
-  source: 'sample' | 'heatpumpmonitor' | 'survey' | string
+  /** Where the figures came from. "sample" means made up, for development; "owner" means typed
+   *  in by the home's owner when sharing. */
+  source: 'sample' | 'heatpumpmonitor' | 'survey' | 'owner' | string
   designHeatLossW: number
-  designOutdoorTemperature: number
+  /** Not known for figures the owner typed in. */
+  designOutdoorTemperature?: number
   designIndoorTemperature?: number
   /** Whether the heat loss was measured from a running system or calculated in a survey. */
   heatLossBasis?: 'measured' | 'survey'
