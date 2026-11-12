@@ -1,4 +1,6 @@
+using System.Threading.RateLimiting;
 using HeatLossDB.Api;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,9 +15,27 @@ builder.Services.AddSingleton<IScanStorage>(services =>
         : new FileScanStorage(Path.Combine(options.ResolveDataDirectory(services.GetRequiredService<IHostEnvironment>()), "scans"));
 });
 builder.Services.AddSingleton<SurveyStore>();
+// Codes are short enough to guess, so each address can only try a few a minute.
+builder.Services.AddRateLimiter(limiter =>
+{
+    limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    limiter.AddPolicy("codes", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+});
+// Behind App Service's front end, the visitor's address comes in X-Forwarded-For.
+builder.Services.Configure<ForwardedHeadersOptions>(forwarded =>
+{
+    forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    forwarded.KnownNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+});
 builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = Uploads.MaxScanBytes);
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
+app.UseRateLimiter();
 
 // The website, built into wwwroot on publish (in development, Vite serves it instead). Vite
 // fingerprints everything under /assets, so those can be cached for good; index.html must not be.
@@ -44,10 +64,15 @@ app.MapPost("/api/surveys", async (
         return Results.BadRequest(new { error });
 
     var appSurveyId = request.Headers["X-App-Survey-Id"].FirstOrDefault();
-    var id = await store.SaveAsync(body, appSurveyId, cancellationToken);
-    var url = $"{options.Value.PublicWebBaseUrl.TrimEnd('/')}/s/{id}";
-    return Results.Created($"/api/surveys/{id}", new UploadResult(id, url));
+    var saved = await store.SaveAsync(body, appSurveyId, cancellationToken);
+    var url = $"{options.Value.PublicWebBaseUrl.TrimEnd('/')}/s/{saved.Id}";
+    return Results.Created($"/api/surveys/{saved.Id}", new UploadResult(saved.Id, url, saved.Code, saved.CodeExpiresAt));
 });
+
+// The website's "Open a scan" screen: turns the code shown in the app into the survey's id.
+app.MapGet("/api/codes/{code}", async (string code, SurveyStore store, CancellationToken cancellationToken) =>
+    await store.FindByCodeAsync(code, cancellationToken) is { } id ? Results.Ok(new { id }) : Results.NotFound())
+    .RequireRateLimiting("codes");
 
 app.MapGet("/api/surveys/{id}/scan", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
     await store.OpenScanAsync(id, cancellationToken) is { } scan ? Results.Stream(scan, "application/json") : Results.NotFound());
@@ -119,7 +144,7 @@ app.MapFallbackToFile("index.html", websiteFiles);
 
 app.Run();
 
-public record UploadResult(string Id, string Url);
+public record UploadResult(string Id, string Url, string Code, DateTimeOffset CodeExpiresAt);
 
 public static class Uploads
 {

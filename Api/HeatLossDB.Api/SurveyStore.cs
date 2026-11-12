@@ -13,7 +13,8 @@ namespace HeatLossDB.Api;
 /// Stores uploaded surveys: the scan as-is in <see cref="IScanStorage"/>, and a row per survey
 /// holding its metadata, shape profile and heat pump figures. The database is Azure SQL when
 /// the "Database" connection string is set, otherwise SQLite in the data directory.
-/// Survey ids are 128-bit random values, so a link to a survey can't be guessed.
+/// Survey ids are 128-bit random values, so a link to a survey can't be guessed. Each upload
+/// also gets a short code for typing into the website, which expires after a day.
 /// </summary>
 public partial class SurveyStore
 {
@@ -53,6 +54,14 @@ public partial class SurveyStore
         try
         {
             CreateSurveysTable();
+            Execute("""
+                IF OBJECT_ID('dbo.SurveyCodes') IS NULL
+                CREATE TABLE dbo.SurveyCodes (
+                    Code VARCHAR(5) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
+                    SurveyId VARCHAR(22) COLLATE Latin1_General_BIN2 NOT NULL,
+                    ExpiresAt DATETIMEOFFSET NOT NULL
+                )
+                """);
         }
         catch (SqlException e) when (e.Number == 2714)
         {
@@ -87,6 +96,13 @@ public partial class SurveyStore
                 HeatPump TEXT NULL
             )
             """);
+        Execute("""
+            CREATE TABLE IF NOT EXISTS SurveyCodes (
+                Code TEXT PRIMARY KEY,
+                SurveyId TEXT NOT NULL,
+                ExpiresAt TEXT NOT NULL
+            )
+            """);
 
         // Databases from before profiles and figures moved into the table: add the columns and
         // bring in the files they used to be kept in.
@@ -107,7 +123,10 @@ public partial class SurveyStore
         }
     }
 
-    public async Task<string> SaveAsync(byte[] scan, string? appSurveyId, CancellationToken cancellationToken)
+    /// <summary>How long an upload's code can be used to open it. The link keeps working.</summary>
+    public static readonly TimeSpan CodeLifetime = TimeSpan.FromHours(24);
+
+    public async Task<SavedSurvey> SaveAsync(byte[] scan, string? appSurveyId, CancellationToken cancellationToken)
     {
         // The scan goes first, so every row has its scan.
         var id = NewId();
@@ -119,9 +138,44 @@ public partial class SurveyStore
             VALUES (@id, @createdAt, @appSurveyId, @size)
             """,
             cancellationToken,
-            ("@id", id), ("@createdAt", sqlServer ? now : (object)now.ToString("O")), ("@appSurveyId", appSurveyId), ("@size", scan.Length));
+            ("@id", id), ("@createdAt", Timestamp(now)), ("@appSurveyId", appSurveyId), ("@size", scan.Length));
 
-        return id;
+        var (code, expiresAt) = await CreateCodeAsync(id, now, cancellationToken);
+        return new SavedSurvey(id, code, expiresAt);
+    }
+
+    private async Task<(string Code, DateTimeOffset ExpiresAt)> CreateCodeAsync(string id, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        // Expired codes are freed up for reuse.
+        await ExecuteAsync("DELETE FROM SurveyCodes WHERE ExpiresAt < @now", cancellationToken, ("@now", Timestamp(now)));
+
+        // Whole seconds, which the app's ISO 8601 date decoding expects.
+        var expiresAt = now + CodeLifetime;
+        expiresAt = expiresAt.AddTicks(-(expiresAt.Ticks % TimeSpan.TicksPerSecond));
+        for (var attempt = 1; ; attempt++)
+        {
+            var code = NewCode();
+            try
+            {
+                await ExecuteAsync("INSERT INTO SurveyCodes (Code, SurveyId, ExpiresAt) VALUES (@code, @id, @expiresAt)",
+                    cancellationToken, ("@code", code), ("@id", id), ("@expiresAt", Timestamp(expiresAt)));
+                return (code, expiresAt);
+            }
+            catch (DbException) when (attempt < 10)
+            {
+                // The code is already in use; try another.
+            }
+        }
+    }
+
+    /// <summary>The id of the survey a code opens, or null if the code is unknown or has expired.
+    /// Codes are case-insensitive.</summary>
+    public async Task<string?> FindByCodeAsync(string code, CancellationToken cancellationToken)
+    {
+        code = code.ToUpperInvariant();
+        if (!CodePattern().IsMatch(code)) return null;
+        return await ScalarAsync("SELECT SurveyId FROM SurveyCodes WHERE Code = @code AND ExpiresAt >= @now", cancellationToken,
+            ("@code", code), ("@now", Timestamp(DateTimeOffset.UtcNow))) as string;
     }
 
     /// <summary>The stored scan, or null if there's no survey with this id.</summary>
@@ -250,6 +304,21 @@ public partial class SurveyStore
         return document.RootElement.Clone();
     }
 
+    // SQLite has no date type; round-trip strings in UTC sort in time order.
+    private object Timestamp(DateTimeOffset at) => sqlServer ? at : at.ToUniversalTime().ToString("O");
+
+    /// <summary>Letters and digits that can't be mistaken for each other (no 0/O, 1/I/L).</summary>
+    private const string CodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
+    private static string NewCode() =>
+        string.Create(5, 0, (chars, _) =>
+        {
+            for (var i = 0; i < chars.Length; i++) chars[i] = CodeAlphabet[RandomNumberGenerator.GetInt32(CodeAlphabet.Length)];
+        });
+
+    [GeneratedRegex("^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$")]
+    private static partial Regex CodePattern();
+
     private static string NewId() =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(16))
             .TrimEnd('=')
@@ -259,5 +328,7 @@ public partial class SurveyStore
     [GeneratedRegex("^[A-Za-z0-9_-]{22}$")]
     private static partial Regex IdPattern();
 }
+
+public record SavedSurvey(string Id, string Code, DateTimeOffset CodeExpiresAt);
 
 public record Candidate(string Id, string CreatedAt, JsonElement Profile, JsonElement? HeatPump);

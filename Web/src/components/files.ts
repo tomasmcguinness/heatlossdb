@@ -102,6 +102,34 @@ export function surveyIdFromPath(pathname: string): string | null {
   return /^\/s\/([A-Za-z0-9_-]{22})\/?$/.exec(pathname)?.[1] ?? null
 }
 
+/** The characters in an upload code: letters and digits that can't be mistaken for each other. */
+const CODE_PATTERN = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/
+
+/** Tidies a typed upload code: upper case, without spaces or dashes. */
+export function normaliseCode(code: string): string {
+  return code.replace(/[\s-]/g, '').toUpperCase()
+}
+
+export function isValidCode(code: string): boolean {
+  return CODE_PATTERN.test(code)
+}
+
+/** The survey id for an upload code shown in the app. Codes last a day after uploading. */
+export async function surveyIdForCode(code: string): Promise<string> {
+  let response: Response
+  try {
+    response = await fetch(`/api/codes/${encodeURIComponent(code)}`)
+  } catch {
+    throw new ScanParseError("Couldn't reach HeatLossDB. Check your connection and try again.")
+  }
+  if (response.status === 404) {
+    throw new ScanParseError("That code isn't right, or it has expired. Codes last a day; upload again from the app for a new one.")
+  }
+  if (response.status === 429) throw new ScanParseError('Too many tries. Wait a minute, then try again.')
+  if (!response.ok) throw new ScanParseError("Couldn't check that code. Try again in a moment.")
+  return ((await response.json()) as { id: string }).id
+}
+
 /** Opens a survey uploaded from the app, as linked from the app after uploading. */
 export async function loadSurvey(id: string): Promise<void> {
   let response: Response

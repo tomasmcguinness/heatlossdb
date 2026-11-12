@@ -21,6 +21,9 @@ final class Survey {
     var uploadId: String?
     var uploadURL: String?
     var uploadedAt: Date?
+    /// A short code for opening the upload on the website, until it expires a day later.
+    var uploadCode: String?
+    var uploadCodeExpiresAt: Date?
     
     init(date: Date, property: Property) {
         self.surveyId = UUID()

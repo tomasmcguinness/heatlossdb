@@ -35,7 +35,8 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
-    private record Upload(string Id, string Url);
+    private record Upload(string Id, string Url, string Code, DateTimeOffset CodeExpiresAt);
+    private record CodeLookup(string Id);
 
     [Fact]
     public async Task UploadReturnsALinkAndTheScanCanBeFetchedUnchanged()
@@ -60,6 +61,29 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         var first = await (await client.PostAsync("/api/surveys", Json(MinimalScan))).Content.ReadFromJsonAsync<Upload>();
         var second = await (await client.PostAsync("/api/surveys", Json(MinimalScan))).Content.ReadFromJsonAsync<Upload>();
         Assert.NotEqual(first!.Id, second!.Id);
+    }
+
+    [Fact]
+    public async Task UploadReturnsACodeThatOpensTheSurveyForADay()
+    {
+        var upload = await (await client.PostAsync("/api/surveys", Json(MinimalScan))).Content.ReadFromJsonAsync<Upload>();
+
+        Assert.Matches("^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$", upload!.Code);
+        Assert.InRange(upload.CodeExpiresAt - DateTimeOffset.UtcNow, TimeSpan.FromHours(23.9), TimeSpan.FromHours(24));
+
+        // Codes are case-insensitive, as people type them.
+        var lookup = await client.GetFromJsonAsync<CodeLookup>($"/api/codes/{upload.Code.ToLowerInvariant()}");
+        Assert.Equal(upload.Id, lookup!.Id);
+    }
+
+    [Theory]
+    [InlineData("ZZZZZ")]
+    [InlineData("O0O0O")]
+    [InlineData("TOOLONG")]
+    public async Task UnknownOrMalformedCodesAreNotFound(string code)
+    {
+        var response = await client.GetAsync($"/api/codes/{code}");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Theory]

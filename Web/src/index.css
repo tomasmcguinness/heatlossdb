@@ -2404,6 +2404,44 @@ span.panel-room {
   margin: 0;
 }
 
+.code-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.code-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.code-input::placeholder {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+.dropzone-or {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dropzone-or::before,
+.dropzone-or::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
 /* Phones and narrow windows: viewer on top, panel below. */
 
 @media (max-width: 800px) {

@@ -182,6 +182,8 @@ struct SurveySection : View {
             }
         } else {
             let shareURLs = mergedStructure == nil ? [] : scanRoomModel.mergedFileURLs(surveyId: survey.surveyId)
+            uploadActions
+            
             ShareLink(items: shareURLs) {
                 Label("Share Scan", systemImage: "square.and.arrow.up")
             }
@@ -191,12 +193,60 @@ struct SurveySection : View {
         resetAction
     }
     
+    /// The upload's code, while it can still be used on the website.
+    private var activeUploadCode: String? {
+        guard let code = survey.uploadCode, let expiresAt = survey.uploadCodeExpiresAt, expiresAt > Date() else { return nil }
+        return code
+    }
+    
+    @ViewBuilder
+    private var uploadActions: some View {
+        if scanRoomModel.isUploading(survey.surveyId) {
+            HStack {
+                ProgressView()
+                Text("Uploading…")
+            }
+        } else if let link = survey.uploadURL.flatMap(URL.init(string:)) {
+            if let code = activeUploadCode {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(code)
+                        .font(.system(.largeTitle, design: .monospaced, weight: .semibold))
+                        .tracking(6)
+                        .textSelection(.enabled)
+                        .accessibilityLabel(code.map(String.init).joined(separator: " "))
+                    Text("Enter this code on \(link.host() ?? "HeatLossDB") to open the scan. It expires \(survey.uploadCodeExpiresAt!.formatted(.relative(presentation: .named))).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+            Link(destination: link) {
+                Label("Open on HeatLossDB", systemImage: "safari")
+            }
+            ShareLink(item: link) {
+                Label("Share Link", systemImage: "link")
+            }
+            Button(activeUploadCode == nil ? "Upload Again for a New Code" : "Upload Again", systemImage: "icloud.and.arrow.up", action: upload)
+                .disabled(mergedStructure == nil)
+        } else {
+            Button("Upload to HeatLossDB", systemImage: "icloud.and.arrow.up", action: upload)
+                .disabled(mergedStructure == nil)
+        }
+        
+        if let uploadError = scanRoomModel.uploadError(for: survey.surveyId) {
+            Text("Upload failed: \(uploadError)")
+                .foregroundStyle(.red)
+        }
+    }
+    
     private func upload() {
         Task {
             guard let upload = await scanRoomModel.upload(surveyId: survey.surveyId) else { return }
             survey.uploadId = upload.id
             survey.uploadURL = upload.url.absoluteString
             survey.uploadedAt = Date()
+            survey.uploadCode = upload.code
+            survey.uploadCodeExpiresAt = upload.codeExpiresAt
             try? modelContext.save()
         }
     }
@@ -321,6 +371,8 @@ struct SurveyPresentations: ViewModifier {
         survey.uploadId = nil
         survey.uploadURL = nil
         survey.uploadedAt = nil
+        survey.uploadCode = nil
+        survey.uploadCodeExpiresAt = nil
         for room in property.rooms {
             modelContext.delete(room)
         }

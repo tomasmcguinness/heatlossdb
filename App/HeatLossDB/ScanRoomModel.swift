@@ -490,7 +490,9 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
             let message = (try? JSONDecoder().decode(UploadErrorBody.self, from: data))?.error
             throw UploadFailure.rejected(message ?? "The server returned status \(status).")
         }
-        return try JSONDecoder().decode(SurveyUpload.self, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(SurveyUpload.self, from: data)
     }
     
     /// The merged survey files (USDZ model and JSON structure) that exist on disk, for sharing.
@@ -680,10 +682,13 @@ private struct FileVersion: Decodable {
     let heatlossdbVersion: Int?
 }
 
-/// A survey uploaded to heatlossdb: its id and its private link on the website.
+/// A survey uploaded to heatlossdb: its id, its private link on the website, and a short code
+/// for typing into the website instead.
 struct SurveyUpload: Decodable {
     let id: String
     let url: URL
+    let code: String?
+    let codeExpiresAt: Date?
 }
 
 private struct UploadErrorBody: Decodable {
