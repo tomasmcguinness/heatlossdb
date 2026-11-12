@@ -64,6 +64,9 @@ const WALL_HALF_THICKNESS = 0.06
 const WALL_END_EXTENSION = 0.1
 /** How far (m) either side of a door or window to look for the room it belongs to. */
 const ROOM_PROBE = 0.3
+/** A wall whose opening is at least this share of its width is only a header, as across a bay
+ *  window, so it doesn't separate rooms. */
+const OPEN_WALL = 0.9
 
 function rotate([x, z]: Point2, radians: number): Point2 {
   const c = Math.cos(radians)
@@ -290,9 +293,15 @@ export function floorPlans(
     const sections = scan.sections.map((s, i) => ({ s, i })).filter(({ s }) => (s.story ?? 0) === storey.story)
     const centres = sections.map(({ s }) => place([[s.center[0], s.center[2]]])[0])
     labels.push(sections.map(({ s }) => s.label))
+    const widthOf = new Map(walls.map((w) => [w.id, w.element.width]))
+    const open = new Set(
+      on('opening')
+        .filter((o) => o.parentId && o.width >= OPEN_WALL * (widthOf.get(o.parentId) ?? Infinity))
+        .map((o) => o.parentId),
+    )
     const grid = divideRooms(
       outlines,
-      walls.map((w) => [w.a, w.b]),
+      walls.filter((w) => !open.has(w.id)).map((w) => [w.a, w.b]),
       centres,
     )
     const cells = centres.map(() => 0)

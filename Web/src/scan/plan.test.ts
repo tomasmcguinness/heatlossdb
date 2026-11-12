@@ -42,7 +42,7 @@ describe('floorPlans', () => {
     story: 0,
   })
 
-  const twoRooms = () =>
+  const twoRooms = ({ openings = [] as RawSurface[], sections = ['bedroom', 'bedroom'], windowAt = 2 } = {}) =>
     parseScan({
       walls: [
         wall('n', 8, at(4, 0)),
@@ -53,8 +53,8 @@ describe('floorPlans', () => {
       ],
       // A window in the north wall of the left room, and a door between the rooms.
       doors: [{ ...wall('inside-door', 0.9, at(4, 2, true)), category: { door: {} }, parentIdentifier: 'middle' }],
-      windows: [{ ...wall('north-window', 1.2, at(2, 0)), category: { window: {} }, parentIdentifier: 'n' }],
-      openings: [],
+      windows: [{ ...wall('north-window', 1.2, at(windowAt, 0)), category: { window: {} }, parentIdentifier: 'n' }],
+      openings,
       floors: [
         {
           identifier: 'f',
@@ -72,10 +72,7 @@ describe('floorPlans', () => {
           ],
         },
       ],
-      sections: [
-        { label: 'bedroom', center: [2, 0, 2], story: 0 },
-        { label: 'bedroom', center: [6, 0, 2], story: 0 },
-      ],
+      sections: sections.map((label, i) => ({ label, center: [2 + 4 * i, 0, 2], story: 0 })),
     })
 
   it('names and numbers rooms, and measures each one', () => {
@@ -112,5 +109,22 @@ describe('floorPlans', () => {
       const area = [...room.shape.matchAll(/h([\d.]+)v([\d.]+)/g)].reduce((total, [, w, h]) => total + Number(w) * Number(h), 0)
       expect(area).toBeCloseTo(room.area!, 1)
     }
+  })
+
+  // The middle wall with an opening through it, and a label only in the left room, as for a bay
+  // window RoomPlan closed off with a wall under its header.
+  const opening = (width: number): RawSurface => ({ ...wall('gap', width, at(4, 2, true)), category: { opening: {} }, parentIdentifier: 'middle' })
+
+  it('joins an unlabelled space to the room it opens off along its whole width', () => {
+    // The window is in the unlabelled right-hand room.
+    const [plan] = floorPlans(twoRooms({ openings: [opening(4)], sections: ['bedroom'], windowAt: 6 }), undefined, (id) => id !== 'inside-door')
+    const [room] = plan.rooms
+    expect(room.area).toBeGreaterThan(30)
+    expect(room.elements.map((e) => e.id)).toEqual(['north-window'])
+  })
+
+  it('keeps a wall with a narrower opening between rooms', () => {
+    const [plan] = floorPlans(twoRooms({ openings: [opening(1)], sections: ['bedroom'] }))
+    expect(plan.rooms[0].area).toBeLessThan(16)
   })
 })
