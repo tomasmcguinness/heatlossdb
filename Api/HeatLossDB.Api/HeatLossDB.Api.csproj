@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The website's source (React + Vite). The API serves its build, so one deployment runs both. -->
@@ -11,6 +11,7 @@
     <SpaRoot>$(WebsiteRoot)</SpaRoot>
     <SpaProxyServerUrl>http://localhost:5179</SpaProxyServerUrl>
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
+    <UserSecretsId>bd3b8e0d-990d-4435-ae3a-6abccfc0320e</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
