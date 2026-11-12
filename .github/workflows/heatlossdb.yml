@@ -27,6 +27,9 @@ jobs:
       run: dotnet restore "${{ env.SOLUTION }}"
     - name: Build
       run: dotnet build "${{ env.SOLUTION }}" --configuration ${{ env.CONFIGURATION }} --no-restore
+    # The tests run against the storage emulator.
+    - name: Start Azurite
+      run: npx --yes azurite@3.37.0 --silent --inMemoryPersistence --skipApiVersionCheck &
     - name: Test
       run: dotnet test "${{ env.SOLUTION }}" --configuration ${{ env.CONFIGURATION }} --no-build
     - name: Publish

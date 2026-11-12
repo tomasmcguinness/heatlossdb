@@ -1,126 +1,32 @@
-using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.Data.SqlClient;
-using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Options;
+using Azure;
+using Azure.Data.Tables;
 
 namespace HeatLossDB.Api;
 
 /// <summary>
-/// Stores uploaded surveys: the scan as-is in <see cref="IScanStorage"/>, and a row per survey
-/// holding its metadata, shape profile and heat pump figures. The database is Azure SQL when
-/// the "Database" connection string is set, otherwise SQLite in the data directory.
-/// Survey ids are 128-bit random values, so a link to a survey can't be guessed. Each upload
-/// also gets a short code for typing into the website, which expires after a day.
+/// Stores uploaded surveys: the scan as-is in <see cref="IScanStorage"/>, and a row per survey in
+/// Table Storage holding its metadata, shape profile and heat pump figures. Survey ids are 128-bit
+/// random values, so a link to a survey can't be guessed. Each upload also gets a short code for
+/// typing into the website, which expires after a day.
 /// </summary>
 public partial class SurveyStore
 {
     private readonly IScanStorage scans;
-    private readonly Func<DbConnection> connect;
-    private readonly bool sqlServer;
+    private readonly TableClient surveys;
+    private readonly TableClient codes;
 
-    public SurveyStore(IScanStorage scans, IOptions<HeatLossDbOptions> options, IConfiguration configuration, IHostEnvironment environment)
+    public SurveyStore(IScanStorage scans, TableClient surveys, TableClient codes)
     {
         this.scans = scans;
-        if (configuration.GetConnectionString("Database") is { } connectionString)
-        {
-            sqlServer = true;
-            // A serverless database pauses when idle and takes a while to wake, so keep retrying.
-            var retry = SqlConfigurableRetryFactory.CreateExponentialRetryProvider(new SqlRetryLogicOption
-            {
-                NumberOfTries = 6,
-                DeltaTime = TimeSpan.FromSeconds(2),
-                MaxTimeInterval = TimeSpan.FromSeconds(30),
-            });
-            connect = () => new SqlConnection(connectionString) { RetryLogicProvider = retry };
-            CreateSqlServerSchema();
-        }
-        else
-        {
-            var dataDirectory = options.Value.ResolveDataDirectory(environment);
-            Directory.CreateDirectory(dataDirectory);
-            var sqlite = new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataDirectory, "heatlossdb.db") }.ToString();
-            connect = () => new SqliteConnection(sqlite);
-            CreateSqliteSchema(dataDirectory);
-        }
-    }
+        this.surveys = surveys;
+        this.codes = codes;
 
-    private void CreateSqlServerSchema()
-    {
-        // Ids are case-sensitive, so they get a binary collation.
-        try
-        {
-            CreateSurveysTable();
-            Execute("""
-                IF OBJECT_ID('dbo.SurveyCodes') IS NULL
-                CREATE TABLE dbo.SurveyCodes (
-                    Code VARCHAR(5) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
-                    SurveyId VARCHAR(22) COLLATE Latin1_General_BIN2 NOT NULL,
-                    ExpiresAt DATETIMEOFFSET NOT NULL
-                )
-                """);
-        }
-        catch (SqlException e) when (e.Number == 2714)
-        {
-            // Another instance starting at the same time created it first.
-        }
-    }
-
-    private void CreateSurveysTable()
-    {
-        Execute("""
-            IF OBJECT_ID('dbo.Surveys') IS NULL
-            CREATE TABLE dbo.Surveys (
-                Id VARCHAR(22) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
-                CreatedAt DATETIMEOFFSET NOT NULL,
-                AppSurveyId NVARCHAR(MAX) NULL,
-                SizeBytes INT NOT NULL,
-                Profile NVARCHAR(MAX) NULL,
-                HeatPump NVARCHAR(MAX) NULL
-            )
-            """);
-    }
-
-    private void CreateSqliteSchema(string dataDirectory)
-    {
-        Execute("""
-            CREATE TABLE IF NOT EXISTS Surveys (
-                Id TEXT PRIMARY KEY,
-                CreatedAt TEXT NOT NULL,
-                AppSurveyId TEXT NULL,
-                SizeBytes INTEGER NOT NULL,
-                Profile TEXT NULL,
-                HeatPump TEXT NULL
-            )
-            """);
-        Execute("""
-            CREATE TABLE IF NOT EXISTS SurveyCodes (
-                Code TEXT PRIMARY KEY,
-                SurveyId TEXT NOT NULL,
-                ExpiresAt TEXT NOT NULL
-            )
-            """);
-
-        // Databases from before profiles and figures moved into the table: add the columns and
-        // bring in the files they used to be kept in.
-        using var connection = Open();
-        using var columns = connection.CreateCommand();
-        columns.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Surveys') WHERE name = 'Profile'";
-        if (Convert.ToInt64(columns.ExecuteScalar()) > 0) return;
-
-        Execute("ALTER TABLE Surveys ADD COLUMN Profile TEXT NULL");
-        Execute("ALTER TABLE Surveys ADD COLUMN HeatPump TEXT NULL");
-        foreach (var (folder, column) in new[] { ("profiles", "Profile"), ("heat-pumps", "HeatPump") })
-        {
-            var directory = Path.Combine(dataDirectory, folder);
-            if (!Directory.Exists(directory)) continue;
-            foreach (var path in Directory.EnumerateFiles(directory, "*.json"))
-                Execute($"UPDATE Surveys SET {column} = @value WHERE Id = @id",
-                    ("@id", Path.GetFileNameWithoutExtension(path)), ("@value", File.ReadAllText(path)));
-        }
+        surveys.CreateIfNotExists();
+        codes.CreateIfNotExists();
     }
 
     /// <summary>How long an upload's code can be used to open it. The link keeps working.</summary>
@@ -133,39 +39,46 @@ public partial class SurveyStore
         await scans.SaveAsync(id, scan, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        await ExecuteAsync("""
-            INSERT INTO Surveys (Id, CreatedAt, AppSurveyId, SizeBytes)
-            VALUES (@id, @createdAt, @appSurveyId, @size)
-            """,
-            cancellationToken,
-            ("@id", id), ("@createdAt", Timestamp(now)), ("@appSurveyId", appSurveyId), ("@size", scan.Length));
+        await AddAsync(new SurveyEntity { PartitionKey = id, CreatedAt = now, AppSurveyId = appSurveyId, SizeBytes = scan.Length }, cancellationToken);
 
         var (code, expiresAt) = await CreateCodeAsync(id, now, cancellationToken);
         return new SavedSurvey(id, code, expiresAt);
     }
 
+    /// <summary>Adds a survey's row as it is, such as one brought over from the old database.</summary>
+    public Task AddAsync(SurveyEntity survey, CancellationToken cancellationToken) =>
+        surveys.AddEntityAsync(survey, cancellationToken);
+
     private async Task<(string Code, DateTimeOffset ExpiresAt)> CreateCodeAsync(string id, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        // Expired codes are freed up for reuse.
-        await ExecuteAsync("DELETE FROM SurveyCodes WHERE ExpiresAt < @now", cancellationToken, ("@now", Timestamp(now)));
-
         // Whole seconds, which the app's ISO 8601 date decoding expects.
         var expiresAt = now + CodeLifetime;
         expiresAt = expiresAt.AddTicks(-(expiresAt.Ticks % TimeSpan.TicksPerSecond));
-        for (var attempt = 1; ; attempt++)
+
+        for (var attempt = 1; attempt <= 10; attempt++)
         {
-            var code = NewCode();
+            var entity = new CodeEntity { PartitionKey = NewCode(), SurveyId = id, ExpiresAt = expiresAt };
             try
             {
-                await ExecuteAsync("INSERT INTO SurveyCodes (Code, SurveyId, ExpiresAt) VALUES (@code, @id, @expiresAt)",
-                    cancellationToken, ("@code", code), ("@id", id), ("@expiresAt", Timestamp(expiresAt)));
-                return (code, expiresAt);
+                await codes.AddEntityAsync(entity, cancellationToken);
+                return (entity.PartitionKey, expiresAt);
             }
-            catch (DbException) when (attempt < 10)
+            catch (RequestFailedException e) when (e.Status == 409)
             {
-                // The code is already in use; try another.
+                // The code is in use. Take it over if it has expired, unless another upload just did.
+                var existing = (await codes.GetEntityAsync<CodeEntity>(entity.PartitionKey, "", cancellationToken: cancellationToken)).Value;
+                if (existing.ExpiresAt >= now) continue;
+                try
+                {
+                    await codes.UpdateEntityAsync(entity, existing.ETag, TableUpdateMode.Replace, cancellationToken);
+                    return (entity.PartitionKey, expiresAt);
+                }
+                catch (RequestFailedException taken) when (taken.Status == 412)
+                {
+                }
             }
         }
+        throw new InvalidOperationException("Couldn't find a free upload code.");
     }
 
     /// <summary>The id of the survey a code opens, or null if the code is unknown or has expired.
@@ -174,8 +87,8 @@ public partial class SurveyStore
     {
         code = code.ToUpperInvariant();
         if (!CodePattern().IsMatch(code)) return null;
-        return await ScalarAsync("SELECT SurveyId FROM SurveyCodes WHERE Code = @code AND ExpiresAt >= @now", cancellationToken,
-            ("@code", code), ("@now", Timestamp(DateTimeOffset.UtcNow))) as string;
+        var entity = await codes.GetEntityIfExistsAsync<CodeEntity>(code, "", cancellationToken: cancellationToken);
+        return entity.HasValue && entity.Value!.ExpiresAt >= DateTimeOffset.UtcNow ? entity.Value.SurveyId : null;
     }
 
     /// <summary>The stored scan, or null if there's no survey with this id.</summary>
@@ -183,13 +96,12 @@ public partial class SurveyStore
         IdPattern().IsMatch(id) ? scans.OpenAsync(id, cancellationToken) : Task.FromResult<Stream?>(null);
 
     public async Task<bool> ExistsAsync(string id, CancellationToken cancellationToken) =>
-        IdPattern().IsMatch(id) && await ScalarAsync("SELECT 1 FROM Surveys WHERE Id = @id", cancellationToken, ("@id", id)) is not null;
+        IdPattern().IsMatch(id) && (await GetAsync(id, [nameof(SurveyEntity.PartitionKey)], cancellationToken)) is not null;
 
     /// <summary>Saves the survey's shape profile: the measurements and lined-up outlines the
     /// website derives from the scan, used for matching.</summary>
     public Task SaveProfileAsync(string id, byte[] profile, CancellationToken cancellationToken) =>
-        ExecuteAsync("UPDATE Surveys SET Profile = @value WHERE Id = @id", cancellationToken,
-            ("@id", id), ("@value", Encoding.UTF8.GetString(profile)));
+        SetAsync(id, nameof(SurveyEntity.Profile), Encoding.UTF8.GetString(profile), cancellationToken);
 
     /// <summary>
     /// Every other survey that has a profile, to match against. Uploads of the same app survey
@@ -197,115 +109,63 @@ public partial class SurveyStore
     /// </summary>
     public async Task<List<Candidate>> CandidatesForAsync(string id, CancellationToken cancellationToken)
     {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, """
-            SELECT Id, CreatedAt, Profile, HeatPump FROM Surveys AS s
-            WHERE Id <> @id
-              AND Profile IS NOT NULL
-              AND (AppSurveyId IS NULL
-                   OR NOT EXISTS (SELECT 1 FROM Surveys AS me WHERE me.Id = @id AND me.AppSurveyId = s.AppSurveyId))
-            ORDER BY CreatedAt DESC
-            """,
-            ("@id", id));
+        var mine = (await GetAsync(id, [nameof(SurveyEntity.AppSurveyId)], cancellationToken))?.AppSurveyId;
 
-        var candidates = new List<Candidate>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        // Every row: fine for thousands of homes, as matching needs every profile anyway.
+        var candidates = new List<(DateTimeOffset CreatedAt, Candidate Candidate)>();
+        string[] columns = [nameof(SurveyEntity.PartitionKey), nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.AppSurveyId), nameof(SurveyEntity.Profile), nameof(SurveyEntity.HeatPump)];
+        await foreach (var survey in surveys.QueryAsync<SurveyEntity>(select: columns, cancellationToken: cancellationToken))
         {
-            var createdAt = reader.GetValue(1) is DateTimeOffset at ? at.ToString("O") : reader.GetString(1);
-            var heatPump = reader.IsDBNull(3) ? (JsonElement?)null : ParseJson(reader.GetString(3));
-            candidates.Add(new Candidate(reader.GetString(0), createdAt, ParseJson(reader.GetString(2)), heatPump));
+            if (survey.PartitionKey == id || survey.Profile is null) continue;
+            if (mine is not null && survey.AppSurveyId == mine) continue;
+            var heatPump = survey.HeatPump is null ? (JsonElement?)null : ParseJson(survey.HeatPump);
+            candidates.Add((survey.CreatedAt, new Candidate(survey.PartitionKey, survey.CreatedAt.ToString("O"), ParseJson(survey.Profile), heatPump)));
         }
-        return candidates;
+        return candidates.OrderByDescending(c => c.CreatedAt).Select(c => c.Candidate).ToList();
     }
 
     /// <summary>Saves a survey's heat loss and heat pump figures (real or sample).</summary>
     public Task SaveHeatPumpAsync(string id, byte[] record, CancellationToken cancellationToken) =>
-        ExecuteAsync("UPDATE Surveys SET HeatPump = @value WHERE Id = @id", cancellationToken,
-            ("@id", id), ("@value", Encoding.UTF8.GetString(record)));
+        SetAsync(id, nameof(SurveyEntity.HeatPump), Encoding.UTF8.GetString(record), cancellationToken);
 
     /// <summary>Where the survey's saved figures came from ("sample", "heatpumpmonitor"…), or
     /// null if it has none.</summary>
     public async Task<string?> HeatPumpSourceAsync(string id, CancellationToken cancellationToken)
     {
-        if (await ScalarAsync("SELECT HeatPump FROM Surveys WHERE Id = @id", cancellationToken, ("@id", id)) is not string json)
-            return null;
+        if ((await GetAsync(id, [nameof(SurveyEntity.HeatPump)], cancellationToken))?.HeatPump is not { } json) return null;
         return ParseJson(json).TryGetProperty("source", out var source) ? source.GetString() : null;
     }
 
     /// <summary>Every survey's id and saved floor area, for generating sample data.</summary>
     public async Task<List<(string Id, double FloorArea)>> SurveysWithProfilesAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, "SELECT Id, Profile FROM Surveys WHERE Profile IS NOT NULL");
         var result = new List<(string, double)>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        string[] columns = [nameof(SurveyEntity.PartitionKey), nameof(SurveyEntity.Profile)];
+        await foreach (var survey in surveys.QueryAsync<SurveyEntity>(select: columns, cancellationToken: cancellationToken))
         {
-            if (ParseJson(reader.GetString(1)).TryGetProperty("floorArea", out var area) && area.TryGetDouble(out var floorArea))
-                result.Add((reader.GetString(0), floorArea));
+            if (survey.Profile is not null
+                && ParseJson(survey.Profile).TryGetProperty("floorArea", out var area) && area.TryGetDouble(out var floorArea))
+                result.Add((survey.PartitionKey, floorArea));
         }
         return result;
     }
 
-    private DbConnection Open()
+    private async Task<SurveyEntity?> GetAsync(string id, string[] columns, CancellationToken cancellationToken)
     {
-        var connection = connect();
-        connection.Open();
-        return connection;
+        if (!IdPattern().IsMatch(id)) return null;
+        var survey = await surveys.GetEntityIfExistsAsync<SurveyEntity>(id, "", columns, cancellationToken);
+        return survey.HasValue ? survey.Value : null;
     }
 
-    private async Task<DbConnection> OpenAsync(CancellationToken cancellationToken)
-    {
-        var connection = connect();
-        await connection.OpenAsync(cancellationToken);
-        return connection;
-    }
-
-    private static DbCommand Command(DbConnection connection, string sql, params (string Name, object? Value)[] parameters)
-    {
-        var command = connection.CreateCommand();
-        command.CommandText = sql;
-        foreach (var (name, value) in parameters)
-        {
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = name;
-            parameter.Value = value ?? DBNull.Value;
-            command.Parameters.Add(parameter);
-        }
-        return command;
-    }
-
-    private void Execute(string sql, params (string, object?)[] parameters)
-    {
-        using var connection = Open();
-        using var command = Command(connection, sql, parameters);
-        command.ExecuteNonQuery();
-    }
-
-    private async Task ExecuteAsync(string sql, CancellationToken cancellationToken, params (string, object?)[] parameters)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, sql, parameters);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private async Task<object?> ScalarAsync(string sql, CancellationToken cancellationToken, params (string, object?)[] parameters)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, sql, parameters);
-        var value = await command.ExecuteScalarAsync(cancellationToken);
-        return value is DBNull ? null : value;
-    }
+    /// <summary>Sets one column of an existing survey's row, leaving the others as they are.</summary>
+    private Task SetAsync(string id, string column, string value, CancellationToken cancellationToken) =>
+        surveys.UpdateEntityAsync(new TableEntity(id, "") { [column] = value }, ETag.All, TableUpdateMode.Merge, cancellationToken);
 
     private static JsonElement ParseJson(string json)
     {
         using var document = JsonDocument.Parse(json);
         return document.RootElement.Clone();
     }
-
-    // SQLite has no date type; round-trip strings in UTC sort in time order.
-    private object Timestamp(DateTimeOffset at) => sqlServer ? at : at.ToUniversalTime().ToString("O");
 
     /// <summary>Letters and digits that can't be mistaken for each other (no 0/O, 1/I/L).</summary>
     private const string CodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -327,6 +187,34 @@ public partial class SurveyStore
 
     [GeneratedRegex("^[A-Za-z0-9_-]{22}$")]
     private static partial Regex IdPattern();
+}
+
+/// <summary>A survey's row, keyed by its id. Profile and HeatPump are JSON, each at most 32 KB
+/// (Table Storage keeps text properties under 64 KB).</summary>
+public class SurveyEntity : ITableEntity
+{
+    public string PartitionKey { get; set; } = "";
+    public string RowKey { get; set; } = "";
+    public DateTimeOffset? Timestamp { get; set; }
+    public ETag ETag { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public string? AppSurveyId { get; set; }
+    public int SizeBytes { get; set; }
+    public string? Profile { get; set; }
+    public string? HeatPump { get; set; }
+}
+
+/// <summary>An upload code, keyed by the code itself.</summary>
+public class CodeEntity : ITableEntity
+{
+    public string PartitionKey { get; set; } = "";
+    public string RowKey { get; set; } = "";
+    public DateTimeOffset? Timestamp { get; set; }
+    public ETag ETag { get; set; }
+
+    public string SurveyId { get; set; } = "";
+    public DateTimeOffset ExpiresAt { get; set; }
 }
 
 public record SavedSurvey(string Id, string Code, DateTimeOffset CodeExpiresAt);

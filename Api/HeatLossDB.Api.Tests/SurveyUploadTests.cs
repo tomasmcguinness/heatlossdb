@@ -7,23 +7,29 @@ namespace HeatLossDB.Api.Tests;
 
 public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
 {
-    /// <summary>Hosts the API with its data in a throwaway folder.</summary>
+    /// <summary>Hosts the API against Azurite (the storage emulator, which must be running),
+    /// with a container and tables of its own that are deleted afterwards.</summary>
     public class Api : WebApplicationFactory<Program>
     {
-        public string DataDirectory { get; } = Path.Combine(Path.GetTempPath(), "heatlossdb-tests-" + Guid.NewGuid());
+        private const string Storage = "UseDevelopmentStorage=true";
+        private readonly string name = "test" + Guid.NewGuid().ToString("N")[..12];
 
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
-            builder.UseSetting("HeatLossDB:DataDirectory", DataDirectory);
+            builder.UseSetting("ConnectionStrings:Storage", Storage);
+            builder.UseSetting("HeatLossDB:ScansContainer", name);
+            builder.UseSetting("HeatLossDB:SurveysTable", name + "surveys");
+            builder.UseSetting("HeatLossDB:CodesTable", name + "codes");
             builder.UseSetting("HeatLossDB:PublicWebBaseUrl", "http://web.test/");
         }
 
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            // Pooled connections keep the database file open, and Windows won't delete an open file.
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            if (Directory.Exists(DataDirectory)) Directory.Delete(DataDirectory, recursive: true);
+            var account = new StorageAccount(Storage);
+            account.Blobs.DeleteBlobContainer(name);
+            account.Tables.DeleteTable(name + "surveys");
+            account.Tables.DeleteTable(name + "codes");
         }
     }
 

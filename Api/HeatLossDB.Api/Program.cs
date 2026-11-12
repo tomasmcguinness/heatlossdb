@@ -6,15 +6,20 @@ using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<HeatLossDbOptions>(builder.Configuration.GetSection("HeatLossDB"));
-// Scans go in Azure Blob Storage when the "Storage" connection string is set, otherwise in files.
-builder.Services.AddSingleton<IScanStorage>(services =>
+// Everything is kept in one storage account: scans as blobs, surveys in tables. In development
+// that's Azurite, the storage emulator.
+builder.Services.AddSingleton(services => new StorageAccount(
+    services.GetRequiredService<IConfiguration>().GetConnectionString("Storage")
+    ?? throw new InvalidOperationException("Set the \"Storage\" connection string (\"UseDevelopmentStorage=true\" for Azurite).")));
+builder.Services.AddSingleton<IScanStorage>(services => new BlobScanStorage(
+    services.GetRequiredService<StorageAccount>().Blobs,
+    services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value.ScansContainer));
+builder.Services.AddSingleton(services =>
 {
+    var tables = services.GetRequiredService<StorageAccount>().Tables;
     var options = services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value;
-    return services.GetRequiredService<IConfiguration>().GetConnectionString("Storage") is { } storage
-        ? new BlobScanStorage(storage, options.ScansContainer)
-        : new FileScanStorage(Path.Combine(options.ResolveDataDirectory(services.GetRequiredService<IHostEnvironment>()), "scans"));
+    return new SurveyStore(services.GetRequiredService<IScanStorage>(), tables.GetTableClient(options.SurveysTable), tables.GetTableClient(options.CodesTable));
 });
-builder.Services.AddSingleton<SurveyStore>();
 // Codes are short enough to guess, so each address can only try a few a minute.
 builder.Services.AddRateLimiter(limiter =>
 {
@@ -151,8 +156,9 @@ public static class Uploads
     /// <summary>A two-storey house is about 1.5 MB; this leaves plenty of room.</summary>
     public const long MaxScanBytes = 25 * 1024 * 1024;
 
-    /// <summary>Profiles hold a few outlines and figures: a few kilobytes.</summary>
-    public const long MaxProfileBytes = 1024 * 1024;
+    /// <summary>Profiles hold a few outlines and figures: a few kilobytes. Table Storage keeps
+    /// text properties under 64 KB, which is 32 KB of UTF-8 at worst.</summary>
+    public const long MaxProfileBytes = 32 * 1024;
 
     /// <summary>Reads the stream, or returns null as soon as it exceeds the limit.</summary>
     public static async Task<byte[]?> ReadLimitedAsync(Stream stream, long limit, CancellationToken cancellationToken)
