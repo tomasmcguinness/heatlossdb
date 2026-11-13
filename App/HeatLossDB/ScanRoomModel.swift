@@ -77,8 +77,9 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     @ObservationIgnored
     private var captureViewUsed = false
     
-    /// Views from earlier rooms. They're kept until the survey ends because they share the AR
-    /// session, and releasing one could stop tracking for the rest of the walk.
+    /// The previous room's view, kept until the next room is under way in case RoomPlan is still
+    /// finishing with it. Older ones are released: each holds its room's mesh, and keeping them
+    /// all seems to run the walk into RoomPlan's scene size limit after a few rooms.
     @ObservationIgnored
     private var retiredCaptureViews: [RoomCaptureView] = []
     
@@ -184,6 +185,24 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         roomCaptureSession = nil
     }
     
+    /// The app's memory footprint, as iOS counts it towards the app's limit.
+    private static func memoryFootprintMB() -> Int {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
+    }
+    
+    /// The survey's AR session. It keeps running between rooms, so its camera feed can be shown
+    /// while the user moves to the next room.
+    var arSession: ARSession? {
+        roomCaptureSession?.arSession
+    }
+    
     private func makeCaptureView(arSession: ARSession) -> RoomCaptureView {
         let view = RoomCaptureView(frame: .zero, arSession: arSession)
         view.captureSession.delegate = self
@@ -197,10 +216,11 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
     private func runCapture() {
         guard let roomCaptureSession, let current = roomCaptureView else { return }
         if captureViewUsed {
-            retiredCaptureViews.append(current)
+            retiredCaptureViews = [current]
             roomCaptureView = makeCaptureView(arSession: roomCaptureSession.arSession)
         }
         captureViewUsed = true
+        print("[scan] starting capture; app memory \(Self.memoryFootprintMB()) MB")
         endedEarly = nil
         stoppedReason = nil
         roomCaptureView?.captureSession.run(configuration: captureSessionConfig)
@@ -338,7 +358,7 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         print("[scan] didEndWith (error: \(String(describing: error)))")
         let sessionId = ObjectIdentifier(session)
         Task { @MainActor in
-            // Earlier rooms' views are kept alive and share this delegate; only the current one counts.
+            // The previous room's view may still report in; it shares this delegate, so only the current one counts.
             guard let current = self.roomCaptureView, ObjectIdentifier(current.captureSession) == sessionId else {
                 print("[scan] ignoring didEndWith from an earlier room's session")
                 return
@@ -774,7 +794,7 @@ enum UploadFailure: LocalizedError {
         case .noScan:
             return "The merged scan hasn't been saved yet. Wait for merging to finish, then try again."
         case .unreachable(let host, let underlying):
-            return "Couldn't reach heatlossdb at \(host). Check the server is running and you're on the same Wi-Fi. (\(underlying.localizedDescription))"
+            return "Couldn't reach heatlossdb at \(host). Check your internet connection and try again. (\(underlying.localizedDescription))"
         case .rejected(let message):
             return message
         }

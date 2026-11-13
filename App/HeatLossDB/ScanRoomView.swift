@@ -10,9 +10,9 @@ import SwiftUI
 import SwiftData
 import RoomPlan
 
-/// The camera view for the whole survey: one walk round the home, with a tap at each doorway.
-/// "Next room" ends the room being captured and starts the next straight away (including at the
-/// top or bottom of the stairs); "Finish home" completes the survey. Rooms are named "Room 1", "Room 2"…
+/// The camera view for the whole survey: one walk round the home, a room at a time. "Finish room"
+/// ends the room being captured; the user then moves to the next room and taps "Start scanning".
+/// Tracking runs throughout, so the rooms line up. "Finish home" completes the survey. Rooms are named "Room 1", "Room 2"…
 /// and can be renamed from the survey; StructureBuilder works out which storey each is on.
 struct ScanRoomView : View {
     
@@ -36,7 +36,11 @@ struct ScanRoomView : View {
     
     var body: some View {
         ZStack {
-            if let roomCaptureView = scanRoomModel.roomCaptureView {
+            if capturingRoom == nil, let session = scanRoomModel.arSession {
+                // Between rooms: the room's capture view has stopped, but the camera hasn't.
+                CameraFeedRepresentable(session: session)
+                    .ignoresSafeArea()
+            } else if let roomCaptureView = scanRoomModel.roomCaptureView {
                 ScanRoomRepresentable(roomCaptureView: roomCaptureView)
                     // Each room gets a new capture view; this makes SwiftUI swap it in.
                     .id(ObjectIdentifier(roomCaptureView))
@@ -82,7 +86,7 @@ struct ScanRoomView : View {
             Spacer()
             
             VStack(spacing: 2) {
-                Text(capturingRoom == nil ? "Paused" : "Room \(roomCount)")
+                Text(capturingRoom == nil ? "Between rooms" : "Room \(roomCount)")
                     .fontWeight(.bold)
                 Text(progressText)
                     .font(.footnote)
@@ -106,28 +110,51 @@ struct ScanRoomView : View {
         return saving > 0 ? "\(rooms) · saving \(saving)" : rooms
     }
     
+    /// While a room is being scanned: Finish room. Between rooms: a prompt to move to the next
+    /// room and Start scanning, so the walk there isn't captured as part of either room.
     private var controls: some View {
         VStack(spacing: 10) {
+            if capturingRoom == nil {
+                Text(property.rooms.isEmpty
+                     ? "Stand in the first room, then tap Start scanning."
+                     : "\(scanRoomModel.lastFinishedRoom?.name ?? "Room") saved. Move to the next room, then tap Start scanning.")
+                    .multilineTextAlignment(.center)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
             if scanRoomModel.lastFinishedRoom != nil {
                 redoButton
+                    .disabled(scanRoomModel.isEndingRoom)
             }
             HStack(spacing: 10) {
-                Button(action: nextRoom) {
-                    Label("Next room", systemImage: "arrow.right")
-                        .fontWeight(.bold)
-                        .frame(maxWidth: .infinity)
+                if capturingRoom == nil {
+                    primaryButton("Start scanning", systemImage: "camera.metering.matrix", action: startScanning)
+                        .disabled(scanRoomModel.isEndingRoom)
+                        .accessibilityHint("Starts scanning the room you're in")
+                } else {
+                    primaryButton("Finish room", systemImage: "checkmark", action: finishRoom)
+                        .disabled(scanRoomModel.isEndingRoom)
+                        .accessibilityHint("Saves this room. Scan every wall, window and door first.")
                 }
-                .padding()
-                .background(Color("AccentColor"))
-                .foregroundColor(.white)
-                .clipShape(Capsule())
-                .disabled(capturingRoom == nil || scanRoomModel.isEndingRoom)
-                .accessibilityHint("Saves this room and starts the next. Walk through the doorway with the camera up.")
                 
                 secondaryButton("Finish home") { isConfirmingFinish = true }
                     .disabled(roomCount < 2 || scanRoomModel.isEndingRoom)
             }
         }
+    }
+    
+    private func primaryButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .fontWeight(.bold)
+                .frame(maxWidth: .infinity)
+        }
+        .padding()
+        .background(Color("AccentColor"))
+        .foregroundColor(.white)
+        .clipShape(Capsule())
     }
     
     private var redoButton: some View {
@@ -178,7 +205,7 @@ struct ScanRoomView : View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
-    /// RoomPlan stopped capturing this room by itself; Next room saves what it got and carries on.
+    /// RoomPlan stopped capturing this room by itself; Finish room saves what it got.
     private func stoppedBanner(_ reason: String) -> some View {
         HStack(alignment: .top) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -186,7 +213,7 @@ struct ScanRoomView : View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Scanning stopped: \(reason)")
                     .font(.subheadline)
-                Text("Tap Next room to save what was captured and carry on.")
+                Text("Tap Finish room to save what was captured.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -205,11 +232,11 @@ struct ScanRoomView : View {
         scanRoomModel.startRoom()
     }
     
-    /// Ends the room being captured and records it. Returns false if there wasn't one to end.
-    @discardableResult
-    private func finishRoom(startNext: Bool) -> Bool {
+    /// Ends the room being captured and records it. Tracking keeps running while the user moves
+    /// to the next room, so rooms still line up when merged.
+    private func finishRoom() {
         let name = uniqueName("Room \(property.rooms.count + 1)")
-        guard let room = scanRoomModel.endRoom(name: name, startNext: startNext) else { return false }
+        guard let room = scanRoomModel.endRoom(name: name, startNext: false) else { return }
         
         modelContext.insert(Room(roomId: room.id, name: room.name, property: property))
         do {
@@ -217,16 +244,15 @@ struct ScanRoomView : View {
         } catch {
             print("Failed to save room \(error)")
         }
-        return true
     }
     
-    private func nextRoom() {
-        finishRoom(startNext: true)
+    private func startScanning() {
+        scanRoomModel.startRoom()
     }
     
     private func finishHome() {
         if capturingRoom != nil {
-            finishRoom(startNext: false)
+            finishRoom()
         }
         survey.isComplete = true
         try? modelContext.save()
