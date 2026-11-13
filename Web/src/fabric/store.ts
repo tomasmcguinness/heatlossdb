@@ -267,7 +267,10 @@ export const useFabric = create<FabricState>()((set, get) => ({
   },
 
   closeScan: () => {
+    const { scan } = get()
     writeStorage(SCAN_KEY, null)
+    // Its edits too, so opening it again starts afresh.
+    if (scan) writeStorage(fabricKey(scan.hash), null)
     set({ scan: null, scanName: null, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
   },
 
@@ -344,31 +347,51 @@ useFabric.subscribe((state, previous) => {
   writeStorage(fabricKey(state.scan.hash), state.exportFabric())
 })
 
+const hasValues = (record: object | undefined) => Object.values(record ?? {}).some((v) => v !== undefined && v !== '')
+
+/** Whether the user has changed anything about the open scan: fabric, rooms, Home fabric or
+ *  how the storeys line up. */
+export function hasEdits(state: Pick<FabricState, 'scan' | 'defaults' | 'elements' | 'rooms' | 'home' | 'alignment' | 'autoAlignment'>): boolean {
+  if (!state.scan) return false
+  return (
+    Object.keys(state.elements).length > 0 ||
+    Object.keys(state.rooms).length > 0 ||
+    hasValues(state.home) ||
+    Object.values(state.defaults).some((d) => hasValues(d.fields) || d.uValue !== undefined) ||
+    JSON.stringify(state.alignment) !== JSON.stringify(state.autoAlignment)
+  )
+}
+
 /** The last scan opened in this browser, so a reload doesn't lose it. */
 export function restoreLastScan(): Scan | null {
   const scan = readStorage<Scan>(SCAN_KEY)
   if (!scan || !Array.isArray(scan.elements) || typeof scan.hash !== 'string') return null
-  // Saved before scans kept their rooms: read it again from the original file, if it was kept.
-  if (!Array.isArray(scan.rooms)) {
-    if (!scan.raw) return { ...scan, rooms: [] }
-    try {
-      return parseScan(scan.raw)
-    } catch {
-      return { ...scan, rooms: [] }
-    }
+  // Read it again from the original file when it was kept, so what's derived from it (rooms,
+  // outlines, infill walls) comes from the current code, not the code that first opened it.
+  // The hash is from RoomPlan's own ids, so saved settings still match.
+  const fallback = Array.isArray(scan.rooms) ? scan : { ...scan, rooms: [] }
+  if (!scan.raw) return fallback
+  try {
+    return parseScan(scan.raw)
+  } catch {
+    return fallback
   }
-  return scan
 }
 
 // MARK: - Derived values
 
-/** An element's role: the user's choice, else (for doors, windows and openings) its wall's
- *  role, else the automatic guess. */
+/** An element's role: the user's choice, else (for doors, windows and openings) the user's
+ *  choice for its wall, else the automatic guess. */
 export function effectiveRole(state: Pick<FabricState, 'elements' | 'autoRoles' | 'byId'>, id: string): Role {
   const own = state.elements[id]?.role
   if (own) return own
   const element = state.byId.get(id)
-  if (element?.parentId && state.byId.has(element.parentId)) return effectiveRole(state, element.parentId)
+  const parent = element?.parentId
+  // The user's choice for a wall carries to what's in it. Otherwise the element's own guess,
+  // which can differ from its wall's (a door where a partly external wall runs between rooms).
+  if (parent && state.byId.has(parent) && (state.elements[parent]?.role || !(id in state.autoRoles))) {
+    return effectiveRole(state, parent)
+  }
   return state.autoRoles[id] ?? 'internal'
 }
 

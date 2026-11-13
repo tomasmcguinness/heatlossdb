@@ -40,6 +40,11 @@ export interface RawSection {
  *  surfaces are in the same coordinates as the structure's. */
 export interface RawRoom {
   floors?: RawSurface[]
+  /** The room's own walls, doors, windows and openings, used to cut its floor to its walls. */
+  walls?: RawSurface[]
+  doors?: RawSurface[]
+  windows?: RawSurface[]
+  openings?: RawSurface[]
   story?: number
 }
 
@@ -100,7 +105,7 @@ export interface StoreyOutline {
   wallHeight: number
 }
 
-/** A room the user scanned: its floor in world x/z. */
+/** A room the user scanned: its floor in world x/z, cut to its walls. */
 export interface ScanRoom {
   /** Its position in the file's `rooms`, which is stable for a given scan. */
   index: number

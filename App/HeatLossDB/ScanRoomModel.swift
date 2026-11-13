@@ -654,7 +654,11 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
               // A merge saved before the current file format is merged again, so it's saved in it.
               (try? JSONDecoder().decode(FileVersion.self, from: data))?.heatlossdbVersion == heatlossdbVersion else { return nil }
         
-        return try? JSONDecoder().decode(CapturedStructure.self, from: data)
+        guard let structure = try? JSONDecoder().decode(CapturedStructure.self, from: data),
+              // Merged before furniture was left out: merge again, so it's left out of this one too.
+              structure.objects.isEmpty,
+              structure.rooms.allSatisfy({ $0.objects.isEmpty }) else { return nil }
+        return structure
     }
     
     @MainActor
@@ -666,7 +670,32 @@ class ScanRoomModel : RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
             capturedRoomArray.append(room)
         }
         
-        return try await structureBuilder.capturedStructure(from: capturedRoomArray)
+        let structure = try await structureBuilder.capturedStructure(from: capturedRoomArray)
+        do {
+            return try withoutFurniture(structure)
+        } catch {
+            print("Failed to leave the furniture out of the merge \(error)")
+            return structure
+        }
+    }
+
+    /// The structure without its furniture (RoomPlan's objects: beds, sofas, tables, storage…),
+    /// at the top level and in each room. HeatLossDB only needs the building, and the furniture
+    /// would otherwise go into merged.json, the upload and the 3D model. CapturedStructure can't
+    /// be changed directly, so its JSON is edited and read back.
+    private func withoutFurniture(_ structure: CapturedStructure) throws -> CapturedStructure {
+        let data = try JSONEncoder().encode(structure)
+        guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return structure }
+        json["objects"] = [Any]()
+        if let rooms = json["rooms"] as? [[String: Any]] {
+            json["rooms"] = rooms.map { room -> [String: Any] in
+                var room = room
+                room["objects"] = [Any]()
+                return room
+            }
+        }
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        return try JSONDecoder().decode(CapturedStructure.self, from: stripped)
     }
     
     private func loadCapturedRoom(from url: URL) throws -> CapturedRoom? {

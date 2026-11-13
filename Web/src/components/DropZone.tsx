@@ -17,8 +17,8 @@ export function DropZone({ error, onError }: { error: string | null; onError: (m
     }
   }
 
-  const openCode = async () => {
-    const typed = normaliseCode(code)
+  const openCode = async (value = code) => {
+    const typed = normaliseCode(value)
     if (!isValidCode(typed)) {
       onError('Codes are 5 letters and numbers, as shown in the app after uploading.')
       return
@@ -50,7 +50,7 @@ export function DropZone({ error, onError }: { error: string | null; onError: (m
     >
       <div className="dropzone-card">
         <h2>Open a scan</h2>
-        <p className="muted">Upload the survey from the HeatLossDB app, then enter the code it shows.</p>
+        <p className="muted">Upload your survey from the HeatLossDB app, then enter the code it shows.</p>
         <form
           className="code-form"
           onSubmit={(e) => {
@@ -68,7 +68,12 @@ export function DropZone({ error, onError }: { error: string | null; onError: (m
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              const value = e.target.value.toUpperCase()
+              setCode(value)
+              // A whole code opens straight away; Open is still there to try again.
+              if (!checkingCode && isValidCode(normaliseCode(value))) void openCode(value)
+            }}
           />
           <button className="button" type="submit" disabled={checkingCode || code.trim() === ''}>
             {checkingCode ? 'Opening…' : 'Open'}

@@ -1,3 +1,5 @@
+import type { Point2 } from '../../scan/outline'
+import type { WallPiece } from '../../scan/plan'
 import { CheckIcon, ItemIcons } from './icons'
 import { kindsOf, type EditorFloor, type RoomActions } from './model'
 import { MARGIN, usePanZoom } from './panZoom'
@@ -8,6 +10,28 @@ export interface Bounds {
   minZ: number
   width: number
   depth: number
+}
+
+/** Wall thicknesses (m) the plan draws. RoomPlan reports walls as flat planes, so these are nominal. */
+const INTERNAL_WALL = 0.06
+const EXTERNAL_WALL = 0.12
+
+/** A piece of wall as a rectangle `thickness` wide, carried on by half that at the wall's own ends. */
+function pieceShape({ a, b, end }: WallPiece, thickness: number): string {
+  const length = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (!length) return ''
+  const half = thickness / 2
+  const [dx, dz] = [(b[0] - a[0]) / length, (b[1] - a[1]) / length]
+  const [nx, nz] = [-dz * half, dx * half]
+  const start: Point2 = end[0] ? [a[0] - dx * half, a[1] - dz * half] : a
+  const finish: Point2 = end[1] ? [b[0] + dx * half, b[1] + dz * half] : b
+  const corners: Point2[] = [
+    [start[0] + nx, start[1] + nz],
+    [finish[0] + nx, finish[1] + nz],
+    [finish[0] - nx, finish[1] - nz],
+    [start[0] - nx, start[1] - nz],
+  ]
+  return `M${corners.map(([x, z]) => `${x.toFixed(3)},${z.toFixed(3)}`).join('L')}Z`
 }
 
 /**
@@ -37,10 +61,6 @@ export function FloorCanvas({
   const toX = (x: number) => (x - bounds.minX + pad) * scale
   const toY = (z: number) => (z - bounds.minZ + pad) * scale
 
-  const line = (key: string, className: string, a: [number, number], b: [number, number]) => (
-    <line key={key} className={className} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} vectorEffect="non-scaling-stroke" />
-  )
-
   return (
     <>
       <div
@@ -62,9 +82,6 @@ export function FloorCanvas({
               role="img"
               aria-label={`${floor.name} plan`}
             >
-              {plan.outlines.map((outline, i) => (
-                <polygon key={i} className="fp-floor" points={outline.map((p) => p.join(',')).join(' ')} />
-              ))}
               {rooms.map((room) => (
                 <path
                   key={room.id}
@@ -77,9 +94,23 @@ export function FloorCanvas({
                   onDoubleClick={() => actions.rename(room.id)}
                 />
               ))}
-              {plan.walls.map((wall) => line(wall.id, isExternal(wall.id) ? 'fp-wall external' : 'fp-wall', wall.a, wall.b))}
-              {plan.doors.map((door) => line(door.id, 'fp-door', door.a, door.b))}
-              {plan.windows.map((window) => line(window.id, 'fp-window', window.a, window.b))}
+              {/* Each wall runs along its own X axis from -width/2 to +width/2, placed by its transform
+                  (see wallPointAt), and is drawn at its real thickness with its doors, windows and
+                  openings cut out. Its own ends carry on by half the thickness, so walls meeting at a
+                  corner overlap and close it; the sides of a gap stop square. */}
+              <g className="fp-walls">
+                {plan.walls.flatMap(({ id, pieces }) =>
+                  pieces.map((piece, k) => (
+                    <path key={`${id}-${k}`} d={pieceShape(piece, isExternal(id) ? EXTERNAL_WALL : INTERNAL_WALL)} />
+                  )),
+                )}
+              </g>
+              {/* Doors, windows and openings as a thin line across their gap, the same width at any zoom. */}
+              <g className="fp-gaps">
+                {[...plan.doors, ...plan.windows, ...plan.openings].map(({ id, a, b }) => (
+                  <line key={id} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} vectorEffect="non-scaling-stroke" />
+                ))}
+              </g>
             </svg>
             {rooms.map((room) => {
               const state = room.id === actions.selectedId ? ' selected' : room.id === actions.hoveredId ? ' hovered' : ''

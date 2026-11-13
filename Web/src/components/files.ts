@@ -1,4 +1,4 @@
-import { isFabricDocument, useFabric } from '../fabric/store'
+import { hasEdits, isFabricDocument, useFabric } from '../fabric/store'
 import { HEATLOSSDB_VERSION, parseScan, ScanParseError } from '../scan/parse'
 
 async function readJson(file: File): Promise<unknown> {
@@ -33,9 +33,17 @@ export async function openFile(file: File): Promise<void> {
   if (isFabricDocument(edits)) store.importFabric(edits)
 }
 
-/** Closes the open scan. Leaves a survey link too, so a reload doesn't reopen it. */
+/** Closes the open scan and forgets it in this browser, after warning that any changes will be
+ *  lost. Leaves a survey link too, so a reload doesn't reopen it. */
 export function closeScan() {
-  useFabric.getState().closeScan()
+  const store = useFabric.getState()
+  if (
+    hasEdits(store) &&
+    !window.confirm('Your changes to this scan will be lost. To keep them, cancel and save the home first.')
+  ) {
+    return
+  }
+  store.closeScan()
   if (location.pathname !== '/') history.replaceState(null, '', '/')
 }
 

@@ -67,23 +67,24 @@ describe('floorPlans', () => {
     ],
   })
 
-  /** An 8 m × 4 m storey with a wall down the middle and the rooms scanned as `rooms` (x spans). */
-  const home = ({ rooms = [[0, 4], [4, 8]] as [number, number][], middleWall = true, windowAt = 2 } = {}) =>
+  const outerWalls = () => [wall('n', 8, at(4, 0)), wall('s', 8, at(4, 4)), wall('w', 4, at(0, 2, true)), wall('e', 4, at(8, 2, true))]
+
+  /** An 8 m × 4 m storey with a wall down the middle and the rooms scanned as `rooms` (x spans).
+   *  With `roomWalls`, each scanned room also has the outer walls as its own. */
+  const home = ({ rooms = [[0, 4], [4, 8]] as [number, number][], middleWall = true, windowAt = 2, roomWalls = false } = {}) =>
     parseScan({
-      walls: [
-        wall('n', 8, at(4, 0)),
-        wall('s', 8, at(4, 4)),
-        wall('w', 4, at(0, 2, true)),
-        wall('e', 4, at(8, 2, true)),
-        ...(middleWall ? [wall('middle', 4, at(4, 2, true))] : []),
-      ],
+      walls: [...outerWalls(), ...(middleWall ? [wall('middle', 4, at(4, 2, true))] : [])],
       // A window in the north wall, and a door between the rooms.
       doors: middleWall ? [{ ...wall('inside-door', 0.9, at(4, 2, true)), category: { door: {} }, parentIdentifier: 'middle' }] : [],
       windows: [{ ...wall('north-window', 1.2, at(windowAt, 0)), category: { window: {} }, parentIdentifier: 'n' }],
       openings: [],
       // RoomPlan's merged floor for the storey.
       floors: [floor('f', 0, 8)],
-      rooms: rooms.map(([x0, x1], i) => ({ story: 0, floors: [floor(`room-floor-${i}`, x0, x1)] })),
+      rooms: rooms.map(([x0, x1], i) => ({
+        story: 0,
+        floors: [floor(`room-floor-${i}`, x0, x1)],
+        walls: roomWalls ? outerWalls() : [],
+      })),
       // RoomPlan's guesses at what each area is for; ignored.
       sections: [
         { label: 'kitchen', center: [2, 0, 2], story: 0 },
@@ -111,6 +112,18 @@ describe('floorPlans', () => {
     const [plan] = floorPlans(home({ rooms: [[0, 4]] }))
     expect(plan.area).toBeCloseTo(16, 0)
     expect(plan.rooms).toHaveLength(1)
+  })
+
+  it('cuts off floor a room carries on past its walls, as through patio doors', () => {
+    // The scanned floor runs 2 m past the east wall.
+    const [plan] = floorPlans(home({ rooms: [[0, 10]], middleWall: false, roomWalls: true }))
+    expect(plan.area).toBeCloseTo(32, 0)
+  })
+
+  it('keeps a floor as scanned when its walls don’t enclose it', () => {
+    // No walls of its own to go by.
+    const [plan] = floorPlans(home({ rooms: [[0, 10]], middleWall: false }))
+    expect(plan.area).toBeCloseTo(40, 0)
   })
 
   it('gives each external door and window to the room it opens from', () => {

@@ -1,6 +1,6 @@
 import { Matrix4, Vector3 } from 'three'
 import { wallPointAt, worldOutlineXZ } from './geometry'
-import { closeOutline, distanceBesideSegment, edgesOf, joinFloors, type Point2 } from './outline'
+import { closeOutline, distanceBesideSegment, edgesOf, floorWithinWalls, joinFloors, type Point2 } from './outline'
 import type { ElementKind, RawObject, RawStructure, RawSurface, Scan, ScanElement, ScanRoom, StoreyOutline } from './types'
 
 export class ScanParseError extends Error {}
@@ -101,14 +101,26 @@ function storageElement(object: RawObject): ScanElement | null {
   }
 }
 
-/** The rooms the user scanned, each with its floor. */
+/** A wall, door, window or opening's centre line in world x/z. */
+function lineXZ(element: ScanElement): [Point2, Point2] {
+  const a = wallPointAt(element, 0)
+  const b = wallPointAt(element, 1)
+  return [
+    [a.x, a.z],
+    [b.x, b.z],
+  ]
+}
+
+/** The rooms the user scanned, each with its floor cut to the room's own walls (RoomPlan can
+ *  carry a floor on outside, e.g. onto a patio seen through glass doors). */
 function roomsOf(raw: RawStructure): ScanRoom[] {
   return (raw.rooms ?? []).flatMap((room, index) => {
-    const floor = (room.floors ?? [])
-      .filter(isSurface)
-      .map(toElement)
-      .find((e) => e?.kind === 'floor' && e.polygon.length >= 3)
-    return floor ? [{ index, story: room.story ?? floor.story, floor: worldOutlineXZ(floor) }] : []
+    const elements = (surfaces: RawSurface[] | undefined) =>
+      (surfaces ?? []).filter(isSurface).map(toElement).filter((e): e is ScanElement => e !== null)
+    const floor = elements(room.floors).find((e) => e.kind === 'floor' && e.polygon.length >= 3)
+    if (!floor) return []
+    const bounds = [...elements(room.walls), ...elements(room.doors), ...elements(room.windows), ...elements(room.openings)]
+    return [{ index, story: room.story ?? floor.story, floor: floorWithinWalls(worldOutlineXZ(floor), bounds.map(lineXZ)) }]
   })
 }
 

@@ -68,11 +68,15 @@ export function classify(scan: Scan): Record<string, Role> {
     }
   }
 
-  // Doors, windows and openings take their wall's role.
+  // Doors, windows and openings take their wall's role. A wall can be external along only part
+  // of its length, though (it runs on between two rooms), so a door or opening in an external
+  // wall is only external if it lies along the outline itself.
   for (const e of scan.elements) {
     if (e.kind === 'door' || e.kind === 'window' || e.kind === 'opening') {
       const parent = e.parentId ? byId.get(e.parentId) : undefined
-      roles[e.id] = parent ? (roles[parent.id] ?? 'internal') : 'internal'
+      const role = parent ? (roles[parent.id] ?? 'internal') : 'internal'
+      const inside = e.kind !== 'window' && role === 'external' && !isOnOutline(e, outlinesByStorey.get(e.story) ?? [])
+      roles[e.id] = inside ? 'internal' : role
     }
   }
 

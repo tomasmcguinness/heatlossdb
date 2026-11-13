@@ -33,11 +33,21 @@ export interface PlanLine {
   b: Point2
 }
 
+/** A solid stretch of wall between gaps. `end` says which of its ends are the wall's own ends,
+ *  rather than the side of a door, window or opening. */
+export interface WallPiece {
+  a: Point2
+  b: Point2
+  end: [boolean, boolean]
+}
+
 export interface FloorPlan {
   story: number
   outlines: Point2[][]
-  walls: (PlanLine & { element: ScanElement })[]
+  /** Each wall's whole line, and its solid pieces once doors, windows and openings are cut out. */
+  walls: (PlanLine & { element: ScanElement; pieces: WallPiece[] })[]
   doors: PlanLine[]
+  openings: PlanLine[]
   windows: PlanLine[]
   rooms: PlanRoom[]
   /** Floor area of the storey (m²), including built-in storage. */
@@ -55,8 +65,61 @@ const WALL_END_EXTENSION = 0.1
 /** How far (m) either side of a door or window to look for the room it belongs to. */
 const ROOM_PROBE = 0.3
 /** A wall whose opening is at least this share of its width is only a header, as across a bay
- *  window, so it doesn't separate rooms. */
+ *  window, so it isn't drawn and doesn't separate rooms. */
 const OPEN_WALL = 0.9
+
+/** How far (m) a door, window or opening's centre can be from a wall's line and still be in it.
+ *  RoomPlan doesn't always link them to their wall, so they're also matched by position. */
+const OPENING_OFFSET = 0.15
+/** |cos| of the angle between a door, window or opening and a wall for it to lie along the wall (~15°). */
+const PARALLEL = 0.96
+/** Bits of wall shorter than this (m) left beside a gap aren't drawn. */
+const MIN_PIECE = 0.03
+/** A door, window or opening must overlap a wall by this much (m) to be in it. */
+const MIN_OVERLAP = 0.05
+
+/** The stretch of the wall (as 0–1 along it) that a door, window or opening takes up, or null
+ *  if it isn't in the wall. */
+function spanIn(element: ScanElement, wall: ScanElement): [number, number] | null {
+  if (!wall.width) return null
+  const o = element.matrix
+  const w = wall.matrix
+  const length = Math.hypot(w[0], w[2]) || 1
+  const [ux, uz] = [w[0] / length, w[2] / length]
+  const [dx, dz] = [o[12] - w[12], o[14] - w[14]]
+  if (element.parentId !== wall.id) {
+    const parallel = Math.abs(o[0] * ux + o[2] * uz) / (Math.hypot(o[0], o[2]) || 1)
+    if (parallel <= PARALLEL || Math.abs(dx * uz - dz * ux) > OPENING_OFFSET) return null
+  }
+  const centre = (dx * ux + dz * uz) / wall.width + 0.5
+  const half = element.width / 2 / wall.width
+  const t0 = Math.max(0, centre - half)
+  const t1 = Math.min(1, centre + half)
+  // A door just reaching past the end of the next wall along isn't in that wall.
+  return (t1 - t0) * wall.width >= MIN_OVERLAP ? [t0, t1] : null
+}
+
+/** Whether the opening spans (nearly) all of the wall. */
+function opens(opening: ScanElement, wall: ScanElement): boolean {
+  const span = spanIn(opening, wall)
+  return !!span && span[1] - span[0] >= OPEN_WALL
+}
+
+/** What's left of the wall (as 0–1 along it) once its doors, windows and openings are cut out. */
+function solidParts(wall: ScanElement, holes: ScanElement[]): [number, number][] {
+  const gaps = holes
+    .map((hole) => spanIn(hole, wall))
+    .filter((span): span is [number, number] => !!span)
+    .sort((a, b) => a[0] - b[0])
+  const parts: [number, number][] = []
+  let from = 0
+  for (const [t0, t1] of gaps) {
+    if (t0 > from) parts.push([from, t0])
+    from = Math.max(from, t1)
+  }
+  if (from < 1) parts.push([from, 1])
+  return parts.filter(([t0, t1]) => (t1 - t0) * wall.width >= MIN_PIECE)
+}
 
 function rotate([x, z]: Point2, radians: number): Point2 {
   const c = Math.cos(radians)
@@ -324,21 +387,25 @@ export function floorPlans(
     const on = (kind: string) => scan.elements.filter((e) => e.kind === kind && e.story === storey.story)
 
     const outlines = storey.closed.map(place)
-    const walls = on('wall').map((element) => ({ ...line(element), element }))
+    // A wall whose opening spans (nearly) all of it isn't really there: leave it out.
+    const openings = on('opening')
+    const holes = [...on('door'), ...on('window'), ...openings]
+    const walls = on('wall')
+      .filter((element) => !openings.some((o) => opens(o, element)))
+      .map((element) => {
+        const whole = line(element)
+        const at = (t: number): Point2 => [whole.a[0] + t * (whole.b[0] - whole.a[0]), whole.a[1] + t * (whole.b[1] - whole.a[1])]
+        const pieces = solidParts(element, holes).map(([t0, t1]): WallPiece => ({ a: at(t0), b: at(t1), end: [t0 === 0, t1 === 1] }))
+        return { ...whole, element, pieces }
+      })
     // The rooms the user scanned; a scan without them (an older file) is one room per outline.
     const scanned = (scan.rooms ?? []).filter((r) => r.story === storey.story)
     const rooms = scanned.length
       ? scanned.map((r) => ({ id: `scanroom-${r.index}`, floor: place(r.floor) }))
       : outlines.map((floor, k) => ({ id: `outline-${storey.story}-${k}`, floor }))
-    const widthOf = new Map(walls.map((w) => [w.id, w.element.width]))
-    const open = new Set(
-      on('opening')
-        .filter((o) => o.parentId && o.width >= OPEN_WALL * (widthOf.get(o.parentId) ?? Infinity))
-        .map((o) => o.parentId),
-    )
     const grid = divideRooms(
       outlines,
-      walls.filter((w) => !open.has(w.id)).map((w) => [w.a, w.b]),
+      walls.map((w) => [w.a, w.b]),
       rooms.map((r) => r.floor),
     )
     const cells = rooms.map(() => 0)
@@ -367,7 +434,8 @@ export function floorPlans(
       story: storey.story,
       outlines,
       walls,
-      doors: [...on('door'), ...on('opening')].map(line),
+      doors: on('door').map(line),
+      openings: openings.map(line),
       windows: on('window').map(line),
       rooms: rooms.map((room, k) => ({
         id: room.id,

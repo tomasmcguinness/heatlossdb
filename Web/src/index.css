@@ -1956,10 +1956,6 @@ details summary {
   overflow: visible;
 }
 
-.fp-floor {
-  fill: var(--plan-floor);
-}
-
 .fp-room {
   fill: transparent;
   cursor: pointer;
@@ -1973,26 +1969,15 @@ details summary {
   fill: var(--plan-room-selected);
 }
 
-.fp-wall {
+/* Walls are drawn as shapes in metres, so they scale with the plan. */
+.fp-walls path {
+  fill: var(--plan-wall);
+  pointer-events: none;
+}
+
+.fp-gaps line {
   stroke: var(--plan-wall);
-  stroke-width: 3;
-  stroke-linecap: square;
-  pointer-events: none;
-}
-
-.fp-wall.external {
-  stroke-width: 6;
-}
-
-.fp-door {
-  stroke: var(--plan-floor);
-  stroke-width: 7;
-  pointer-events: none;
-}
-
-.fp-window {
-  stroke: var(--kind-window);
-  stroke-width: 3;
+  stroke-width: 1.5;
   pointer-events: none;
 }
 
