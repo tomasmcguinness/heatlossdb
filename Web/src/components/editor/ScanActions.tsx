@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { isAuthConfigured } from '../../auth'
 import { useFabric } from '../../fabric/store'
+import { saveToAccount } from '../../share/homes'
 import { useShare } from '../../share/share'
-import { saveHome } from '../files'
-import { ChevronIcon, SaveIcon, SearchIcon, ShareIcon } from './icons'
+import { downloadHome } from '../files'
+import { useAccount } from '../useAccount'
+import { ChevronIcon, DownloadIcon, SaveIcon, SearchIcon, ShareIcon } from './icons'
 
 interface Action {
   label: string
@@ -14,16 +17,69 @@ interface Action {
 
 const SEARCH: Action = { label: 'Search', text: 'Find similar homes · coming soon', icon: <SearchIcon /> }
 
-/** The header's split button: Save, with Search and Share in its menu. */
+type SaveStatus = { state: 'idle' | 'saving' | 'saved' } | { state: 'failed'; message: string }
+
+/** How long "Saved" shows on the button (ms). */
+const SAVED_FOR = 3000
+
+/** The header's split button: Save to the user's account, with Search, Share and Download in its menu. */
 export function ScanActions({ onShare }: { onShare: () => void }) {
   const shared = useShare()
   // Scans kept by this browser before Save existed can't be saved; opening the file again fixes it.
-  const canSave = useFabric((s) => s.scan?.raw !== undefined)
+  const hasFile = useFabric((s) => s.scan?.raw !== undefined)
+  const { isSignedIn, openSignIn } = useAccount()
+  const [status, setStatus] = useState<SaveStatus>({ state: 'idle' })
+  // Save was asked for while signed out: it happens once they've signed in.
+  const [saveAfterSignIn, setSaveAfterSignIn] = useState(false)
+
+  const runSave = async () => {
+    setStatus({ state: 'saving' })
+    try {
+      await saveToAccount()
+      setStatus({ state: 'saved' })
+    } catch (e) {
+      setStatus({ state: 'failed', message: e instanceof Error ? e.message : 'Saving failed.' })
+    }
+  }
+
+  useEffect(() => {
+    if (!saveAfterSignIn || !isSignedIn) return
+    setSaveAfterSignIn(false)
+    void runSave()
+    // runSave only reads the store, so it needn't be a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveAfterSignIn, isSignedIn])
+
+  useEffect(() => {
+    if (status.state !== 'saved') return
+    const timer = setTimeout(() => setStatus({ state: 'idle' }), SAVED_FOR)
+    return () => clearTimeout(timer)
+  }, [status])
+
   const save: Action = {
-    label: 'Save',
-    text: canSave ? 'Download your scan and edits as one file' : 'Open your scan file again to save it',
+    label: status.state === 'saving' ? 'Saving…' : status.state === 'saved' ? 'Saved' : 'Save',
+    text: !isAuthConfigured
+      ? "Sign-in isn't set up"
+      : !hasFile
+        ? 'Open your scan file again to save it'
+        : isSignedIn
+          ? 'Save to your account'
+          : 'Sign in to save to your account',
     icon: <SaveIcon />,
-    run: canSave ? saveHome : undefined,
+    run:
+      isAuthConfigured && hasFile && status.state !== 'saving'
+        ? () => {
+            if (isSignedIn) return void runSave()
+            setSaveAfterSignIn(true)
+            openSignIn()
+          }
+        : undefined,
+  }
+  const download: Action = {
+    label: 'Download',
+    text: hasFile ? 'Download your scan and edits as one file' : 'Open your scan file again to download it',
+    icon: <DownloadIcon />,
+    run: hasFile ? downloadHome : undefined,
   }
   const share: Action = {
     label: 'Share',
@@ -31,7 +87,7 @@ export function ScanActions({ onShare }: { onShare: () => void }) {
     icon: <ShareIcon />,
     run: onShare,
   }
-  const actions = [SEARCH, share, save]
+  const actions = [SEARCH, share, download, save]
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -100,6 +156,11 @@ export function ScanActions({ onShare }: { onShare: () => void }) {
             </button>
           ))}
         </div>
+      )}
+      {status.state === 'failed' && !open && (
+        <p className="split-status error small" role="alert">
+          {status.message}
+        </p>
       )}
     </div>
   )

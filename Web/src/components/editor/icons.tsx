@@ -96,11 +96,20 @@ export const ShareIcon = (props: IconProps) => (
   </Icon>
 )
 
-export const SaveIcon = (props: IconProps) => (
+export const DownloadIcon = (props: IconProps) => (
   <Icon size={16} {...props}>
     <path d="M12 3.5 V15" />
     <path d="M8 11 L12 15 L16 11" />
     <path d="M4.5 20.5 H19.5" />
+  </Icon>
+)
+
+/** A cloud with an arrow up: saved to the user's account. */
+export const SaveIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M7 18.5 H6.5 A4.5 4.5 0 0 1 6 9.53 A6 6 0 0 1 17.6 8.5 A4.5 4.5 0 0 1 17.5 18.5 H17" />
+    <path d="M12 20.5 V12.5" />
+    <path d="M9 15.5 L12 12.5 L15 15.5" />
   </Icon>
 )
 

@@ -1,5 +1,8 @@
+using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using HeatLossDB.Api;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 
@@ -20,6 +23,41 @@ builder.Services.AddSingleton(services =>
     var options = services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value;
     return new SurveyStore(services.GetRequiredService<IScanStorage>(), tables.GetTableClient(options.SurveysTable), tables.GetTableClient(options.CodesTable));
 });
+builder.Services.AddSingleton(services =>
+{
+    var account = services.GetRequiredService<StorageAccount>();
+    var options = services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value;
+    return new HomeStore(account.Tables.GetTableClient(options.HomesTable), account.Blobs.GetBlobContainerClient(options.EditsContainer));
+});
+// Signing in is Clerk's: the website sends the user's Clerk session token, a JWT signed with keys
+// Clerk publishes at the issuer. The tokens have no audience; "azp" says which site asked for them.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<HeatLossDbOptions>>((jwt, heatLossDb) =>
+    {
+        var clerk = heatLossDb.Value;
+        if (string.IsNullOrWhiteSpace(clerk.ClerkIssuer))
+        {
+            // Not set up: no token is accepted, so everything needing sign-in is a 401.
+            jwt.Events = new JwtBearerEvents { OnMessageReceived = context => { context.NoResult(); return Task.CompletedTask; } };
+            return;
+        }
+        jwt.Authority = clerk.ClerkIssuer.TrimEnd('/');
+        jwt.MapInboundClaims = false;
+        jwt.TokenValidationParameters.ValidateAudience = false;
+        jwt.TokenValidationParameters.NameClaimType = "sub";
+        jwt.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                var party = context.Principal?.FindFirst("azp")?.Value;
+                if (clerk.ClerkAuthorizedParties.Length > 0 && (party is null || !clerk.ClerkAuthorizedParties.Contains(party.TrimEnd('/'), StringComparer.OrdinalIgnoreCase)))
+                    context.Fail("The token wasn't issued for this site.");
+                return Task.CompletedTask;
+            },
+        };
+    });
+builder.Services.AddAuthorization();
 // Codes are short enough to guess, so each address can only try a few a minute.
 builder.Services.AddRateLimiter(limiter =>
 {
@@ -41,6 +79,8 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // The website, built into wwwroot on publish (in development, Vite serves it instead). Vite
 // fingerprints everything under /assets, so those can be cached for good; index.html must not be.
@@ -144,6 +184,37 @@ app.MapPut("/api/surveys/{id}/heat-pump", async (
     return Results.NoContent();
 });
 
+// Homes the signed-in user has saved: their edits to a survey, kept with their account.
+var me = app.MapGroup("/api/me").RequireAuthorization();
+
+me.MapGet("/homes", async (ClaimsPrincipal user, HomeStore homes, CancellationToken cancellationToken) =>
+    Results.Ok(await homes.ListAsync(user.Identity!.Name!, cancellationToken)));
+
+me.MapGet("/homes/{surveyId}", async (string surveyId, ClaimsPrincipal user, HomeStore homes, CancellationToken cancellationToken) =>
+    SurveyStore.IsId(surveyId) && await homes.GetAsync(user.Identity!.Name!, surveyId, cancellationToken) is { } home
+        ? Results.Ok(home)
+        : Results.NotFound());
+
+me.MapPut("/homes/{surveyId}", async (
+    string surveyId,
+    HttpRequest request,
+    ClaimsPrincipal user,
+    SurveyStore surveys,
+    HomeStore homes,
+    CancellationToken cancellationToken) =>
+{
+    if (!await surveys.ExistsAsync(surveyId, cancellationToken)) return Results.NotFound();
+    var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxSavedHomeBytes, cancellationToken);
+    if (body is null)
+        return Results.Problem("The saved home is too large.", statusCode: StatusCodes.Status413PayloadTooLarge);
+    if (ScanValidator.ValidateSavedHome(body) is { } error)
+        return Results.BadRequest(new { error });
+    using var document = JsonDocument.Parse(body);
+    var root = document.RootElement;
+    await homes.SaveAsync(user.Identity!.Name!, surveyId, root.GetProperty("name").GetString()!.Trim(), root.GetProperty("edits"), cancellationToken);
+    return Results.NoContent();
+});
+
 if (app.Environment.IsDevelopment())
 {
     // Development only: gives every home that has a profile but no figures made-up heat loss and
@@ -180,6 +251,9 @@ public static class Uploads
     /// <summary>Profiles hold a few outlines and figures: a few kilobytes. Table Storage keeps
     /// text properties under 64 KB, which is 32 KB of UTF-8 at worst.</summary>
     public const long MaxProfileBytes = 32 * 1024;
+
+    /// <summary>A saved home's edits: a setting or two per element and room, so tens of kilobytes.</summary>
+    public const long MaxSavedHomeBytes = 2 * 1024 * 1024;
 
     /// <summary>Reads the stream, or returns null as soon as it exceeds the limit.</summary>
     public static async Task<byte[]?> ReadLimitedAsync(Stream stream, long limit, CancellationToken cancellationToken)

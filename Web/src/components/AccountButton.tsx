@@ -1,5 +1,6 @@
 import { Show, SignInButton, UserButton } from '@clerk/react'
 import { isAuthConfigured } from '../auth'
+import { HomeIcon } from './editor/icons'
 
 /**
  * Top right of every page: "Sign in" when signed out, which opens Clerk's sign-in-or-up modal
@@ -16,7 +17,11 @@ export function AccountButton() {
         </SignInButton>
       </Show>
       <Show when="signed-in">
-        <UserButton />
+        <UserButton>
+          <UserButton.MenuItems>
+            <UserButton.Link label="My homes" href="/homes" labelIcon={<HomeIcon />} />
+          </UserButton.MenuItems>
+        </UserButton>
       </Show>
     </div>
   )

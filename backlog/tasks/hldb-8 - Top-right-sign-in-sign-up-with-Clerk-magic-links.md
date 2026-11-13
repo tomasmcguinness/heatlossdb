@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-12T17:44:00Z'
-updated_date: '2026-11-12T17:45:00Z'
+updated_date: '2026-11-13T13:30:00Z'
 labels: []
 milestone: m-0
 dependencies: []
@@ -31,4 +31,6 @@ Add Clerk (@clerk/react) to the website: a Sign in button at the top right (topb
 
 <!-- SECTION:NOTES:BEGIN -->
 Added @clerk/react 6.18.3 (pinned; @clerk/clerk-react is deprecated, latest 6.18.6 was a day old). src/auth.ts reads VITE_CLERK_PUBLISHABLE_KEY and holds appearance variables mapped to the CSS tokens; main.tsx wraps App in ClerkProvider only when the key is set. AccountButton (Show signed-out -> SignInButton modal; signed-in -> UserButton) sits at the end of the topbar and of editor-status. .env.example documents the key. Verified: tsc, oxlint, vitest (scan.test.ts fixture still missing), vite build with and without a key. Not verified in a browser. Appearance uses CSS var() values: check the modal's colours in light and dark mode. Clerk dashboard setup needed: email address required, sign-in via email verification link only (no password or code), allowed origins incl. localhost:5179, Tomass-Mac-Studio.local:5179 and the azurewebsites URL.
+
+API auth (verifying Clerk session tokens) is done in HLDB-13.
 <!-- SECTION:NOTES:END -->

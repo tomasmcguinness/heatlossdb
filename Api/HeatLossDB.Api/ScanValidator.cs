@@ -75,6 +75,35 @@ public static partial class ScanValidator
         }
     }
 
+    /// <summary>The longest name a saved home can have.</summary>
+    public const int MaxHomeNameLength = 200;
+
+    /// <summary>
+    /// A home saved to an account: a JSON object with its "name" and the website's "edits" (a
+    /// fabric document, "format": "heatlossdb.fabric").
+    /// </summary>
+    public static string? ValidateSavedHome(byte[] body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return "The saved home must be a JSON object.";
+            if (!root.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String
+                || name.GetString()!.Trim().Length == 0 || name.GetString()!.Length > MaxHomeNameLength)
+                return $"The saved home needs a name (\"name\") of up to {MaxHomeNameLength} characters.";
+            if (!root.TryGetProperty("edits", out var edits) || edits.ValueKind != JsonValueKind.Object
+                || !edits.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.String
+                || format.GetString() != "heatlossdb.fabric")
+                return "The saved home needs its edits (\"edits\", a heatlossdb.fabric document).";
+            return null;
+        }
+        catch (JsonException)
+        {
+            return "The saved home isn't valid JSON.";
+        }
+    }
+
     /// <summary>A UK outward code, the first part of a postcode, uppercase.</summary>
     [GeneratedRegex("^[A-Z]{1,2}[0-9][A-Z0-9]?$")]
     private static partial Regex OutwardCode();

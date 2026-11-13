@@ -194,6 +194,9 @@ public partial class SurveyStore
 
     [GeneratedRegex("^[A-Za-z0-9_-]{22}$")]
     private static partial Regex IdPattern();
+
+    /// <summary>Whether the id is well-formed (not whether there's a survey with it).</summary>
+    public static bool IsId(string id) => IdPattern().IsMatch(id);
 }
 
 /// <summary>A survey's row, keyed by its id. Profile, HeatPump and Share are JSON, each at most 32 KB

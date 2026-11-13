@@ -1,7 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace HeatLossDB.Api.Tests;
 
@@ -21,6 +28,12 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
             builder.UseSetting("HeatLossDB:SurveysTable", name + "surveys");
             builder.UseSetting("HeatLossDB:CodesTable", name + "codes");
             builder.UseSetting("HeatLossDB:PublicWebBaseUrl", "http://web.test/");
+            builder.UseSetting("HeatLossDB:HomesTable", name + "homes");
+            builder.UseSetting("HeatLossDB:EditsContainer", name + "edits");
+            // Instead of Clerk's tokens, the signed-in user is whoever X-Test-User names.
+            builder.ConfigureTestServices(services => services
+                .AddAuthentication(TestUser.Scheme)
+                .AddScheme<AuthenticationSchemeOptions, TestUser>(TestUser.Scheme, null));
         }
 
         protected override void Dispose(bool disposing)
@@ -28,8 +41,24 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
             base.Dispose(disposing);
             var account = new StorageAccount(Storage);
             account.Blobs.GetBlobContainerClient(name).DeleteIfExists();
+            account.Blobs.GetBlobContainerClient(name + "edits").DeleteIfExists();
             account.Tables.DeleteTable(name + "surveys");
             account.Tables.DeleteTable(name + "codes");
+            account.Tables.DeleteTable(name + "homes");
+        }
+    }
+
+    /// <summary>Signs the request in as the user named in X-Test-User, if there is one.</summary>
+    public class TestUser(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        public const string Scheme = "Test";
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            if (Request.Headers["X-Test-User"].FirstOrDefault() is not { Length: > 0 } user) return Task.FromResult(AuthenticateResult.NoResult());
+            var identity = new ClaimsIdentity([new Claim("sub", user)], Scheme, "sub", null);
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme)));
         }
     }
 

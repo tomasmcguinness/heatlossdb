@@ -59,7 +59,7 @@ export function downloadFabric() {
 }
 
 /** Downloads the scan with the user's edits, as one file that opens on its own. */
-export function saveHome() {
+export function downloadHome() {
   const { scan, exportFabric } = useFabric.getState()
   const edits = exportFabric()
   if (!scan?.raw || !edits) return

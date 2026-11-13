@@ -1451,6 +1451,20 @@ details summary {
   font-weight: 600;
 }
 
+/* Why Save failed, just below the button. */
+.split-status {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  max-width: min(320px, calc(100vw - 32px));
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.15);
+}
+
 /* Share your home */
 .pending-banner {
   margin: 0;
@@ -2543,6 +2557,33 @@ span.panel-room {
 
 .page-back {
   grid-column: 1 / -1;
+}
+
+.my-homes {
+  max-width: 720px;
+}
+
+.my-homes-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.my-home {
+  gap: 4px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.my-home:hover,
+.my-home:focus-visible {
+  border-color: var(--accent);
+}
+
+.my-home-name {
+  font-weight: 600;
 }
 
 .match-name {

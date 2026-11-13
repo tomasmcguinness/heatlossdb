@@ -1,5 +1,6 @@
-import { ClerkProvider } from '@clerk/react'
+import { ClerkProvider, useAuth } from '@clerk/react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { setTokenGetter } from '../api'
 import { clerkAppearance, clerkPublishableKey } from '../auth'
 
 /** Clerk around the app when it's set up, its colours following the site's light or dark theme. */
@@ -22,7 +23,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (!clerkPublishableKey) return children
   return (
     <ClerkProvider publishableKey={clerkPublishableKey} afterSignOutUrl="/" appearance={appearance}>
+      <TokenBridge />
       {children}
     </ClerkProvider>
   )
+}
+
+/** Lets calls to the API outside React get the signed-in user's session token. */
+function TokenBridge() {
+  const { getToken } = useAuth()
+  useEffect(() => setTokenGetter(() => getToken()), [getToken])
+  return null
 }
