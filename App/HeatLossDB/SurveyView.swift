@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
 import RoomPlan
-import QuickLook
+import SceneKit
 import _SpriteKit_SwiftUI
 
 /// Presentation state for the survey section. It is owned by the parent view because alerts,
@@ -28,7 +28,7 @@ final class SurveySectionState {
     var newRoomName = ""
 
     var floorPlanScene: FloorPlanScene?
-    /// A room's 3D model being shown in Quick Look.
+    /// A room's 3D model being shown.
     var previewURL: URL?
 }
 
@@ -83,7 +83,7 @@ struct SurveySection : View {
                     .disabled(isAnotherSurveyActive)
             }
         } header: {
-            Text("Survey")
+            Text("Scanned Rooms")
         } footer: {
             footer
         }
@@ -258,7 +258,7 @@ struct SurveySection : View {
         } else if !survey.isComplete && !rooms.isEmpty && !isSurveying {
             Text("The scanning session was interrupted. Rooms scanned now won't line up with the earlier ones. Complete the survey with the rooms you have, or reset it.")
         } else if !survey.isComplete && rooms.count < 2 {
-            Text("Scan one room at a time: tap Room done when a room is finished, walk into the next with the camera up, then tap Scan next room. You must scan at least two rooms to complete the survey.")
+            Text("Scan each room in turn, tapping Finish Room when it's done and Start Scanning in the next. Keep the camera up as you move between rooms. You must scan at least two rooms to complete the survey.")
         }
     }
     
@@ -325,7 +325,11 @@ struct SurveyPresentations: ViewModifier {
             .navigationDestination(isPresented: $state.isScanning) {
                 ScanRoomView(property: property, survey: survey)
             }
-            .quickLookPreview($state.previewURL)
+            .fullScreenCover(isPresented: isPreviewing) {
+                if let url = state.previewURL {
+                    RoomModelView(url: url) { state.previewURL = nil }
+                }
+            }
             .fullScreenCover(item: $state.floorPlanScene) { scene in
                 ZStack(alignment: .topTrailing) {
                     SpriteView(scene: scene)
@@ -344,6 +348,10 @@ struct SurveyPresentations: ViewModifier {
                     Task { await scanRoomModel.mergeRooms(surveyId: survey.surveyId) }
                 }
             }
+    }
+    
+    private var isPreviewing: Binding<Bool> {
+        Binding(get: { state.previewURL != nil }, set: { if !$0 { state.previewURL = nil } })
     }
     
     private var isRenaming: Binding<Bool> {
@@ -414,23 +422,11 @@ struct ScanTipsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Stepper(value: $roomCount, in: ScanRoomView.minimumRooms...50) {
-                        LabeledContent("Rooms to scan", value: "\(roomCount)")
-                    }
-                } header: {
-                    Text("How many rooms?")
-                } footer: {
-                    Text("Count every room you'll walk through, including halls, landings and bathrooms. It's just to keep track; you can scan more or fewer.")
-                }
-                
-                Section("Before you scan") {
-                    tip("Make it bright", "Turn the lights on and open the curtains and blinds, so the camera can see the walls and windows clearly.", systemImage: "sun.max")
-                    tip("Open the doors", "Open the internal doors before you start, so you can walk from room to room without stopping.", systemImage: "door.left.hand.open")
-                    tip("Go slowly", "Keep the camera up and move slowly round the edge of each room, taking in every wall, window and door.", systemImage: "figure.walk")
-                    tip("One room at a time", "Tap Room done once you've got every wall of a room. Walk into the next with the camera up, then tap Scan next room. Treat the stairs as a room of their own.", systemImage: "checkmark.circle")
-                    tip("Don't worry about names", "Rooms are numbered as you go. You can rename them later, here or online.", systemImage: "pencil")
-                }
+                tip("Make it bright", "Turn the lights on and open the curtains and blinds, so the camera can see the walls and windows clearly.", systemImage: "sun.max")
+                tip("Open the doors", "Open the internal doors before you start, so you can walk from room to room without stopping.", systemImage: "door.left.hand.open")
+                tip("Go slowly", "Keep the camera up and move slowly round the edge of each room, taking in every wall, window and door.", systemImage: "figure.walk")
+                tip("One room at a time", "When you've scanned the whole room, tap Finish Room. Walk to the next room with the camera up, then tap Start Scanning.", systemImage: "arrow.right.circle")
+                tip("Don't worry about names", "Rooms are numbered as you go. You can rename them later, here or online.", systemImage: "pencil")
             }
             .navigationTitle("Before you scan")
             .navigationBarTitleDisplayMode(.inline)
@@ -467,5 +463,48 @@ struct ScanTipsView: View {
                 .foregroundStyle(.tint)
         }
         .padding(.vertical, 4)
+    }
+}
+
+/// A room's 3D model, to turn and zoom with a finger. Quick Look would also offer AR, which
+/// isn't useful for a room you're standing in.
+struct RoomModelView: View {
+    var url: URL
+    var onClose: () -> Void
+    
+    @State private var scene: SCNScene?
+    @State private var failed = false
+    
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            if let scene {
+                SceneView(scene: scene, options: [.allowsCameraControl, .autoenablesDefaultLighting])
+                    .ignoresSafeArea()
+                    .accessibilityLabel("3D model of the room. Drag to turn it, pinch to zoom.")
+            } else if failed {
+                Text("The room's model couldn't be opened.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            
+            Button("Close", action: onClose)
+                .padding()
+                .background(.thinMaterial)
+                .clipShape(Capsule())
+                .padding()
+        }
+        .task {
+            do {
+                scene = try SCNScene(url: url)
+            } catch {
+                print("Failed to open room model \(error)")
+                failed = true
+            }
+        }
     }
 }

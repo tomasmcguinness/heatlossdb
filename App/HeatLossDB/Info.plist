@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>HeatLossDBAPIBaseURL</key>
-	<string>http://Tomass-Mac-Studio.local:5080</string>
+	<string>https://heatlossdb-c3gsf3efc5byfccr.ukwest-01.azurewebsites.net</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

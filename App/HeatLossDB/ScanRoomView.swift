@@ -10,11 +10,10 @@ import SwiftUI
 import SwiftData
 import RoomPlan
 
-/// The camera view for the whole survey: one walk round the home, a room at a time. Each room is
-/// two steps: "Room done" saves the room being captured, then, once it's saved and the user has
-/// walked through to the next room with the camera up, "Scan next room" starts it. "Finish home"
-/// completes the survey. Rooms are named "Room 1", "Room 2"… and can be renamed from the survey;
-/// StructureBuilder works out which storey each is on.
+/// The camera view for the whole survey: one walk round the home, a room at a time. "Finish room"
+/// ends the room being captured; the user then moves to the next room and taps "Start scanning".
+/// Tracking runs throughout, so the rooms line up. "Finish home" completes the survey. Rooms are named "Room 1", "Room 2"…
+/// and can be renamed from the survey; StructureBuilder works out which storey each is on.
 struct ScanRoomView : View {
 
     @Environment(\.dismiss) private var dismiss
@@ -67,7 +66,11 @@ struct ScanRoomView : View {
 
     var body: some View {
         ZStack {
-            if let roomCaptureView = scanRoomModel.roomCaptureView {
+            if capturingRoom == nil, let session = scanRoomModel.arSession {
+                // Between rooms: the room's capture view has stopped, but the camera hasn't.
+                CameraFeedRepresentable(session: session)
+                    .ignoresSafeArea()
+            } else if let roomCaptureView = scanRoomModel.roomCaptureView {
                 ScanRoomRepresentable(roomCaptureView: roomCaptureView)
                     // Each room gets a new capture view; this makes SwiftUI swap it in.
                     .id(ObjectIdentifier(roomCaptureView))
@@ -136,7 +139,7 @@ struct ScanRoomView : View {
             }
         } label: {
             VStack(spacing: 2) {
-                Text(titleText)
+                Text(capturingRoom == nil ? "Between rooms" : "Room \(roomCount)")
                     .fontWeight(.bold)
                 Text(progressText)
                     .font(.footnote)
@@ -168,35 +171,42 @@ struct ScanRoomView : View {
         let rooms = doneCount == 1 ? "1 room done" : "\(doneCount) rooms done"
         return saving > 0 ? "\(rooms) · saving \(saving)" : rooms
     }
-
-    @ViewBuilder
+    
+    /// While a room is being scanned: Finish room. Between rooms: a prompt to move to the next
+    /// room and Start scanning, so the walk there isn't captured as part of either room.
     private var controls: some View {
         VStack(spacing: 10) {
-            if phase == .betweenRooms, scanRoomModel.lastFinishedRoom != nil {
+            if capturingRoom == nil {
+                Text(property.rooms.isEmpty
+                     ? "Stand in the first room, then tap Start scanning."
+                     : "\(scanRoomModel.lastFinishedRoom?.name ?? "Room") saved. Move to the next room, then tap Start scanning.")
+                    .multilineTextAlignment(.center)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            if scanRoomModel.lastFinishedRoom != nil {
                 redoButton
+                    .disabled(scanRoomModel.isEndingRoom)
             }
             HStack(spacing: 10) {
-                switch phase {
-                case .capturing:
-                    primaryButton("Room done", systemImage: "checkmark") { roomDone() }
-                        .accessibilityHint("Saves this room. You'll start the next one when you're ready.")
-                    secondaryButton("Finish home") { isConfirmingFinish = true }
-                        .disabled(roomCount < Self.minimumRooms)
-                case .saving:
-                    savingIndicator
-                case .betweenRooms where isPlanDone:
-                    primaryButton("Finish home", systemImage: "house") { isConfirmingFinish = true }
-                    secondaryButton("Scan another room", action: scanNextRoom)
-                case .betweenRooms:
-                    primaryButton("Scan next room", systemImage: "arrow.right", action: scanNextRoom)
-                        .accessibilityHint("Starts scanning the room you're in. Walk through the doorway with the camera up first.")
-                    secondaryButton("Finish home") { isConfirmingFinish = true }
-                        .disabled(doneCount < Self.minimumRooms)
+                if capturingRoom == nil {
+                    primaryButton("Start scanning", systemImage: "camera.metering.matrix", action: startScanning)
+                        .disabled(scanRoomModel.isEndingRoom)
+                        .accessibilityHint("Starts scanning the room you're in")
+                } else {
+                    primaryButton("Finish room", systemImage: "checkmark", action: finishRoom)
+                        .disabled(scanRoomModel.isEndingRoom)
+                        .accessibilityHint("Saves this room. Scan every wall, window and door first.")
                 }
+                
+                secondaryButton("Finish home") { isConfirmingFinish = true }
+                    .disabled(roomCount < 2 || scanRoomModel.isEndingRoom)
             }
         }
     }
-
+    
     private func primaryButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
@@ -208,32 +218,7 @@ struct ScanRoomView : View {
         .foregroundColor(.white)
         .clipShape(Capsule())
     }
-
-    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .padding(.vertical)
-            .padding(.horizontal, 12)
-            .background(.thinMaterial)
-            .clipShape(Capsule())
-    }
-
-    /// Shown while RoomPlan hands the room over, usually a second or two. Nothing can be tapped,
-    /// so a room can't be ended twice or the next started too soon.
-    private var savingIndicator: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-            Text("Saving room…")
-                .fontWeight(.semibold)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.thinMaterial)
-        .clipShape(Capsule())
-        .accessibilityElement(children: .combine)
-    }
-
+    
     private var redoButton: some View {
         Button {
             redoLastRoom()
@@ -271,32 +256,8 @@ struct ScanRoomView : View {
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
-
-    /// What to do between rooms.
-    private var betweenRoomsBanner: some View {
-        HStack(alignment: .top) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            VStack(alignment: .leading, spacing: 2) {
-                if let last = scanRoomModel.lastFinishedRoom {
-                    Text("\(last.name) done.")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                }
-                Text(isPlanDone
-                     ? "That's every room you planned. Finish the home, or scan another room if you missed one."
-                     : "Keep the camera up and walk into the next room, then tap Scan next room.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding()
-        .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    /// RoomPlan stopped capturing this room by itself; Room done saves what it got.
+    
+    /// RoomPlan stopped capturing this room by itself; Finish room saves what it got.
     private func stoppedBanner(_ reason: String) -> some View {
         HStack(alignment: .top) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -304,7 +265,7 @@ struct ScanRoomView : View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Scanning stopped: \(reason)")
                     .font(.subheadline)
-                Text("Tap Room done to save what was captured.")
+                Text("Tap Finish room to save what was captured.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -323,33 +284,28 @@ struct ScanRoomView : View {
         guard phase == .betweenRooms, !isPlanDone else { return }
         scanRoomModel.startRoom()
     }
-
-    /// Ends the room being captured and records it. Returns false if there wasn't one to end.
-    @discardableResult
-    private func roomDone() -> Bool {
+    
+    /// Ends the room being captured and records it. Tracking keeps running while the user moves
+    /// to the next room, so rooms still line up when merged.
+    private func finishRoom() {
         let name = uniqueName("Room \(property.rooms.count + 1)")
-        guard let room = scanRoomModel.endRoom(name: name) else { return false }
-
+        guard let room = scanRoomModel.endRoom(name: name, startNext: false) else { return }
+        
         modelContext.insert(Room(roomId: room.id, name: room.name, property: property))
         do {
             try modelContext.save()
         } catch {
             print("Failed to save room \(error)")
         }
-        return true
     }
-
-    private func scanNextRoom() {
-        // Scanning past the plan means the plan was short.
-        if let plannedCount, doneCount >= plannedCount {
-            setPlannedCount(doneCount + 1)
-        }
+    
+    private func startScanning() {
         scanRoomModel.startRoom()
     }
 
     private func finishHome() {
-        if phase == .capturing {
-            roomDone()
+        if capturingRoom != nil {
+            finishRoom()
         }
         survey.isComplete = true
         try? modelContext.save()

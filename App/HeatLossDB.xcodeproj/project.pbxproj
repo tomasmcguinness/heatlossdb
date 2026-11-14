@@ -369,7 +369,7 @@
 				CODE_SIGN_ENTITLEMENTS = HeatLossDB/HeatLossDB.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"HeatLossDB/Preview Content\"";
 				DEVELOPMENT_TEAM = R9KK4QW233;
@@ -413,7 +413,7 @@
 				CODE_SIGN_ENTITLEMENTS = HeatLossDB/HeatLossDB.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"HeatLossDB/Preview Content\"";
 				DEVELOPMENT_TEAM = R9KK4QW233;
