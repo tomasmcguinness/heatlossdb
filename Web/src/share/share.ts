@@ -3,26 +3,22 @@ import { surveyIdFromPath } from '../components/files'
 import { useFabric, type HomeFabric } from '../fabric/store'
 import type { HeatPumpData } from '../match/heatPump'
 
-/**
- * A home the user has shared. It's listed in search once they've confirmed their email address,
- * which happens away from the website (a link in Clerk's email), so until then it's pending.
- */
+/** A home the user has shared from this browser. Only signed-in users can share. */
 export interface SharedHome {
-  status: 'pending'
-  email: string
   /** What the home is listed under, such as "Detached, 1945–64, insulated home". */
   name: string
   sharedAt: string
 }
 
-// Kept apart from the scan's edits, so the email address never goes into a saved file.
+// Kept apart from the scan's edits, so a saved file doesn't say it was shared. Session storage, not
+// local: it lasts while the tab is open, so a scan isn't stuck as shared for good.
 const shareKey = (hash: string) => `heatlossdb.share.${hash}`
 
 export function readShare(hash: string): SharedHome | null {
   try {
-    const value = localStorage.getItem(shareKey(hash))
-    const share = value ? (JSON.parse(value) as SharedHome) : null
-    return share?.status === 'pending' && typeof share.email === 'string' ? share : null
+    const value = sessionStorage.getItem(shareKey(hash))
+    const share = value ? (JSON.parse(value) as Partial<SharedHome>) : null
+    return typeof share?.name === 'string' && typeof share.sharedAt === 'string' ? { name: share.name, sharedAt: share.sharedAt } : null
   } catch {
     return null
   }
@@ -30,7 +26,7 @@ export function readShare(hash: string): SharedHome | null {
 
 function writeShare(hash: string, share: SharedHome) {
   try {
-    localStorage.setItem(shareKey(hash), JSON.stringify(share))
+    sessionStorage.setItem(shareKey(hash), JSON.stringify(share))
   } catch {
     // Storage can be full or blocked; the share still went through.
   }
@@ -39,7 +35,7 @@ function writeShare(hash: string, share: SharedHome) {
 /** Shares made in this session, so the page updates without re-reading storage. */
 const useShares = create<{ shares: Record<string, SharedHome> }>(() => ({ shares: {} }))
 
-/** The open scan's share, if it has been shared from this browser. */
+/** The open scan's share, if it has been shared from this tab. */
 export function useShare(): SharedHome | null {
   const hash = useFabric((s) => s.scan?.hash)
   const made = useShares((s) => (hash ? s.shares[hash] : undefined))
@@ -49,13 +45,6 @@ export function useShare(): SharedHome | null {
 export function saveShare(hash: string, share: SharedHome) {
   writeShare(hash, share)
   useShares.setState((s) => ({ shares: { ...s.shares, [hash]: share } }))
-}
-
-/** Creates the user's account. Clerk then emails them a link to confirm their address. */
-export async function createAccount(email: string): Promise<void> {
-  // TODO: Clerk. signUp.create({ emailAddress: email }), then
-  // signUp.prepareEmailAddressVerification({ strategy: 'email_link', redirectUrl }).
-  void email
 }
 
 /** Where the home is and what the owner is happy to show, asked for when sharing. */
@@ -68,11 +57,10 @@ export interface ShareDetails {
   home: HomeFabric
 }
 
-/** Sends the scan, its edits, its listing name, the share details and any heat pump figures to
- *  HeatLossDB, to be listed once confirmed. */
+/** Sends the listing name, the share details and any heat pump figures to HeatLossDB, which
+ *  lists the home in search straight away. */
 export async function submitShare(name: string, details: ShareDetails, heatPump: HeatPumpData | null): Promise<void> {
-  // TODO: API. Upload the scan with its edits (as Save writes them) if it isn't uploaded yet, and
-  // keep the share "pending" until Clerk confirms the account's email address.
+  // TODO: API. Upload the scan with its edits (as Save writes them) if it isn't uploaded yet.
   // Scans opened from the app's link are uploaded already, so their details can be saved now.
   const surveyId = surveyIdFromPath(location.pathname)
   if (!surveyId) return
@@ -98,10 +86,4 @@ export async function saveHeatPump(surveyId: string, heatPump: HeatPumpData): Pr
     body: JSON.stringify(heatPump),
   })
   if (!response.ok) throw new Error(`Saving the heat pump figures failed: ${response.status}`)
-}
-
-/** Sends the confirmation email again. */
-export async function resendConfirmation(email: string): Promise<void> {
-  // TODO: Clerk. signUp.prepareEmailAddressVerification({ strategy: 'email_link', redirectUrl }).
-  void email
 }

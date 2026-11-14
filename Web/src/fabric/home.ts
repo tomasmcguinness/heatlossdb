@@ -80,6 +80,18 @@ export const FLOOR_INSULATION: Choice[] = [
   notSure,
 ]
 
+/** The answers with "Not sure" about insulation read as none: an uninsulated loft (or loft
+ *  insulation only up to the joists) and an uninsulated floor. Assuming the worst keeps heat
+ *  losses from being underestimated. Unanswered questions are left as they are. */
+export function assumingNoInsulation(home: HomeFabric): HomeFabric {
+  return {
+    ...home,
+    loft: home.loft === NOT_SURE ? 'no' : home.loft,
+    loftDepth: home.loftDepth === NOT_SURE ? 'below' : home.loftDepth,
+    floorInsulation: home.floorInsulation === NOT_SURE ? 'no' : home.floorInsulation,
+  }
+}
+
 /** The answer's label, or undefined if it isn't one of the choices. */
 export function labelIn(choices: Choice[], value: string | undefined): string | undefined {
   return choices.find((c) => c.value === value)?.label

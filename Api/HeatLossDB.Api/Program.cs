@@ -66,10 +66,11 @@ builder.Services.AddRateLimiter(limiter =>
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
-// Behind App Service's front end, the visitor's address comes in X-Forwarded-For.
+// Behind App Service's front end, the visitor's address comes in X-Forwarded-For, and https in
+// X-Forwarded-Proto (the upload link is built from the request's own address).
 builder.Services.Configure<ForwardedHeadersOptions>(forwarded =>
 {
-    forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     forwarded.KnownNetworks.Clear();
     forwarded.KnownProxies.Clear();
 });
@@ -110,7 +111,10 @@ app.MapPost("/api/surveys", async (
 
     var appSurveyId = request.Headers["X-App-Survey-Id"].FirstOrDefault();
     var saved = await store.SaveAsync(body, appSurveyId, cancellationToken);
-    var url = $"{options.Value.PublicWebBaseUrl.TrimEnd('/')}/s/{saved.Id}";
+    var webBase = options.Value.PublicWebBaseUrl is { Length: > 0 } configured
+        ? configured
+        : $"{request.Scheme}://{request.Host}";
+    var url = $"{webBase.TrimEnd('/')}/s/{saved.Id}";
     return Results.Created($"/api/surveys/{saved.Id}", new UploadResult(saved.Id, url, saved.Code, saved.CodeExpiresAt));
 });
 
@@ -140,8 +144,8 @@ app.MapPut("/api/surveys/{id}/profile", async (
     return Results.NoContent();
 });
 
-// Other homes to match against. For now every upload with a profile is a candidate; once
-// accounts are confirmed, only shared homes will be. Matching itself runs in the browser.
+// Other homes to match against: every shared home (IsShared, set by sharing it) with a profile.
+// Matching itself runs in the browser.
 app.MapGet("/api/surveys/{id}/candidates", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
     await store.ExistsAsync(id, cancellationToken) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound());
 
@@ -211,6 +215,8 @@ me.MapPut("/homes/{surveyId}", async (
         return Results.BadRequest(new { error });
     using var document = JsonDocument.Parse(body);
     var root = document.RootElement;
+    // The first Save of a survey makes that user its owner.
+    await surveys.ClaimAsync(surveyId, user.Identity!.Name!, cancellationToken);
     await homes.SaveAsync(user.Identity!.Name!, surveyId, root.GetProperty("name").GetString()!.Trim(), root.GetProperty("edits"), cancellationToken);
     return Results.NoContent();
 });

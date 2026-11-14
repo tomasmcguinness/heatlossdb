@@ -28,12 +28,12 @@ export async function openFile(file: File): Promise<void> {
   }
 
   store.loadScan(parseScan(json), file.name)
-  // A file from Save carries its edits, which replace any kept in this browser.
+  // A file from Save carries its edits, which replace any kept in this tab.
   const edits = (json as { edits?: unknown }).edits
   if (isFabricDocument(edits)) store.importFabric(edits)
 }
 
-/** Closes the open scan and forgets it in this browser, after warning that any changes will be
+/** Closes the open scan and forgets it in this tab, after warning that any changes will be
  *  lost. Leaves a survey link too, so a reload doesn't reopen it. */
 export function closeScan() {
   const store = useFabric.getState()

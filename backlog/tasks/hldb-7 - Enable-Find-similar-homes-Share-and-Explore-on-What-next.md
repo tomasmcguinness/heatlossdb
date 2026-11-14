@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-12T16:42:00Z'
-updated_date: '2026-11-12T16:50:00Z'
+updated_date: '2026-11-14T08:04:00Z'
 labels: []
 milestone: m-0
 dependencies:
@@ -32,4 +32,6 @@ WhatNext.tsx shows Find similar homes, Share your home and Explore the database 
 
 <!-- SECTION:NOTES:BEGIN -->
 WhatNext: all options enabled, onChoose routes via PAGE_FOR in App.tsx. search -> MatchesPage (works without surveyId), opening HomeFabricDialog first when Home fabric isn't set; share -> ScanEditor startSharing; explore -> new ExplorePage (postcode area/district, property type, age band filters; sort by newest, size, W/m², SCOP). Shared fetching in match/candidates.ts (useCandidates). Not yet exercised in a browser.
+
+surveys rows now have an IsShared column, set to true by PUT /api/surveys/{id}/share (SaveShareAsync). CandidatesForAsync queries only IsShared rows, so search (matches) and Explore list shared homes only. Older rows without the column read as false. API tests updated (HomesThatArentSharedAreNeverCandidates added); 51/51 pass.
 <!-- SECTION:NOTES:END -->

@@ -588,10 +588,30 @@ code {
   gap: 12px;
 }
 
+/* One home per row: its plan on the left, the comparison on the right (below it when narrow). */
 .match-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+}
+
+.match-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 20px;
+}
+
+.match-plan {
+  flex: 1 1 200px;
+  max-width: 300px;
+}
+
+.match-body .factors {
+  flex: 2 1 320px;
+  width: auto;
+  min-width: 0;
+  margin-top: 0;
 }
 
 .match-header {
@@ -665,20 +685,17 @@ details summary {
   font-weight: 500;
 }
 
-.bar {
-  display: inline-block;
-  width: 56px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--surface-2);
-  overflow: hidden;
-  vertical-align: middle;
+/* How alike the two homes are on each measure, as a percentage. */
+.factors .factor-match-head,
+.factors td:last-child {
+  text-align: right;
+  padding-right: 0;
+  white-space: nowrap;
 }
 
-.bar span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
+.factor-match {
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .factors tr.not-counted th,
@@ -1466,25 +1483,6 @@ details summary {
 }
 
 /* Share your home */
-.pending-banner {
-  margin: 0;
-  padding: 10px 16px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-  font-size: 0.93rem;
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-}
-
-.pending-banner .link:disabled {
-  color: var(--muted);
-  cursor: default;
-  text-decoration: none;
-}
-
 .share-dialog {
   width: min(520px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
@@ -2541,10 +2539,6 @@ span.panel-room {
 .share-postcode {
   max-width: 10ch;
   text-transform: uppercase;
-}
-
-.share-consent-note {
-  display: block;
 }
 
 .fabric-postcode input {

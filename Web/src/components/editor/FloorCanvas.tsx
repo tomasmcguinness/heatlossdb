@@ -105,9 +105,10 @@ export function FloorCanvas({
                   )),
                 )}
               </g>
-              {/* Doors, windows and openings as a thin line across their gap, the same width at any zoom. */}
+              {/* Doors and windows as a thin line across their gap, the same width at any zoom.
+                  Openings are left as a plain gap. */}
               <g className="fp-gaps">
-                {[...plan.doors, ...plan.windows, ...plan.openings].map(({ id, a, b }) => (
+                {[...plan.doors, ...plan.windows].map(({ id, a, b }) => (
                   <line key={id} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} vectorEffect="non-scaling-stroke" />
                 ))}
               </g>

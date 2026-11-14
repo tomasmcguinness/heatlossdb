@@ -62,9 +62,14 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         }
     }
 
+    private readonly Api api;
     private readonly HttpClient client;
 
-    public SurveyUploadTests(Api api) => client = api.CreateClient();
+    public SurveyUploadTests(Api api)
+    {
+        this.api = api;
+        client = api.CreateClient();
+    }
 
     private const string MinimalScan = """{"walls":[{"identifier":"A"}],"doors":[],"windows":[],"openings":[]}""";
 
@@ -88,6 +93,22 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         Assert.Equal(HttpStatusCode.OK, scan.StatusCode);
         Assert.Equal("application/json", scan.Content.Headers.ContentType?.MediaType);
         Assert.Equal(MinimalScan, await scan.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task WithoutAWebsiteAddressTheLinkUsesTheApisOwnAddress()
+    {
+        using var deployed = api.WithWebHostBuilder(builder => builder.UseSetting("HeatLossDB:PublicWebBaseUrl", ""));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "http://heatlossdb.test/api/surveys") { Content = Json(MinimalScan) };
+        // As App Service's front end sends it, having taken the request over https.
+        request.Headers.Add("X-Forwarded-For", "203.0.113.5");
+        request.Headers.Add("X-Forwarded-Proto", "https");
+
+        var response = await deployed.CreateClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var upload = await response.Content.ReadFromJsonAsync<Upload>();
+        Assert.Equal($"https://heatlossdb.test/s/{upload!.Id}", upload.Url);
     }
 
     [Fact]
@@ -181,17 +202,28 @@ public class MatchingCandidateTests : IClassFixture<SurveyUploadTests.Api>
     private Task<HttpResponseMessage> PutProfileAsync(string id, string profile) =>
         client.PutAsync($"/api/surveys/{id}/profile", new StringContent(profile, Encoding.UTF8, "application/json"));
 
-    [Fact]
-    public async Task CandidatesAreOtherHomesWithProfilesButNotReuploadsOfTheSameSurvey()
-    {
-        var mine = await UploadAsync("survey-mine");
-        var mineAgain = await UploadAsync("survey-mine");
-        var theirs = await UploadAsync("survey-theirs");
-        var noProfile = await UploadAsync("survey-no-profile");
+    private Task<HttpResponseMessage> PutShareAsync(string id, string share) =>
+        client.PutAsync($"/api/surveys/{id}/share", new StringContent(share, Encoding.UTF8, "application/json"));
 
-        Assert.Equal(HttpStatusCode.NoContent, (await PutProfileAsync(mine, """{"version":1,"floorArea":100}""")).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await PutProfileAsync(mineAgain, """{"version":1,"floorArea":100}""")).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await PutProfileAsync(theirs, """{"version":1,"floorArea":120}""")).StatusCode);
+    private const string Share = """{"name":"Semi-detached, 1945–64 home","postcodeDistrict":"SW1A","shareRoomNames":false,"home":{"propertyType":"semi-detached"}}""";
+
+    /// <summary>Uploads a home with a profile and shares it, so others can match against it.</summary>
+    private async Task<string> SharedHomeAsync(string appSurveyId, int floorArea)
+    {
+        var id = await UploadAsync(appSurveyId);
+        await PutProfileAsync(id, $$"""{"version":1,"floorArea":{{floorArea}}}""");
+        Assert.Equal(HttpStatusCode.NoContent, (await PutShareAsync(id, Share)).StatusCode);
+        return id;
+    }
+
+    [Fact]
+    public async Task CandidatesAreOtherSharedHomesWithProfilesButNotReuploadsOfTheSameSurvey()
+    {
+        var mine = await SharedHomeAsync("survey-mine", 100);
+        var mineAgain = await SharedHomeAsync("survey-mine", 100);
+        var theirs = await SharedHomeAsync("survey-theirs", 120);
+        var noProfile = await UploadAsync("survey-no-profile");
+        await PutShareAsync(noProfile, Share);
 
         var candidates = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{mine}/candidates");
         var ids = candidates!.Select(c => c.Id).ToList();
@@ -204,11 +236,28 @@ public class MatchingCandidateTests : IClassFixture<SurveyUploadTests.Api>
     }
 
     [Fact]
+    public async Task HomesThatArentSharedAreNeverCandidates()
+    {
+        var mine = await UploadAsync("survey-unshared-mine");
+        var unshared = await UploadAsync("survey-unshared");
+        await PutProfileAsync(unshared, """{"version":1,"floorArea":110}""");
+
+        var forUpload = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{mine}/candidates");
+        var forFile = await client.GetFromJsonAsync<List<CandidateDto>>("/api/candidates");
+        Assert.DoesNotContain(unshared, forUpload!.Select(c => c.Id));
+        Assert.DoesNotContain(unshared, forFile!.Select(c => c.Id));
+
+        // Sharing it makes it one.
+        await PutShareAsync(unshared, Share);
+        var afterSharing = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{mine}/candidates");
+        Assert.Contains(unshared, afterSharing!.Select(c => c.Id));
+    }
+
+    [Fact]
     public async Task ProfilesCanBeReplaced()
     {
         var a = await UploadAsync("survey-a");
-        var b = await UploadAsync("survey-b");
-        await PutProfileAsync(b, """{"version":1,"floorArea":80}""");
+        var b = await SharedHomeAsync("survey-b", 80);
         await PutProfileAsync(b, """{"version":1,"floorArea":90}""");
 
         var candidates = await client.GetFromJsonAsync<List<CandidateDto>>($"/api/surveys/{a}/candidates");
@@ -225,16 +274,10 @@ public class MatchingCandidateTests : IClassFixture<SurveyUploadTests.Api>
         Assert.Equal(HttpStatusCode.BadRequest, (await PutProfileAsync(id, profile)).StatusCode);
     }
 
-    private Task<HttpResponseMessage> PutShareAsync(string id, string share) =>
-        client.PutAsync($"/api/surveys/{id}/share", new StringContent(share, Encoding.UTF8, "application/json"));
-
-    private const string Share = """{"name":"Semi-detached, 1945–64 home","postcodeDistrict":"SW1A","shareRoomNames":false,"home":{"propertyType":"semi-detached"}}""";
-
     [Fact]
-    public async Task EveryHomeWithAProfileIsACandidateForAScanThatIsntUploaded()
+    public async Task EverySharedHomeWithAProfileIsACandidateForAScanThatIsntUploaded()
     {
-        var theirs = await UploadAsync("survey-for-local");
-        await PutProfileAsync(theirs, """{"version":1,"floorArea":70}""");
+        var theirs = await SharedHomeAsync("survey-for-local", 70);
 
         var candidates = await client.GetFromJsonAsync<List<CandidateDto>>("/api/candidates");
         Assert.Equal(70, candidates!.Single(c => c.Id == theirs).Profile.GetProperty("floorArea").GetInt32());

@@ -20,7 +20,7 @@ type Page = 'next' | 'scan' | 'share' | 'matches' | 'explore'
 const PAGE_FOR: Record<Choice, Page> = { view: 'scan', share: 'share', search: 'matches', explore: 'explore' }
 
 /** Once a survey is open and the user is signed in, brings back the edits they saved to their
- *  account for it. Those replace this browser's, as opening a downloaded file's do. */
+ *  account for it. Those replace this tab's, as opening a downloaded file's do. */
 function useSavedEdits(surveyId: string | null, ready: boolean) {
   const { isSignedIn } = useAccount()
   const hash = useFabric((s) => s.scan?.hash)
@@ -35,7 +35,7 @@ function useSavedEdits(surveyId: string | null, ready: boolean) {
       .then((edits) => {
         if (edits && useFabric.getState().scan?.hash === hash) useFabric.getState().importFabric(edits)
       })
-      // Without them the survey still opens, with this browser's edits.
+      // Without them the survey still opens, with this tab's edits.
       .catch(() => {})
   }, [surveyId, ready, isSignedIn, hash])
 }
@@ -43,7 +43,7 @@ function useSavedEdits(surveyId: string | null, ready: boolean) {
 export default function App() {
   const scan = useFabric((s) => s.scan)
   const [error, setError] = useState<string | null>(null)
-  const [onHomes] = useState(() => /^\/homes\/?$/.test(location.pathname))
+  const [onHomes] = useState(() => /^\/scans\/?$/.test(location.pathname))
   // A link from the app (/s/<id>) opens that survey rather than the last one.
   const [surveyId] = useState(() => surveyIdFromPath(location.pathname))
   const [loadingSurvey, setLoadingSurvey] = useState(surveyId !== null)
@@ -55,8 +55,11 @@ export default function App() {
   const profile = useProfile(surveyId)
   const editing = !onHomes && scan !== null && !loadingSurvey && (page === 'scan' || page === 'share')
   const [fabricOpen, setFabricOpen] = useState(false)
+  // Search can be opened from What next? or from the editor, and Back returns there.
+  const [searchFrom, setSearchFrom] = useState<Page>('next')
 
-  const choose = (choice: Choice) => {
+  const choose = (choice: Choice, from: Page = 'next') => {
+    setSearchFrom(from)
     setPage(PAGE_FOR[choice])
     // Matching needs a few answers about the home first: its postcode, age and type.
     if (choice === 'search' && !isHomeFabricSet(useFabric.getState().home)) setFabricOpen(true)
@@ -107,7 +110,7 @@ export default function App() {
         <WhatNext profile={profile} onChoose={choose} />
       ) : page === 'matches' ? (
         profile ? (
-          <MatchesPage surveyId={surveyId} profile={profile} onBack={() => setPage('next')} onFabric={() => setFabricOpen(true)} />
+          <MatchesPage surveyId={surveyId} profile={profile} onBack={() => setPage(searchFrom)} onFabric={() => setFabricOpen(true)} />
         ) : (
           <div className="dropzone">
             <p className="muted">This scan has no floor outline to match yet.</p>
@@ -116,7 +119,7 @@ export default function App() {
       ) : page === 'explore' ? (
         <ExplorePage surveyId={surveyId} onBack={() => setPage('next')} />
       ) : (
-        <ScanEditor onBack={() => setPage('next')} startSharing={page === 'share'} />
+        <ScanEditor onBack={() => setPage('next')} onSearch={() => choose('search', 'scan')} startSharing={page === 'share'} />
       )}
 
       {fabricOpen && scan && !editing && <HomeFabricDialog onClose={() => setFabricOpen(false)} />}

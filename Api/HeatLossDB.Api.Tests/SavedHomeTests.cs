@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HeatLossDB.Api.Tests;
 
@@ -37,6 +38,34 @@ public class SavedHomeTests : IClassFixture<SurveyUploadTests.Api>
         (await (await As(null).PostAsync("/api/surveys", Json(MinimalScan))).Content.ReadFromJsonAsync<Upload>())!.Id;
 
     private static string NewUser() => "user_" + Guid.NewGuid().ToString("N");
+
+    private Task<string?> OwnerOfAsync(string id) =>
+        api.Services.GetRequiredService<SurveyStore>().OwnerOfAsync(id, CancellationToken.None);
+
+    [Fact]
+    public async Task AnUploadHasNoOwnerUntilSomeoneSavesIt()
+    {
+        var id = await UploadAsync();
+        Assert.Null(await OwnerOfAsync(id));
+
+        var first = NewUser();
+        Assert.Equal(HttpStatusCode.NoContent, (await As(first).PutAsync($"/api/me/homes/{id}", Json(Home("Mine")))).StatusCode);
+        Assert.Equal(first, await OwnerOfAsync(id));
+    }
+
+    [Fact]
+    public async Task SavingAgainDoesNotChangeTheOwner()
+    {
+        var id = await UploadAsync();
+        var first = NewUser();
+        await As(first).PutAsync($"/api/me/homes/{id}", Json(Home("Mine")));
+
+        // Someone else with the link can still keep their own edits, but doesn't become the owner.
+        Assert.Equal(HttpStatusCode.NoContent, (await As(NewUser()).PutAsync($"/api/me/homes/{id}", Json(Home("Also mine")))).StatusCode);
+        await As(first).PutAsync($"/api/me/homes/{id}", Json(Home("Still mine")));
+
+        Assert.Equal(first, await OwnerOfAsync(id));
+    }
 
     [Fact]
     public async Task SignedOutRequestsAreUnauthorized()

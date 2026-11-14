@@ -56,7 +56,7 @@ export async function saveToAccount(): Promise<void> {
 /** The user's saved homes, most recently saved first. */
 export async function listHomes(): Promise<SavedHomeSummary[]> {
   const response = await authFetch('/api/me/homes')
-  if (!response.ok) throw new Error(`Listing your homes failed: ${response.status}`)
+  if (!response.ok) throw new Error(`Listing your scans failed: ${response.status}`)
   return (await response.json()) as SavedHomeSummary[]
 }
 

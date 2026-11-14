@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-13T11:56:00Z'
-updated_date: '2026-11-13T13:30:00Z'
+updated_date: '2026-11-14T07:51:00Z'
 labels: []
 dependencies: []
 type: feature
@@ -39,4 +39,6 @@ See C:/Users/Tomas/.claude/plans/floorplan-rendering-is-terrible-quirky-mitten.m
 
 <!-- SECTION:NOTES:BEGIN -->
 API: JwtBearer validates Clerk session tokens (HeatLossDB:ClerkIssuer; azp checked against ClerkAuthorizedParties; no issuer = every /api/me call is 401). HomeStore keeps a 'homes' table row per user+survey and the edits as a blob in 'edits' under sha256(userId)/{surveyId}.json. GET /api/me/homes, GET/PUT /api/me/homes/{surveyId}. 11 new API tests (SavedHomeTests) via an X-Test-User auth scheme; all 47 API tests pass against Azurite. Web: api.ts authFetch + TokenBridge; share/homes.ts; ScanActions Save (account) as main, Download in menu; useSavedEdits in App; /homes MyHomesPage; 'My homes' in the UserButton menu. tsc, oxlint, vite build pass; vitest passes except scan.test.ts (missing gitignored fixture). Not yet tried in a browser: needs ClerkIssuer set and the API restarted.
+
+Added at the user's request: surveys rows get an OwnerId column (Clerk user id). PUT /api/me/homes/{id} (Save) claims it for the first saver via an ETag-conditional merge (SurveyStore.ClaimAsync); later saves by anyone leave it unchanged. Uploads stay anonymous, so OwnerId is empty until someone saves. Tests: AnUploadHasNoOwnerUntilSomeoneSavesIt, SavingAgainDoesNotChangeTheOwner (50/50 API tests pass).
 <!-- SECTION:NOTES:END -->

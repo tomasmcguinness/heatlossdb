@@ -19,7 +19,7 @@ export function AccountButton() {
       <Show when="signed-in">
         <UserButton>
           <UserButton.MenuItems>
-            <UserButton.Link label="My homes" href="/homes" labelIcon={<HomeIcon />} />
+            <UserButton.Link label="My scans" href="/scans" labelIcon={<HomeIcon />} />
           </UserButton.MenuItems>
         </UserButton>
       </Show>

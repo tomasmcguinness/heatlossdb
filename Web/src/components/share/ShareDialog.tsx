@@ -3,22 +3,22 @@ import { useFabric, type EditedRoom } from '../../fabric/store'
 import { answeredCount, isHomeFabricSet, QUESTION_COUNT } from '../../fabric/home'
 import { listingName } from '../../share/listing'
 import { outwardCode } from '../../share/postcode'
-import { createAccount, resendConfirmation, saveShare, submitShare, useShare } from '../../share/share'
+import { saveShare, submitShare, useShare } from '../../share/share'
 import { EMPTY_HEAT_PUMP_FORM, heatPumpRecord, isHeatPumpFormEmpty, type HeatPumpForm } from '../../share/heatPumpForm'
 import type { HeatPumpData } from '../../match/heatPump'
 import { CheckIcon } from '../editor/icons'
 
-type Step = 'check' | 'heatPump' | 'account' | 'done'
+type Step = 'check' | 'heatPump' | 'done'
 
 const STEPS: { id: Step; label: string }[] = [
   { id: 'check', label: 'Check' },
   { id: 'heatPump', label: 'Heat pump' },
-  { id: 'account', label: 'Account' },
   { id: 'done', label: 'Done' },
 ]
 
-// Enough to catch typos; Clerk checks the address properly by emailing it.
-const looksLikeEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+// Room names can say who lives there ("Sophie’s room"), so shared homes show Room 1, Room 2…
+// The option to show them is hidden for now.
+const SHARE_ROOM_NAMES = false
 
 interface ShareDialogProps {
   /** Every room in the home. */
@@ -30,8 +30,8 @@ interface ShareDialogProps {
   onCheckRooms: () => void
 }
 
-/** Share your home: checks the scan is ready, takes any heat pump figures, creates an account,
- *  then waits for its email to be confirmed before the home is listed. */
+/** Share your home: checks the scan is ready, then takes any heat pump figures and shares it.
+ *  Only signed-in users can open it, so there's no account to create. */
 export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null)
   const scanHash = useFabric((s) => s.scan?.hash)
@@ -42,15 +42,9 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
   // Prefilled from Home fabric, where finding similar homes asks for it too.
   const [postcode, setPostcode] = useState(home.postcodeDistrict ?? '')
   const [postcodeTouched, setPostcodeTouched] = useState(false)
-  // Room names can say who lives there ("Sophie’s room"), so they're hidden unless the owner says.
-  const [shareRoomNames, setShareRoomNames] = useState(false)
-  const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [resent, setResent] = useState(false)
   const [heatPumpForm, setHeatPumpForm] = useState<HeatPumpForm>(EMPTY_HEAT_PUMP_FORM)
-  // Null when skipped.
-  const [heatPump, setHeatPump] = useState<HeatPumpData | null>(null)
   const [heatPumpError, setHeatPumpError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -69,13 +63,26 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
   const setHeatPumpField = (field: keyof HeatPumpForm) => (e: ChangeEvent<HTMLInputElement>) =>
     setHeatPumpForm((form) => ({ ...form, [field]: e.target.value }))
 
-  const skipHeatPump = () => {
-    setHeatPumpError(null)
-    setHeatPump(null)
-    setStep('account')
+  const share = async (heatPump: HeatPumpData | null) => {
+    setError(null)
+    setBusy(true)
+    try {
+      await submitShare(name, { postcodeDistrict: postcodeDistrict!, shareRoomNames: SHARE_ROOM_NAMES, home }, heatPump)
+      if (scanHash) saveShare(scanHash, { name, sharedAt: new Date().toISOString() })
+      setStep('done')
+    } catch {
+      setError('Couldn’t share your home. Check your connection and try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const continueFromHeatPump = (e: FormEvent) => {
+  const skipHeatPump = () => {
+    setHeatPumpError(null)
+    void share(null)
+  }
+
+  const shareWithHeatPump = (e: FormEvent) => {
     e.preventDefault()
     if (isHeatPumpFormEmpty(heatPumpForm)) {
       skipHeatPump()
@@ -87,29 +94,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
       return
     }
     setHeatPumpError(null)
-    setHeatPump(result.record)
-    setStep('account')
-  }
-
-  const createAndShare = async (e: FormEvent) => {
-    e.preventDefault()
-    const address = email.trim()
-    if (!looksLikeEmail(address)) {
-      setError('Enter an email address, like name@example.com.')
-      return
-    }
-    setError(null)
-    setBusy(true)
-    try {
-      await createAccount(address)
-      await submitShare(name, { postcodeDistrict: postcodeDistrict!, shareRoomNames, home }, heatPump)
-      if (scanHash) saveShare(scanHash, { status: 'pending', email: address, name, sharedAt: new Date().toISOString() })
-      setStep('done')
-    } catch {
-      setError('Couldn’t create your account. Check your connection and try again.')
-    } finally {
-      setBusy(false)
-    }
+    void share(result.record)
   }
 
   return (
@@ -200,19 +185,6 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
                   Just the area, so others can find homes in a similar climate.
                 </p>
               )}
-              <label className="share-consent">
-                <input type="checkbox" checked={shareRoomNames} onChange={(e) => setShareRoomNames(e.target.checked)} />
-                <span>
-                  Show my room names
-                  <span className="small muted share-consent-note">
-                    Otherwise rooms are shown as Room 1, Room 2 and so on.
-                  </span>
-                </span>
-              </label>
-              <label className="share-consent">
-                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-                <span>I’m happy with my scan and agree to share it and my home’s details anonymously.</span>
-              </label>
             </>
           )}
 
@@ -220,7 +192,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
             <button className="button subtle" onClick={close}>
               Cancel
             </button>
-            <button className="button" disabled={!ready || !agreed || !postcodeDistrict} onClick={() => setStep('heatPump')}>
+            <button className="button" disabled={!ready || !postcodeDistrict} onClick={() => setStep('heatPump')}>
               Continue
             </button>
           </div>
@@ -228,7 +200,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
       )}
 
       {step === 'heatPump' && (
-        <form className="share-body" onSubmit={continueFromHeatPump} noValidate>
+        <form className="share-body" onSubmit={shareWithHeatPump} noValidate>
           <p className="muted">
             If you have a heat pump, these figures make your home far more useful to others. Your installer’s heat loss report has
             them.
@@ -263,55 +235,21 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
               />
             </label>
           </div>
-          {heatPumpError && (
+          <label className="share-consent">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+            <span>I’m happy with my scan and agree to share it and my home’s details anonymously.</span>
+          </label>
+          {(heatPumpError ?? error) && (
             <p className="share-error" role="alert">
-              {heatPumpError}
+              {heatPumpError ?? error}
             </p>
           )}
           <div className="share-actions">
             <button type="button" className="button subtle" onClick={() => setStep('check')}>
               Back
             </button>
-            <button type="button" className="button subtle" onClick={skipHeatPump}>
-              Skip for now
-            </button>
-            <button type="submit" className="button">
-              Continue
-            </button>
-          </div>
-        </form>
-      )}
-
-      {step === 'account' && (
-        <form className="share-body" onSubmit={createAndShare} noValidate>
-          <p className="muted">Create a free account, so you can update or remove your home later.</p>
-          <label className="field">
-            <span className="field-label">Email</span>
-            <input
-              type="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? 'share-error' : 'share-email-note'}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          {error ? (
-            <p id="share-error" className="share-error" role="alert">
-              {error}
-            </p>
-          ) : (
-            <p id="share-email-note" className="small muted">
-              We’ll email you a link to confirm your account. Your home appears in search once you’ve confirmed.
-            </p>
-          )}
-          <div className="share-actions">
-            <button type="button" className="button subtle" onClick={() => setStep('heatPump')}>
-              Back
-            </button>
-            <button type="submit" className="button" disabled={busy}>
-              {busy ? 'Creating account…' : 'Create account'}
+            <button type="submit" className="button" disabled={busy || !agreed}>
+              {busy ? 'Sharing…' : 'Share home'}
             </button>
           </div>
         </form>
@@ -319,16 +257,11 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
 
       {step === 'done' && shared && (
         <div className="share-body">
-          <h3>Check your email</h3>
+          <h3>Your home is shared</h3>
           <p>
-            We’ve sent a link to <strong>{shared.email}</strong>. Once you’ve confirmed your account, your home will appear in
-            search as <strong>{shared.name}</strong>.
+            It appears in search as <strong>{shared.name}</strong>, so others with similar homes can learn from it.
           </p>
-          <p className="muted">Until then it’s pending. You can carry on checking and editing your scan.</p>
           <div className="share-actions">
-            <button className="button subtle" disabled={resent} onClick={() => void resendConfirmation(shared.email).then(() => setResent(true))}>
-              {resent ? 'Email sent' : 'Resend email'}
-            </button>
             <button className="button" onClick={close}>
               Close
             </button>

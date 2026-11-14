@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { isHomeFabricSet } from '../../fabric/home'
 import { effectiveRole, useFabric } from '../../fabric/store'
-import { resendConfirmation, useShare } from '../../share/share'
 import { HomeFabricDialog } from '../fabric/HomeFabricDialog'
 import { ShareDialog } from '../share/ShareDialog'
 import { FloorCanvas, type Bounds } from './FloorCanvas'
@@ -15,7 +14,15 @@ import { AccountButton } from '../AccountButton'
 type View = 'overview' | number
 
 /** View my scan: every room to check and correct, as a side view of the home or floor by floor. */
-export function ScanEditor({ onBack, startSharing = false }: { onBack: () => void; startSharing?: boolean }) {
+export function ScanEditor({
+  onBack,
+  onSearch,
+  startSharing = false,
+}: {
+  onBack: () => void
+  onSearch: () => void
+  startSharing?: boolean
+}) {
   const scanName = useFabric((s) => s.scanName)
   const elements = useFabric((s) => s.elements)
   const autoRoles = useFabric((s) => s.autoRoles)
@@ -29,7 +36,6 @@ export function ScanEditor({ onBack, startSharing = false }: { onBack: () => voi
   const [sharing, setSharing] = useState(startSharing)
   const home = useFabric((s) => s.home)
   const [fabricOpen, setFabricOpen] = useState(false)
-  const shared = useShare()
 
   const floor = view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
   const rooms = floors.flatMap((f) => f.rooms)
@@ -113,12 +119,10 @@ export function ScanEditor({ onBack, startSharing = false }: { onBack: () => voi
             <HomeIcon />
             Home fabric
           </button>
-          <ScanActions onShare={() => setSharing(true)} />
+          <ScanActions onShare={() => setSharing(true)} onSearch={onSearch} />
           <AccountButton />
         </div>
       </header>
-
-      {shared && <PendingBanner email={shared.email} name={shared.name} />}
 
       <div className="editor-body">
         <section className="editor-canvas" aria-label={floor ? `${floor.name} plan` : 'Side view'}>
@@ -189,20 +193,5 @@ export function ScanEditor({ onBack, startSharing = false }: { onBack: () => voi
         />
       )}
     </div>
-  )
-}
-
-/** Shown while a shared home waits for its owner to confirm their email address. */
-function PendingBanner({ email, name }: { email: string; name: string }) {
-  const [resent, setResent] = useState(false)
-  return (
-    <p className="pending-banner" role="status">
-      <span>
-        <strong>Pending.</strong> Confirm your email ({email}) and your home will appear in search as “{name}”.
-      </span>
-      <button className="link" disabled={resent} onClick={() => void resendConfirmation(email).then(() => setResent(true))}>
-        {resent ? 'Email sent' : 'Resend email'}
-      </button>
-    </p>
   )
 }

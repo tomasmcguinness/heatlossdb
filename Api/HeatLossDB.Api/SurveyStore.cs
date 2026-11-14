@@ -98,13 +98,41 @@ public partial class SurveyStore
     public async Task<bool> ExistsAsync(string id, CancellationToken cancellationToken) =>
         IdPattern().IsMatch(id) && (await GetAsync(id, [nameof(SurveyEntity.PartitionKey)], cancellationToken)) is not null;
 
+    /// <summary>
+    /// Makes the user the survey's owner, unless it already has one: the first person to Save it
+    /// owns it, and saving it again (by them or anyone else) doesn't change that. Returns the owner.
+    /// </summary>
+    public async Task<string> ClaimAsync(string id, string userId, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var survey = await GetAsync(id, [nameof(SurveyEntity.OwnerId)], cancellationToken)
+                ?? throw new InvalidOperationException($"There's no survey {id}.");
+            if (survey.OwnerId is { Length: > 0 } owner) return owner;
+            try
+            {
+                // Only if nobody has claimed it since it was read.
+                var claim = new TableEntity(id, "") { [nameof(SurveyEntity.OwnerId)] = userId };
+                await surveys.UpdateEntityAsync(claim, survey.ETag, TableUpdateMode.Merge, cancellationToken);
+                return userId;
+            }
+            catch (RequestFailedException e) when (e.Status == 412)
+            {
+            }
+        }
+    }
+
+    /// <summary>The Clerk user id of whoever owns the survey, or null if nobody has saved it yet.</summary>
+    public async Task<string?> OwnerOfAsync(string id, CancellationToken cancellationToken) =>
+        (await GetAsync(id, [nameof(SurveyEntity.OwnerId)], cancellationToken))?.OwnerId;
+
     /// <summary>Saves the survey's shape profile: the measurements and lined-up outlines the
     /// website derives from the scan, used for matching.</summary>
     public Task SaveProfileAsync(string id, byte[] profile, CancellationToken cancellationToken) =>
         SetAsync(id, nameof(SurveyEntity.Profile), Encoding.UTF8.GetString(profile), cancellationToken);
 
     /// <summary>
-    /// Every survey that has a profile, to match against or browse. With an id, that survey and
+    /// Every shared survey that has a profile, to match against or browse. With an id, that survey and
     /// other uploads of the same app survey (e.g. "Upload Again") are left out, so a home never
     /// matches itself. Without one (a scan opened from a file), every home is a candidate.
     /// </summary>
@@ -115,7 +143,8 @@ public partial class SurveyStore
         // Every row: fine for thousands of homes, as matching needs every profile anyway.
         var candidates = new List<(DateTimeOffset CreatedAt, Candidate Candidate)>();
         string[] columns = [nameof(SurveyEntity.PartitionKey), nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.AppSurveyId), nameof(SurveyEntity.Profile), nameof(SurveyEntity.HeatPump), nameof(SurveyEntity.Share)];
-        await foreach (var survey in surveys.QueryAsync<SurveyEntity>(select: columns, cancellationToken: cancellationToken))
+        // Only homes that have been shared can be matched against.
+        await foreach (var survey in surveys.QueryAsync<SurveyEntity>(s => s.IsShared, select: columns, cancellationToken: cancellationToken))
         {
             if (survey.PartitionKey == id || survey.Profile is null) continue;
             if (mine is not null && survey.AppSurveyId == mine) continue;
@@ -126,10 +155,13 @@ public partial class SurveyStore
         return candidates.OrderByDescending(c => c.CreatedAt).Select(c => c.Candidate).ToList();
     }
 
-    /// <summary>Saves what the owner said when sharing: the listing name, postcode district,
-    /// whether room names may be shown, and the answers about how the home is built.</summary>
+    /// <summary>Saves what the owner said when sharing (the listing name, postcode district,
+    /// whether room names may be shown, and the answers about how the home is built), and marks
+    /// the survey shared, so others can match against it.</summary>
     public Task SaveShareAsync(string id, byte[] share, CancellationToken cancellationToken) =>
-        SetAsync(id, nameof(SurveyEntity.Share), Encoding.UTF8.GetString(share), cancellationToken);
+        surveys.UpdateEntityAsync(
+            new TableEntity(id, "") { [nameof(SurveyEntity.Share)] = Encoding.UTF8.GetString(share), [nameof(SurveyEntity.IsShared)] = true },
+            ETag.All, TableUpdateMode.Merge, cancellationToken);
 
     /// <summary>Saves a survey's heat loss and heat pump figures (real or sample).</summary>
     public Task SaveHeatPumpAsync(string id, byte[] record, CancellationToken cancellationToken) =>
@@ -214,6 +246,12 @@ public class SurveyEntity : ITableEntity
     public string? Profile { get; set; }
     public string? HeatPump { get; set; }
     public string? Share { get; set; }
+    /// <summary>The Clerk user id of the first person to Save the survey to their account. Uploads
+    /// are anonymous, so until someone saves it the survey has no owner.</summary>
+    public string? OwnerId { get; set; }
+    /// <summary>Whether the home has been shared. Only shared homes are matched against (search
+    /// and browsing). Older rows don't have it, which reads as false.</summary>
+    public bool IsShared { get; set; }
 }
 
 /// <summary>An upload code, keyed by the code itself.</summary>

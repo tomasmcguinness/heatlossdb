@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-12T16:33:00Z'
-updated_date: '2026-11-12T16:35:00Z'
+updated_date: '2026-11-14T08:08:00Z'
 labels: []
 milestone: m-0
 dependencies: []
@@ -42,4 +42,6 @@ The share dialog (Web/src/components/share/ShareDialog.tsx) asks for design flow
 
 <!-- SECTION:NOTES:BEGIN -->
 Heat pump form now asks for design outdoor temperature (-20..15 °C, accepts typographic minus and decimal comma) and saves designOutdoorTemperature; flow temperature field removed. Added share/postcode.ts outwardCode() with tests: full postcodes are cut to the outward code on blur and before saving. Check step requires a valid district to continue; 'Show my room names' checkbox defaults off. submitShare(name, { postcodeDistrict, shareRoomNames }, heatPump); still a TODO stub on the API side, so nothing is stored yet. tsc, oxlint and share tests pass; scan.test.ts fails only because the gitignored fixtures/MergedRooms_8.json is missing (pre-existing). UI not yet exercised in a browser.
+
+Account step removed at the user's request: the share wizard assumes the user is signed in. Steps are now Check → Heat pump → Done; the heat pump step's 'Share home' / 'Skip and share' submits the share. No pending/email-confirmation state any more: SharedHome is {name, sharedAt}; createAccount, resendConfirmation and the editor's pending banner are gone. Signed-in gating of the wizard is not built yet.
 <!-- SECTION:NOTES:END -->

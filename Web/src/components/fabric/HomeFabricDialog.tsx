@@ -171,7 +171,7 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
       <header className="fabric-head">
         <div>
           <h1 id="fabric-dialog-title">Home fabric</h1>
-          <p className="muted small">A few quick questions about how your home is built</p>
+          <p className="muted small">A few quick questions about how your home is built, which will help find a better match</p>
         </div>
         <button className="icon-only fabric-close" aria-label="Close" onClick={close}>
           ×

@@ -11,8 +11,9 @@ public class HeatLossDbOptions
     /// <summary>The table of short codes for opening an upload on the website.</summary>
     public string CodesTable { get; set; } = "surveycodes";
 
-    /// <summary>The website's address, used to build the link returned for each upload.</summary>
-    public string PublicWebBaseUrl { get; set; } = "http://localhost:5179";
+    /// <summary>The website's address, used to build the link returned for each upload. Blank means
+    /// this API's own address, which serves the website when deployed.</summary>
+    public string PublicWebBaseUrl { get; set; } = "";
 
     /// <summary>The table listing each user's saved homes.</summary>
     public string HomesTable { get; set; } = "homes";

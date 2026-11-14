@@ -1,4 +1,4 @@
-import { labelIn, NOT_SURE, PROPERTY_TYPES } from '../fabric/home'
+import { assumingNoInsulation, labelIn, PROPERTY_TYPES } from '../fabric/home'
 import type { HomeFabric } from '../fabric/store'
 
 /** Age bands as they read in a listing name: "pre-1919", "1945–64", "2003 on". */
@@ -13,12 +13,16 @@ const SHORT_AGES: Record<string, string> = {
 
 const INSULATED_WALLS = ['cavity-filled', 'timber-frame']
 
+export type InsulationLevel = 'insulated' | 'partly insulated' | 'uninsulated'
+
 /** "insulated", "partly insulated" or "uninsulated", from the walls and the loft (just the walls
- *  when there's no loft); null if the user didn't say or isn't sure. */
-function insulationOf(home: HomeFabric): string | null {
+ *  when there's no loft); null if the user didn't answer. "Not sure" counts as not insulated,
+ *  for the walls as well as the loft. */
+export function insulationOf(fabric: HomeFabric): InsulationLevel | null {
+  const home = assumingNoInsulation(fabric)
   const hasLoft = home.loft !== 'none'
   const answers = hasLoft ? [home.walls, home.loft] : [home.walls]
-  if (answers.some((a) => !a || a === NOT_SURE)) return null
+  if (answers.some((a) => !a)) return null
   const insulated = [INSULATED_WALLS.includes(home.walls!), hasLoft && home.loft === 'yes'].filter(Boolean).length
   if (insulated === answers.length) return 'insulated'
   return insulated ? 'partly insulated' : 'uninsulated'

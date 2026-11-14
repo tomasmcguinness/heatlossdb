@@ -159,24 +159,26 @@ function MatchCard({ yours, candidate }: { yours: ShapeProfile; candidate: Score
           <strong>{candidate.share.name}</strong> <span className="muted small">in {candidate.share.postcodeDistrict}</span>
         </p>
       )}
-      <PlanSvg
-        storeys={yours.plans}
-        overlay={placed}
-        rotation={uprightRotation(yours.plans)}
-        labels={storeyLabels(Math.max(yours.plans.length, placed.length))}
-        title={`Their floorplan (dashed) over yours (shaded), ${match.score}% match`}
-      />
       <p className="match-summary">{summarise(match)}</p>
-      <details>
-        <summary>Why this score</summary>
+      <div className="match-body">
+        <div className="match-plan">
+          <PlanSvg
+            storeys={yours.plans}
+            overlay={placed}
+            rotation={uprightRotation(yours.plans)}
+            labels={storeyLabels(Math.max(yours.plans.length, placed.length))}
+            title={`Their floorplan (dashed) over yours (shaded), ${match.score}% match`}
+          />
+        </div>
         <table className="factors">
+          <caption className="visually-hidden">Why this score</caption>
           <thead>
             <tr>
               <th scope="col">Compared</th>
               <th scope="col">Yours</th>
               <th scope="col">Theirs</th>
-              <th scope="col">
-                <span className="visually-hidden">How alike</span>
+              <th scope="col" className="factor-match-head">
+                Match
               </th>
             </tr>
           </thead>
@@ -188,8 +190,8 @@ function MatchCard({ yours, candidate }: { yours: ShapeProfile; candidate: Score
                 <td>{f.theirs}</td>
                 <td>
                   {f.informative ? (
-                    <span className="bar" aria-label={`${Math.round(f.similarity * 100)}% alike`}>
-                      <span style={{ width: `${Math.round(f.similarity * 100)}%` }} />
+                    <span className="factor-match" aria-label={`${Math.round(f.similarity * 100)}% alike`}>
+                      {Math.round(f.similarity * 100)}%
                     </span>
                   ) : (
                     <span className="muted small">Not counted</span>
@@ -199,7 +201,7 @@ function MatchCard({ yours, candidate }: { yours: ShapeProfile; candidate: Score
             ))}
           </tbody>
         </table>
-      </details>
+      </div>
       <HeatPumpResults data={candidate.heatPump} floorArea={profile.floorArea} />
     </article>
   )

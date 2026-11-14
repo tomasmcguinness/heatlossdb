@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useFabric } from '../fabric/store'
+import { isComingSoon } from '../features'
 import type { ShapeProfile } from '../match/profile'
 import { uprightRotation } from '../match/similarity'
 import { closeScan } from './files'
@@ -13,7 +14,7 @@ interface Option {
   text: string
   icon: ReactNode
   badge?: { label: string; kind: 'free' | 'account' }
-  /** Shown but not choosable until enough homes are shared. */
+  /** Shown but not choosable until enough homes are shared (VITE_COMING_SOON). */
   comingSoon?: boolean
 }
 
@@ -38,6 +39,7 @@ const OPTIONS: Option[] = [
   },
   {
     id: 'search',
+    comingSoon: isComingSoon('search'),
     title: 'Find similar homes',
     text: 'Match your footprint, age and construction against shared homes, and see their heat loss and heat pump sizing.',
     icon: icon(
@@ -50,6 +52,7 @@ const OPTIONS: Option[] = [
   },
   {
     id: 'share',
+    comingSoon: isComingSoon('share'),
     title: 'Share your home',
     text: 'Add your floor plan and heat pump details to the database so others with similar homes can learn from it.',
     icon: icon(
@@ -63,6 +66,7 @@ const OPTIONS: Option[] = [
   },
   {
     id: 'explore',
+    comingSoon: isComingSoon('explore'),
     title: 'Explore the database',
     text: 'Browse shared homes by area, age and property type, and compare how their heat pumps perform.',
     icon: icon(
@@ -78,7 +82,7 @@ const OPTIONS: Option[] = [
 const HINTS: Record<Choice, string> = {
   view: 'Your scan stays in this browser only, unless you decide to save it or share it.',
   search: 'Next, a few quick questions about your home: postcode, age and type, and how it’s built.',
-  share: 'Next, a few quick questions about your home. You’ll create a free account before your floor plan is saved.',
+  share: 'Next, a few quick questions about your home, then any heat pump figures, and it’s shared.',
   explore: 'Your scan stays loaded, so you can search or share it at any point.',
 }
 

@@ -19,8 +19,14 @@ describe('listingName', () => {
     expect(listingName({ ...home, walls: 'solid', loft: 'none' })).toBe('Detached, 1945–64, uninsulated home')
   })
 
+  it('takes not being sure about insulation as there being none', () => {
+    expect(listingName({ ...home, loft: 'not-sure' })).toBe('Detached, 1945–64, partly insulated home')
+    expect(listingName({ ...home, walls: 'solid', loft: 'not-sure' })).toBe('Detached, 1945–64, uninsulated home')
+    expect(listingName({ ...home, walls: 'not-sure', propertyType: 'terraced', ageBand: 'pre-1919' })).toBe('Terraced, pre-1919, partly insulated home')
+    expect(listingName({ walls: 'not-sure', loft: 'not-sure' })).toBe('Uninsulated home')
+  })
+
   it('leaves out what the user did not say or is not sure of', () => {
-    expect(listingName({ ...home, walls: 'not-sure', propertyType: 'terraced', ageBand: 'pre-1919' })).toBe('Terraced, pre-1919 home')
     expect(listingName({ ...home, ageBand: 'not-sure' })).toBe('Detached, insulated home')
     expect(listingName({ ...home, loft: undefined })).toBe('Detached, 1945–64 home')
     expect(listingName({})).toBe('Home')

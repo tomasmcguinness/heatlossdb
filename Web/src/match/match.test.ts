@@ -90,17 +90,40 @@ describe.skipIf(!existsSync(fixture('MergedRooms_8.json')))('profiles from real 
 describe('factors nobody has filled in', () => {
   it("don't count towards the score or the reason", () => {
     const match = compare(home(), home(1.4))
-    const party = match.factors.find((f) => f.key === 'party')!
-    expect(party.informative).toBe(false)
-    expect(party.yours).toBe('None marked')
-    expect(summarise(match)).not.toMatch(/neighbours/)
+    const insulation = match.factors.find((f) => f.key === 'insulation')!
+    expect(insulation.informative).toBe(false)
+    expect(insulation.yours).toBe('Not said')
+    expect(summarise(match)).not.toMatch(/insulation/)
+  })
+})
+
+describe('insulation', () => {
+  const insulated = { walls: 'cavity-filled', loft: 'yes' }
+  const partly = { walls: 'cavity-filled', loft: 'no' }
+  const uninsulated = { walls: 'solid', loft: 'no' }
+  const insulationOf = (yours: object, theirs: object) =>
+    compare(home(), home(), { yours: { home: yours }, theirs: { home: theirs } }).factors.find((f) => f.key === 'insulation')!
+
+  it('is compared when both owners have said', () => {
+    const same = insulationOf(insulated, insulated)
+    expect(same.informative).toBe(true)
+    expect(same.similarity).toBe(1)
+    expect(same.yours).toBe('Insulated')
+    expect(insulationOf(insulated, partly).similarity).toBe(0.5)
+    expect(insulationOf(insulated, uninsulated).similarity).toBe(0)
   })
 
-  it('count once either home has party walls marked', () => {
-    const semi = { ...home(), partyWallArea: 40 }
-    const match = compare(home(), semi)
-    expect(match.factors.find((f) => f.key === 'party')!.informative).toBe(true)
-    expect(match.score).toBeLessThan(compare(home(), home()).score)
+  it('is not counted when only one has', () => {
+    expect(insulationOf(insulated, {}).informative).toBe(false)
+  })
+
+  it('makes a differently insulated home a weaker match', () => {
+    const score = (theirs: object) => compare(home(), home(), { yours: { home: insulated }, theirs: { home: theirs } }).score
+    expect(score(uninsulated)).toBeLessThan(score(insulated))
+  })
+
+  it('leaves party walls out of the comparison', () => {
+    expect(compare(home(), home()).factors.some((f) => (f.key as string) === 'party')).toBe(false)
   })
 })
 

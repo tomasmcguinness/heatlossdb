@@ -155,14 +155,17 @@ const defaultView = (): ViewOptions => ({
   showStorage: false,
 })
 
-// MARK: - Browser storage (a per-viewer convenience; the API becomes the source of truth later)
+// MARK: - Browser storage (a per-viewer convenience; Save keeps edits in the user's account)
+
+// Per tab: each tab keeps its own scan and edits, and a reload keeps them, but other tabs don't
+// see them and closing the tab drops them.
 
 const SCAN_KEY = 'heatlossdb.scan'
 const fabricKey = (hash: string) => `heatlossdb.fabric.${hash}`
 
 function readStorage<T>(key: string): T | null {
   try {
-    const value = localStorage.getItem(key)
+    const value = sessionStorage.getItem(key)
     return value ? (JSON.parse(value) as T) : null
   } catch {
     return null
@@ -171,8 +174,8 @@ function readStorage<T>(key: string): T | null {
 
 function writeStorage(key: string, value: unknown) {
   try {
-    if (value === null) localStorage.removeItem(key)
-    else localStorage.setItem(key, JSON.stringify(value))
+    if (value === null) sessionStorage.removeItem(key)
+    else sessionStorage.setItem(key, JSON.stringify(value))
   } catch {
     // Storage can be full or blocked (private windows); the page still works without it.
   }
@@ -362,7 +365,7 @@ export function hasEdits(state: Pick<FabricState, 'scan' | 'defaults' | 'element
   )
 }
 
-/** The last scan opened in this browser, so a reload doesn't lose it. */
+/** The last scan opened in this tab, so a reload doesn't lose it. */
 export function restoreLastScan(): Scan | null {
   const scan = readStorage<Scan>(SCAN_KEY)
   if (!scan || !Array.isArray(scan.elements) || typeof scan.hash !== 'string') return null

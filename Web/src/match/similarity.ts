@@ -1,8 +1,8 @@
 import { alignStorey, applyAlignment, dominantAngle, pivotOf, type StoreyAlignment } from '../scan/align'
 import { overlap, type Point2 } from '../scan/outline'
-import { AGE_BANDS, NOT_SURE } from '../fabric/home'
+import { AGE_BANDS, assumingNoInsulation, NOT_SURE } from '../fabric/home'
 import type { HomeFabric } from '../fabric/store'
-import { listingName } from '../share/listing'
+import { insulationOf, listingName, type InsulationLevel } from '../share/listing'
 import { climateFor } from './climate'
 import { formatTemperature } from './heatPump'
 import type { ShapeProfile } from './profile'
@@ -19,15 +19,15 @@ export interface Placement extends StoreyAlignment {
 }
 
 export interface Factor {
-  key: 'size' | 'layout' | 'envelope' | 'glazing' | 'storeys' | 'party' | 'fabric' | 'climate'
+  key: 'size' | 'layout' | 'envelope' | 'glazing' | 'storeys' | 'insulation' | 'fabric' | 'climate'
   label: string
   /** 0 (nothing alike) to 1 (the same). */
   similarity: number
   weight: number
   yours: string
   theirs: string
-  /** False when neither home has the information (e.g. no party walls marked), so the factor
-   *  says nothing about how alike they are. It's shown but doesn't count. */
+  /** False when the homes can't be compared on it (e.g. an owner didn't say how insulated their
+   *  home is), so it says nothing about how alike they are. It's shown but doesn't count. */
   informative: boolean
 }
 
@@ -40,7 +40,9 @@ export interface Match {
 
 /**
  * How much each factor counts. Size and layout dominate because they set how much envelope a
- * home has; fabric sets how much heat goes through it. Climate counts a little: heat losses are
+ * home has; insulation and the rest of the fabric set how much heat goes through it. Party walls
+ * aren't compared on their own: marking them already changes the outside wall per m² of floor.
+ * Climate counts a little: heat losses are
  * compared at your area's design temperature anyway, so a far-off home that's otherwise alike is
  * still a good match. To be tuned against measured heat demand once there's enough data.
  */
@@ -50,8 +52,8 @@ const WEIGHTS: Record<Factor['key'], number> = {
   envelope: 0.15,
   glazing: 0.08,
   storeys: 0.08,
-  party: 0.04,
-  fabric: 0.15,
+  insulation: 0.08,
+  fabric: 0.11,
   climate: 0.05,
 }
 
@@ -76,6 +78,14 @@ function fabricSimilarity(yours: HomeFabric, theirs: HomeFabric): { similarity: 
   }
   return { similarity: compared ? total / compared : 0, compared }
 }
+
+const INSULATION_ORDER: InsulationLevel[] = ['uninsulated', 'partly insulated', 'insulated']
+
+/** The same level is alike; one step apart (e.g. partly insulated and insulated) half alike. */
+const insulationSimilarity = (a: InsulationLevel, b: InsulationLevel) =>
+  Math.max(0, 1 - Math.abs(INSULATION_ORDER.indexOf(a) - INSULATION_ORDER.indexOf(b)) / 2)
+
+const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 /** Design temperatures within 3 °C of each other are somewhat alike. */
 const temperatureSimilarity = (a: number, b: number) => Math.max(0, 1 - Math.abs(a - b) / 3)
@@ -150,12 +160,10 @@ export function compare(
 
   const envelope = (p: ShapeProfile) => (p.floorArea ? p.externalWallArea / p.floorArea : 0)
   const glazing = (p: ShapeProfile) => (p.floorArea ? p.windowArea / p.floorArea : 0)
-  const party = (p: ShapeProfile) => {
-    const walls = p.externalWallArea + p.partyWallArea
-    return walls ? p.partyWallArea / walls : 0
-  }
   const storeyDifference = Math.abs(yours.storeys - theirs.storeys)
-  const fabric = fabricSimilarity(details.yours?.home ?? {}, details.theirs?.home ?? {})
+  const fabric = fabricSimilarity(assumingNoInsulation(details.yours?.home ?? {}), assumingNoInsulation(details.theirs?.home ?? {}))
+  const yourInsulation = insulationOf(details.yours?.home ?? {})
+  const theirInsulation = insulationOf(details.theirs?.home ?? {})
   const yourClimate = climateFor(details.yours?.postcodeDistrict)
   const theirClimate = climateFor(details.theirs?.postcodeDistrict)
 
@@ -206,13 +214,13 @@ export function compare(
       theirs: String(theirs.storeys),
     },
     {
-      key: 'party',
-      label: 'Wall shared with neighbours',
-      similarity: 1 - Math.abs(party(yours) - party(theirs)),
-      weight: WEIGHTS.party,
-      yours: yours.partyWallArea ? percent(party(yours)) : 'None marked',
-      theirs: theirs.partyWallArea ? percent(party(theirs)) : 'None marked',
-      informative: yours.partyWallArea > 0 || theirs.partyWallArea > 0,
+      key: 'insulation',
+      label: 'Insulation',
+      similarity: yourInsulation && theirInsulation ? insulationSimilarity(yourInsulation, theirInsulation) : 0,
+      weight: WEIGHTS.insulation,
+      yours: yourInsulation ? sentenceCase(yourInsulation) : 'Not said',
+      theirs: theirInsulation ? sentenceCase(theirInsulation) : 'Not said',
+      informative: yourInsulation !== null && theirInsulation !== null,
     },
     {
       key: 'fabric',

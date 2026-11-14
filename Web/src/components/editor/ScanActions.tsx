@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { isAuthConfigured } from '../../auth'
 import { useFabric } from '../../fabric/store'
+import { isComingSoon } from '../../features'
 import { saveToAccount } from '../../share/homes'
 import { useShare } from '../../share/share'
 import { downloadHome } from '../files'
@@ -15,15 +16,13 @@ interface Action {
   run?: () => void
 }
 
-const SEARCH: Action = { label: 'Search', text: 'Find similar homes · coming soon', icon: <SearchIcon /> }
-
 type SaveStatus = { state: 'idle' | 'saving' | 'saved' } | { state: 'failed'; message: string }
 
 /** How long "Saved" shows on the button (ms). */
 const SAVED_FOR = 3000
 
 /** The header's split button: Save to the user's account, with Search, Share and Download in its menu. */
-export function ScanActions({ onShare }: { onShare: () => void }) {
+export function ScanActions({ onShare, onSearch }: { onShare: () => void; onSearch: () => void }) {
   const shared = useShare()
   // Scans kept by this browser before Save existed can't be saved; opening the file again fixes it.
   const hasFile = useFabric((s) => s.scan?.raw !== undefined)
@@ -83,11 +82,21 @@ export function ScanActions({ onShare }: { onShare: () => void }) {
   }
   const share: Action = {
     label: 'Share',
-    text: shared ? 'Waiting for you to confirm your email' : 'Add your home to the database',
+    text: isComingSoon('share')
+      ? 'Add your home to the database · coming soon'
+      : shared
+        ? 'Your home is shared'
+        : 'Add your home to the database',
     icon: <ShareIcon />,
-    run: onShare,
+    run: isComingSoon('share') ? undefined : onShare,
   }
-  const actions = [SEARCH, share, download, save]
+  const search: Action = {
+    label: 'Search',
+    text: isComingSoon('search') ? 'Find similar homes · coming soon' : 'Find similar homes',
+    icon: <SearchIcon />,
+    run: isComingSoon('search') ? undefined : onSearch,
+  }
+  const actions = [search, share, download, save]
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const menu = useRef<HTMLDivElement>(null)

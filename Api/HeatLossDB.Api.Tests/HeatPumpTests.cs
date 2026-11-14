@@ -55,22 +55,25 @@ public class HeatPumpEndpointTests : IClassFixture<SurveyUploadTests.Api>
     private record Upload(string Id, string Url);
     private record CandidateDto(string Id, string CreatedAt, JsonElement Profile, JsonElement? HeatPump);
 
-    private async Task<string> UploadWithProfileAsync(string appSurveyId, double floorArea)
+    private async Task<string> UploadSharedWithProfileAsync(string appSurveyId, double floorArea)
     {
         var content = new StringContent("""{"walls":[{"identifier":"A"}]}""", Encoding.UTF8, "application/json");
         content.Headers.Add("X-App-Survey-Id", appSurveyId);
         var id = (await (await client.PostAsync("/api/surveys", content)).Content.ReadFromJsonAsync<Upload>())!.Id;
         await client.PutAsync($"/api/surveys/{id}/profile",
             new StringContent($$"""{"version":1,"floorArea":{{floorArea}}}""", Encoding.UTF8, "application/json"));
+        // Shared, so it's listed as a candidate.
+        await client.PutAsync($"/api/surveys/{id}/share",
+            new StringContent("""{"name":"Home","postcodeDistrict":"SW1A","shareRoomNames":false}""", Encoding.UTF8, "application/json"));
         return id;
     }
 
     [Fact]
     public async Task SampleDataIsAddedToHomesWithoutFiguresAndShownInCandidates()
     {
-        var mine = await UploadWithProfileAsync("hp-mine", 100);
-        var theirs = await UploadWithProfileAsync("hp-theirs", 120);
-        var real = await UploadWithProfileAsync("hp-real", 90);
+        var mine = await UploadSharedWithProfileAsync("hp-mine", 100);
+        var theirs = await UploadSharedWithProfileAsync("hp-theirs", 120);
+        var real = await UploadSharedWithProfileAsync("hp-real", 90);
         await client.PutAsync($"/api/surveys/{real}/heat-pump",
             new StringContent("""{"source":"heatpumpmonitor","designHeatLossW":5000}""", Encoding.UTF8, "application/json"));
 
@@ -87,10 +90,10 @@ public class HeatPumpEndpointTests : IClassFixture<SurveyUploadTests.Api>
     [Fact]
     public async Task ReplacingSampleDataNeverTouchesRealFigures()
     {
-        var real = await UploadWithProfileAsync("hp-real-replace", 90);
+        var real = await UploadSharedWithProfileAsync("hp-real-replace", 90);
         await client.PutAsync($"/api/surveys/{real}/heat-pump",
             new StringContent("""{"source":"survey","designHeatLossW":4200}""", Encoding.UTF8, "application/json"));
-        var mine = await UploadWithProfileAsync("hp-mine-replace", 100);
+        var mine = await UploadSharedWithProfileAsync("hp-mine-replace", 100);
 
         await client.PostAsync("/api/dev/sample-heat-pumps?replace=true", null);
 
@@ -105,7 +108,7 @@ public class HeatPumpEndpointTests : IClassFixture<SurveyUploadTests.Api>
     [InlineData("""{"designHeatLossW":5000}""")]
     public async Task RejectsRecordsWithoutASource(string body)
     {
-        var id = await UploadWithProfileAsync("hp-invalid", 100);
+        var id = await UploadSharedWithProfileAsync("hp-invalid", 100);
         var response = await client.PutAsync($"/api/surveys/{id}/heat-pump", new StringContent(body, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }

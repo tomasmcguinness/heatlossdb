@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-12T16:39:00Z'
-updated_date: '2026-11-12T17:35:00Z'
+updated_date: '2026-11-14T08:16:00Z'
 labels: []
 milestone: m-0
 dependencies:
@@ -38,4 +38,6 @@ Scope added at user's question: matching must work for scans not saved on the se
 Done: match/climate.ts (MCS 031 a) Issue 5.0 Appendix A Table 1, 124 postcode areas; pdftotext mangled column 3 (temps shifted down a row, degree days up a row), realigned and sanity-checked: TQ/TR -1.5 like PL/EX, TA 1835 like BA/BS). estimateFor rescales via W/K to the user's design temperature (DEFAULT_INDOOR_TEMPERATURE 21). compare() gains fabric (0.15) and climate (0.05) factors; other weights scaled down. API: SurveyEntity.Share, PUT /api/surveys/{id}/share (ValidateShare), GET /api/candidates (id-free), candidates carry share. HomeFabric.postcodeDistrict asked for in HomeFabricDialog and prefilled in ShareDialog. Test project retargeted net8.0 -> net10.0 (API moved in 87fb99d, tests hadn't built since) with Mvc.Testing 10.0.0, and fixture cleanup made idempotent. Verified: 36/36 dotnet tests (7 new), vitest 71 passed (scan.test.ts needs gitignored fixture), tsc, oxlint. Not verified in a browser: Chrome couldn't reach the local dev server. Risk: GET /api/candidates exposes every profile/heat pump/share record without an id; restrict to confirmed shares once Clerk lands.
 
 Own scan excluded from matching: ShapeProfile.scanHash (Scan.hash, fingerprint of RoomPlan element ids) saved with every profile; MatchesPage drops candidates with the open scan's hash (otherHomes in match/candidates.ts). Covers local files and re-uploads from another app survey; profiles saved before this have no hash until their survey is next opened. Explore still lists your own home.
+
+At the user's request: the party wall factor is gone ('Wall shared with neighbours'); an 'Insulation' factor (insulated / partly / uninsulated, from listing.ts insulationOf; one step apart = 0.5) takes its place, counted only when both owners said. Weights: insulation 0.08, fabric 0.15 → 0.11, total unchanged. Matches page: one card per row, plan left and the Compared/Yours/Theirs table always visible on the right (wraps below when narrow).
 <!-- SECTION:NOTES:END -->
