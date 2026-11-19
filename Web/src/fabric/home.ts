@@ -186,6 +186,18 @@ export const AIR_CHANGES_ERROR = `Enter a number above 0 and up to ${MAX_AIR_CHA
 /** Such as "1.5 per hour", or undefined when not set. */
 export const formatAirChanges = (value: number | undefined) => (value === undefined ? undefined : `${value} per hour`)
 
+/** How a cavity wall is drawn: its cavity insulated, or left empty. */
+export type WallCavity = 'filled' | 'empty'
+
+/** Whether a room's outside walls are a cavity wall, filled or empty, by its own answer or else the
+ *  home's. Null for anything else (solid, timber frame, not sure, unanswered) and until Home fabric
+ *  has been applied. Any storey can have its own walls, so where the room is doesn't matter. */
+export function wallCavity(home: HomeFabric, settings: RoomSettings | undefined): WallCavity | null {
+  if (!isHomeFabricSet(home)) return null
+  const { value } = roomFabricValue(home, settings, { ground: true, top: true }, 'walls')
+  return value === 'cavity-filled' ? 'filled' : value === 'cavity-unfilled' ? 'empty' : null
+}
+
 /** The answers a door, window or skylight's own fabric is chosen from. */
 export const itemChoices = (kind: 'door' | 'window' | 'skylight'): Choice[] => (kind === 'door' ? DOORS : WINDOWS)
 

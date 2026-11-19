@@ -12,6 +12,7 @@ import {
   QUESTION_COUNT,
   roomAirChanges,
   roomFabricValue,
+  wallCavity,
 } from './home'
 
 describe('Home fabric', () => {
@@ -70,6 +71,26 @@ describe('Room fabric', () => {
     expect(hasRoomFabric({ itemFabric: { w1: 'triple' } })).toBe(true)
     const rooms = { a: { fabric: { walls: 'solid' }, itemFabric: { w1: 'triple', d1: 'composite' } }, b: { checked: true } }
     expect(customFabricCount({ outer: { uValue: 0.3 }, middle: { role: 'party' } }, rooms)).toBe(4)
+  })
+})
+
+describe('Cavity walls', () => {
+  const filled = { walls: 'cavity-filled', applied: true }
+
+  it('are shown only once Home fabric is applied', () => {
+    expect(wallCavity({ walls: 'cavity-filled' }, undefined)).toBeNull()
+    expect(wallCavity(filled, undefined)).toBe('filled')
+    expect(wallCavity({ walls: 'cavity-unfilled', applied: true }, undefined)).toBe('empty')
+  })
+
+  it('follow a room’s own outside walls over the home’s', () => {
+    expect(wallCavity(filled, { fabric: { walls: 'cavity-unfilled' } })).toBe('empty')
+    expect(wallCavity(filled, { fabric: { walls: 'solid' } })).toBeNull()
+    expect(wallCavity({ walls: 'solid', applied: true }, { fabric: { walls: 'cavity-filled' } })).toBe('filled')
+  })
+
+  it('aren’t drawn for any other answer', () => {
+    for (const walls of ['solid', 'timber-frame', 'not-sure', undefined]) expect(wallCavity({ walls, applied: true }, undefined)).toBeNull()
   })
 })
 

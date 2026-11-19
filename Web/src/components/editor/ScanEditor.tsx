@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { isHomeFabricSet } from '../../fabric/home'
+import { useCallback, useState } from 'react'
+import { isHomeFabricSet, wallCavity } from '../../fabric/home'
 import { effectiveRole, useFabric } from '../../fabric/store'
+import type { OutsideStretch, PlanWall } from '../../scan/plan'
 import { HomeFabricDialog } from '../fabric/HomeFabricDialog'
 import { ShareDialog } from '../share/ShareDialog'
 import { FloorCanvas } from './FloorCanvas'
@@ -46,6 +47,20 @@ export function ScanEditor({
   const floor =view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
   const rooms = floors.flatMap((f) => f.rooms)
   const room = rooms.find((r) => r.id === selectedId) ?? null
+
+  // Each stretch of wall with a room on one side only is drawn as a cavity wall when that room has
+  // one, by its own answer or the home's. A scanned wall can be outside for part of its length, so
+  // this goes by the stretch, not the automatic guess at the whole wall's role; only a role the user
+  // chose (internal, or a party wall) overrides it.
+  const roomSettings = useFabric((s) => s.rooms)
+  const cavityOf = useCallback(
+    (wall: PlanWall, stretch: OutsideStretch) => {
+      const chosen = elements[wall.id]?.role
+      return chosen === 'internal' || chosen === 'party' ? null : wallCavity(home, roomSettings[stretch.room])
+    },
+    [elements, home, roomSettings],
+  )
+  const shownCavities = new Set(floor ? floor.plan.walls.flatMap((w) => w.outside.map((s) => cavityOf(w, s))).filter(Boolean) : [])
 
   const actions: RoomActions = {
     hoveredId,
@@ -130,6 +145,7 @@ export function ScanEditor({
               bounds={bounds}
               actions={actions}
               isExternal={(id) => effectiveRole({ elements, autoRoles, byId }, id) !== 'internal'}
+              cavityOf={cavityOf}
             />
           ) : floor ? (
             <p className="muted canvas-empty">The scan has no floor outline for this storey.</p>
@@ -155,6 +171,18 @@ export function ScanEditor({
               <SkylightIcon size={16} />
               Skylight
             </span>
+            {shownCavities.has('filled') && (
+              <span>
+                <span className="legend-cavity filled" />
+                Cavity insulation
+              </span>
+            )}
+            {shownCavities.has('empty') && (
+              <span>
+                <span className="legend-cavity empty" />
+                Empty cavity
+              </span>
+            )}
           </div>
         </section>
 

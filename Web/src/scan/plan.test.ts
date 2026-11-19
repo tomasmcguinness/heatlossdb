@@ -138,6 +138,38 @@ describe('floorPlans', () => {
     expect(plan.rooms.flatMap((r) => r.elements.map((e) => e.id)).sort()).toEqual(['inside-door', 'north-window'])
   })
 
+  it('finds the stretches of each wall that are outside, with the room inside and its side', () => {
+    const [plan] = floorPlans(home())
+    const [left, right] = plan.rooms
+    const wall = (id: string) => plan.walls.find((w) => w.element.id === id)!
+    // The side `inside` names, as a point 0.3 m off the middle of the wall.
+    const insidePoint = (id: string) => {
+      const { a, b } = wall(id)
+      const length = Math.hypot(b[0] - a[0], b[1] - a[1])
+      const s = wall(id).outside[0].inside * 0.3
+      return [(a[0] + b[0]) / 2 - ((b[1] - a[1]) / length) * s, (a[1] + b[1]) / 2 + ((b[0] - a[0]) / length) * s]
+    }
+    expect(wall('w').outside).toEqual([expect.objectContaining({ t0: 0, t1: 1, room: left.id })])
+    expect(wall('e').outside).toEqual([expect.objectContaining({ t0: 0, t1: 1, room: right.id })])
+    // The west room lies to the east of its wall, and the east room to the west of its own.
+    expect(insidePoint('w')[0]).toBeGreaterThan(wall('w').a[0])
+    expect(insidePoint('e')[0]).toBeLessThan(wall('e').a[0])
+    // A wall with a room on both sides isn't outside anywhere.
+    expect(wall('middle').outside).toEqual([])
+  })
+
+  it('splits an outside wall where the room inside it changes, and finds the outside part of a wall that runs on between rooms', () => {
+    const [plan] = floorPlans(home())
+    const [left, right] = plan.rooms
+    // The north wall runs along both rooms.
+    const north = plan.walls.find((w) => w.element.id === 'n')!
+    expect(north.outside.map((s) => s.room)).toEqual(
+      north.a[0] < north.b[0] ? [left.id, right.id] : [right.id, left.id],
+    )
+    expect(north.outside[0].t0).toBe(0)
+    expect(north.outside.at(-1)!.t1).toBe(1)
+  })
+
   it('keeps room ids stable', () => {
     const ids = (scan = home()) => floorPlans(scan)[0].rooms.map((r) => r.id)
     expect(ids()).toEqual(ids())

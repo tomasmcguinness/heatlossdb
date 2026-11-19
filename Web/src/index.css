@@ -18,6 +18,7 @@
   --badge-account-bg: #fbe9d9;
   --plan-floor: #e4ecf6;
   --plan-wall: #2f5d8f;
+  --plan-insulation: #d99a1e;
   --plan-room-hover: rgba(47, 93, 143, 0.14);
   --plan-room-selected: rgba(224, 102, 31, 0.2);
   --plan-roof: #c9d8ea;
@@ -58,6 +59,7 @@
     --badge-account-bg: #3a2614;
   --plan-floor: #1b2533;
   --plan-wall: #8fb0dd;
+  --plan-insulation: #e9b949;
   --plan-room-hover: rgba(143, 176, 221, 0.18);
   --plan-room-selected: rgba(224, 123, 53, 0.2);
   --plan-roof: #24364d;
@@ -87,6 +89,7 @@
   --badge-account-bg: #3a2614;
   --plan-floor: #1b2533;
   --plan-wall: #8fb0dd;
+  --plan-insulation: #e9b949;
   --plan-room-hover: rgba(143, 176, 221, 0.18);
   --plan-room-selected: rgba(224, 123, 53, 0.2);
   --plan-roof: #24364d;
@@ -2062,6 +2065,45 @@ details summary {
 .fp-walls path {
   fill: var(--plan-wall);
   pointer-events: none;
+}
+
+/* A cavity wall's cavity, over its leaves: hatched insulation, or an empty gap. */
+.fp-cavities path {
+  pointer-events: none;
+}
+
+.fp-cavity.empty {
+  fill: var(--bg);
+}
+
+.fp-insulation-ground {
+  fill: color-mix(in srgb, var(--plan-insulation) 35%, var(--bg));
+}
+
+.fp-insulation-hatch {
+  stroke: var(--plan-insulation);
+  stroke-width: 0.014;
+}
+
+.legend-cavity {
+  width: 22px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 3px solid var(--plan-wall);
+  border-left: 0;
+  border-right: 0;
+}
+
+.legend-cavity.filled {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--plan-insulation) 0 1.5px,
+    color-mix(in srgb, var(--plan-insulation) 35%, var(--bg)) 1.5px 4px
+  );
+}
+
+.legend-cavity.empty {
+  background: var(--bg);
 }
 
 .fp-gaps line {

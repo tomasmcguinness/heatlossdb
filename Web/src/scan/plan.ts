@@ -41,11 +41,31 @@ export interface WallPiece {
   end: [boolean, boolean]
 }
 
+/** A stretch of a wall with a room on one side only, from `t0` to `t1` of the way from a to b: the
+ *  outside of the house, or of a part of it. A scanned wall can be outside for some of its length and
+ *  between rooms for the rest. */
+export interface OutsideStretch {
+  t0: number
+  t1: number
+  /** The room on the inside. */
+  room: string
+  /** Which side of the line that room is on: +1 for the left of a→b (the normal (−dz, dx)), −1 for
+   *  the right. */
+  inside: 1 | -1
+}
+
+export interface PlanWall extends PlanLine {
+  element: ScanElement
+  pieces: WallPiece[]
+  /** The stretches of the wall with a room on one side only, in order along it. */
+  outside: OutsideStretch[]
+}
+
 export interface FloorPlan {
   story: number
   outlines: Point2[][]
   /** Each wall's whole line, and its solid pieces once doors, windows and openings are cut out. */
-  walls: (PlanLine & { element: ScanElement; pieces: WallPiece[] })[]
+  walls: PlanWall[]
   doors: PlanLine[]
   openings: PlanLine[]
   windows: PlanLine[]
@@ -257,6 +277,62 @@ export function divideRooms(outlines: Point2[][], walls: [Point2, Point2][], flo
   return { owner, columns, rows, minX, minZ }
 }
 
+/** How far apart (m) a wall is sampled for the rooms either side of it. */
+const OUTSIDE_STEP = 0.1
+/** How far (m) off a wall to look for a room: near first, as a short wall (a bay's side) can be
+ *  narrower than the far probe. */
+const OUTSIDE_PROBES = [0.15, ROOM_PROBE]
+/** Outside stretches shorter than this (m) are where one wall meets another, not outside wall. */
+const MIN_OUTSIDE = 0.3
+
+/** The stretches of a wall with a room on one side only, sampled along it. A stretch ends where the
+ *  wall turns internal, or where the room inside changes (each room has its own fabric). */
+function outsideStretches(wall: PlanLine, grid: RoomGrid, rooms: { id: string }[]): OutsideStretch[] {
+  const length = Math.hypot(wall.b[0] - wall.a[0], wall.b[1] - wall.a[1])
+  if (!length) return []
+  const [nx, nz] = [-(wall.b[1] - wall.a[1]) / length, (wall.b[0] - wall.a[0]) / length]
+  const steps = Math.max(1, Math.round(length / OUTSIDE_STEP))
+  const side = (p: Point2, sign: number) => {
+    for (const d of OUTSIDE_PROBES) {
+      const room = roomAt(grid, [p[0] + nx * d * sign, p[1] + nz * d * sign])
+      if (room >= 0) return room
+    }
+    return -1
+  }
+  // Each sample: the room inside and its side, or null where there's a room on both sides or neither.
+  const samples = Array.from({ length: steps }, (_, k) => {
+    const t = (k + 0.5) / steps
+    const p: Point2 = [wall.a[0] + t * (wall.b[0] - wall.a[0]), wall.a[1] + t * (wall.b[1] - wall.a[1])]
+    const left = side(p, 1)
+    const right = side(p, -1)
+    if ((left >= 0) === (right >= 0)) return null
+    return { room: left >= 0 ? left : right, inside: (left >= 0 ? 1 : -1) as 1 | -1 }
+  })
+  const stretches: OutsideStretch[] = []
+  let k = 0
+  while (k < steps) {
+    const first = samples[k]
+    if (!first) {
+      k++
+      continue
+    }
+    let end = k + 1
+    while (end < steps && samples[end]?.room === first.room && samples[end]?.inside === first.inside) end++
+    // A stretch reaching the first or last sample runs to the wall's end.
+    const t0 = k === 0 ? 0 : k / steps
+    const t1 = end === steps ? 1 : end / steps
+    if ((t1 - t0) * length >= MIN_OUTSIDE) stretches.push({ t0, t1, room: rooms[first.room].id, inside: first.inside })
+    k = end
+  }
+  // By a corner the probes can miss the room (its floor stops at the other wall), so a stretch
+  // that ends that close to the wall's end runs on to it.
+  const first = stretches[0]
+  const last = stretches.at(-1)
+  if (first && first.t0 * length <= MIN_OUTSIDE) first.t0 = 0
+  if (last && (1 - last.t1) * length <= MIN_OUTSIDE) last.t1 = 1
+  return stretches
+}
+
 /** The room (by index) owning the cell at p, or -1. */
 function roomAt(grid: RoomGrid, [x, z]: Point2): number {
   const c = Math.floor((x - grid.minX) / CELL)
@@ -390,13 +466,13 @@ export function floorPlans(
     // A wall whose opening spans (nearly) all of it isn't really there: leave it out.
     const openings = on('opening')
     const holes = [...on('door'), ...on('window'), ...openings]
-    const walls = on('wall')
+    const walls: PlanWall[] = on('wall')
       .filter((element) => !openings.some((o) => opens(o, element)))
       .map((element) => {
         const whole = line(element)
         const at = (t: number): Point2 => [whole.a[0] + t * (whole.b[0] - whole.a[0]), whole.a[1] + t * (whole.b[1] - whole.a[1])]
         const pieces = solidParts(element, holes).map(([t0, t1]): WallPiece => ({ a: at(t0), b: at(t1), end: [t0 === 0, t1 === 1] }))
-        return { ...whole, element, pieces }
+        return { ...whole, element, pieces, outside: [] }
       })
     // The rooms the user scanned; a scan without them (an older file) is one room per outline.
     const scanned = (scan.rooms ?? []).filter((r) => r.story === storey.story)
@@ -410,6 +486,8 @@ export function floorPlans(
     )
     const cells = rooms.map(() => 0)
     if (grid) for (const room of grid.owner) if (room >= 0) cells[room]++
+
+    if (grid) for (const wall of walls) wall.outside = outsideStretches(wall, grid, rooms)
     const centres = grid ? roomCentres(grid, rooms.length) : rooms.map(() => null)
 
     // Each external door and window goes to the room on one side of it or the other.

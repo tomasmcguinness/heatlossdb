@@ -1,9 +1,23 @@
+import { useId, useMemo } from 'react'
+import type { WallCavity } from '../../fabric/home'
 import { roomFigures } from '../../fabric/heatLoss'
 import type { Point2 } from '../../scan/outline'
-import type { WallPiece } from '../../scan/plan'
+import type { OutsideStretch, PlanWall } from '../../scan/plan'
 import { CheckIcon, ItemIcons } from './icons'
 import { kindsOf, type EditorFloor, type RoomActions } from './model'
 import { MARGIN, usePanZoom } from './panZoom'
+import {
+  cavityWallShapes,
+  cornersOf,
+  EXTERNAL_WALL,
+  gapOffset,
+  INTERNAL_WALL,
+  outwardOf,
+  pieceShape,
+  splitPiece,
+  type CavityLine,
+  type Corner,
+} from './wallShapes'
 import { ZoomControls } from './ZoomControls'
 
 export interface Bounds {
@@ -13,26 +27,38 @@ export interface Bounds {
   depth: number
 }
 
-/** Wall thicknesses (m) the plan draws. RoomPlan reports walls as flat planes, so these are nominal. */
-const INTERNAL_WALL = 0.06
-const EXTERNAL_WALL = 0.12
+type CavityOf = (wall: PlanWall, stretch: OutsideStretch) => WallCavity | null
 
-/** A piece of wall as a rectangle `thickness` wide, carried on by half that at the wall's own ends. */
-function pieceShape({ a, b, end }: WallPiece, thickness: number): string {
-  const length = Math.hypot(b[0] - a[0], b[1] - a[1])
-  if (!length) return ''
-  const half = thickness / 2
-  const [dx, dz] = [(b[0] - a[0]) / length, (b[1] - a[1]) / length]
-  const [nx, nz] = [-dz * half, dx * half]
-  const start: Point2 = end[0] ? [a[0] - dx * half, a[1] - dz * half] : a
-  const finish: Point2 = end[1] ? [b[0] + dx * half, b[1] + dz * half] : b
-  const corners: Point2[] = [
-    [start[0] + nx, start[1] + nz],
-    [finish[0] + nx, finish[1] + nz],
-    [finish[0] - nx, finish[1] - nz],
-    [start[0] - nx, start[1] - nz],
-  ]
-  return `M${corners.map(([x, z]) => `${x.toFixed(3)},${z.toFixed(3)}`).join('L')}Z`
+/** The stretches of the plan's walls drawn as cavity wall: each with its cavity, outward direction
+ *  and the corners at its ends, grouped by wall. */
+function cavityStretches(walls: PlanWall[], cavityOf: CavityOf | undefined) {
+  if (!cavityOf) return new Map<string, CavityStretch[]>()
+  const found = walls.flatMap((wall) =>
+    wall.outside.flatMap((stretch) => {
+      const cavity = cavityOf(wall, stretch)
+      if (!cavity) return []
+      const at = (t: number): Point2 => [wall.a[0] + t * (wall.b[0] - wall.a[0]), wall.a[1] + t * (wall.b[1] - wall.a[1])]
+      const line: CavityLine = { a: at(stretch.t0), b: at(stretch.t1), inside: stretch.inside }
+      return [{ wall, t0: stretch.t0, t1: stretch.t1, cavity, line }]
+    }),
+  )
+  const corners = cornersOf(found.map((f) => f.line))
+  const byWall = new Map<string, CavityStretch[]>()
+  found.forEach((f, i) => {
+    const list = byWall.get(f.wall.id) ?? []
+    list.push({ t0: f.t0, t1: f.t1, cavity: f.cavity, line: f.line, corners: corners[i], out: outwardOf(f.line) })
+    byWall.set(f.wall.id, list)
+  })
+  return byWall
+}
+
+interface CavityStretch {
+  t0: number
+  t1: number
+  cavity: WallCavity
+  line: CavityLine
+  corners: [Corner, Corner]
+  out: Point2
 }
 
 /**
@@ -44,16 +70,29 @@ export function FloorCanvas({
   bounds,
   actions,
   isExternal,
+  cavityOf,
 }: {
   floor: EditorFloor
   bounds: Bounds
   actions: RoomActions
   isExternal: (id: string) => boolean
+  /** Whether a stretch of outside wall is a cavity wall, filled or empty, to draw it as one.
+   *  Without it, every wall is drawn plain. */
+  cavityOf?: CavityOf
 }) {
   const { viewport, size, view, setView, pointerHandlers, unlessDragged } = usePanZoom()
   const { zoom } = view
+  const hatch = `${useId().replace(/:/g, '')}-insulation`
 
   const { plan, rooms } = floor
+  const cavities = useMemo(() => cavityStretches(plan.walls, cavityOf), [plan.walls, cavityOf])
+  const cavityLines = [...cavities.values()].flat().map((c) => c.line)
+  // Each wall's pieces, split where its cavity stretches start and end.
+  const parts = plan.walls.flatMap((wall) =>
+    wall.pieces.flatMap((piece, k) =>
+      splitPiece(piece, wall, cavities.get(wall.id) ?? []).map((part, j) => ({ key: `${wall.id}-${k}-${j}`, wall, ...part })),
+    ),
+  )
   const pad = Math.max(bounds.width, bounds.depth) * 0.02
   const fullWidth = bounds.width + 2 * pad
   const fullDepth = bounds.depth + 2 * pad
@@ -99,19 +138,48 @@ export function FloorCanvas({
                   (see wallPointAt), and is drawn at its real thickness with its doors, windows and
                   openings cut out. Its own ends carry on by half the thickness, so walls meeting at a
                   corner overlap and close it; the sides of a gap stop square. */}
+              {/* Cavity walls are drawn their real thickness, outward from the room's inside face:
+                  both leaves in the wall's colour, then the cavity over them, hatched where it's
+                  insulated and left as a gap where it's empty. */}
+              <defs>
+                <pattern id={hatch} patternUnits="userSpaceOnUse" width={0.05} height={0.05} patternTransform="rotate(45)">
+                  <rect className="fp-insulation-ground" width={0.05} height={0.05} />
+                  <line className="fp-insulation-hatch" x1={0.025} y1={0} x2={0.025} y2={0.05} />
+                </pattern>
+              </defs>
               <g className="fp-walls">
-                {plan.walls.flatMap(({ id, pieces }) =>
-                  pieces.map((piece, k) => (
-                    <path key={`${id}-${k}`} d={pieceShape(piece, isExternal(id) ? EXTERNAL_WALL : INTERNAL_WALL)} />
-                  )),
+                {parts.map(({ key, wall, piece, stretch }) => (
+                  <path
+                    key={key}
+                    d={
+                      stretch
+                        ? cavityWallShapes(piece, stretch.out, stretch.corners).wall
+                        : pieceShape(piece, isExternal(wall.id) ? EXTERNAL_WALL : INTERNAL_WALL)
+                    }
+                  />
+                ))}
+              </g>
+              <g className="fp-cavities">
+                {parts.flatMap(({ key, piece, stretch }) =>
+                  stretch
+                    ? [
+                        <path
+                          key={key}
+                          className={stretch.cavity === 'filled' ? 'fp-cavity filled' : 'fp-cavity empty'}
+                          fill={stretch.cavity === 'filled' ? `url(#${hatch})` : undefined}
+                          d={cavityWallShapes(piece, stretch.out, stretch.corners).cavity}
+                        />,
+                      ]
+                    : [],
                 )}
               </g>
-              {/* Doors and windows as a thin line across their gap, the same width at any zoom.
-                  Openings are left as a plain gap. */}
+              {/* Doors and windows as a thin line across their gap, the same width at any zoom, and
+                  across the middle of a cavity wall. Openings are left as a plain gap. */}
               <g className="fp-gaps">
-                {[...plan.doors, ...plan.windows].map(({ id, a, b }) => (
-                  <line key={id} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} vectorEffect="non-scaling-stroke" />
-                ))}
+                {[...plan.doors, ...plan.windows].map(({ id, a, b }) => {
+                  const [ox, oz] = gapOffset({ a, b }, cavityLines)
+                  return <line key={id} x1={a[0] + ox} y1={a[1] + oz} x2={b[0] + ox} y2={b[1] + oz} vectorEffect="non-scaling-stroke" />
+                })}
               </g>
             </svg>
             {rooms.map((room) => {
