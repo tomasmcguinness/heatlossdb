@@ -1,6 +1,19 @@
 import { useMemo } from 'react'
-import { alignmentOf, editedRoom, effectiveRole, storeyName, useFabric, type EditedRoom } from '../../fabric/store'
+import {
+  alignmentOf,
+  editedRoom,
+  effectiveRole,
+  storeyName,
+  useFabric,
+  type EditedRoom,
+  type ElementSettings,
+  type RoomSettings,
+} from '../../fabric/store'
+import type { StoreyAlignment } from '../../scan/align'
+import type { Role } from '../../scan/classify'
 import { floorPlans, type FloorPlan } from '../../scan/plan'
+import type { Scan, ScanElement } from '../../scan/types'
+import type { Bounds } from './FloorCanvas'
 import type { ItemKind } from './kinds'
 
 export interface EditorFloor {
@@ -21,7 +34,37 @@ export interface RoomActions {
   rename: (id: string) => void
 }
 
-/** Every storey, lowest first, with its rooms as the user has corrected them. */
+/** What the floors are drawn from, besides the scan: the store's settings, or a preview's. */
+export interface FloorSettings {
+  elements: Record<string, ElementSettings>
+  autoRoles: Record<string, Role>
+  byId: Map<string, ScanElement>
+  alignment: Record<number, StoreyAlignment>
+  rooms: Record<string, RoomSettings>
+}
+
+function plansOf(scan: Scan, { elements, autoRoles, byId, alignment }: Omit<FloorSettings, 'rooms'>): FloorPlan[] {
+  const roles = { elements, autoRoles, byId }
+  return floorPlans(
+    scan,
+    (story) => alignmentOf({ alignment }, story),
+    (id) => effectiveRole(roles, id) === 'external',
+  )
+}
+
+function floorsOf(scan: Scan, plans: FloorPlan[], rooms: Record<string, RoomSettings>): EditorFloor[] {
+  return plans.map((plan) => ({
+    plan,
+    name: storeyName(scan.stories, plan.story),
+    rooms: plan.rooms.map((room) => editedRoom(room, rooms[room.id])),
+  }))
+}
+
+/** Every storey of a scan, lowest first, with its rooms as the user has corrected them. Also
+ *  draws a scan that isn't open, such as a tidied preview. */
+export const editorFloors = (scan: Scan, settings: FloorSettings): EditorFloor[] => floorsOf(scan, plansOf(scan, settings), settings.rooms)
+
+/** Every storey of the open scan, lowest first, with its rooms as the user has corrected them. */
 export function useEditorFloors(): EditorFloor[] {
   const scan = useFabric((s) => s.scan)
   const elements = useFabric((s) => s.elements)
@@ -30,28 +73,25 @@ export function useEditorFloors(): EditorFloor[] {
   const alignment = useFabric((s) => s.alignment)
   const rooms = useFabric((s) => s.rooms)
 
-  const plans = useMemo(() => {
-    if (!scan) return []
-    const roles = { elements, autoRoles, byId }
-    return floorPlans(
-      scan,
-      (story) => alignmentOf({ alignment }, story),
-      (id) => effectiveRole(roles, id) === 'external',
-    )
-  }, [scan, elements, autoRoles, byId, alignment])
-
-  return useMemo(
-    () =>
-      plans.map((plan) => ({
-        plan,
-        name: scan ? storeyName(scan.stories, plan.story) : '',
-        rooms: plan.rooms.map((room) => editedRoom(room, rooms[room.id])),
-      })),
-    [plans, rooms, scan],
-  )
+  // Rooms change far more often than what the plans are drawn from, so they're kept apart.
+  const plans = useMemo(() => (scan ? plansOf(scan, { elements, autoRoles, byId, alignment }) : []), [scan, elements, autoRoles, byId, alignment])
+  return useMemo(() => (scan ? floorsOf(scan, plans, rooms) : []), [plans, rooms, scan])
 }
 
-export const kindsOf = (room: EditedRoom): ItemKind[] => room.items.map((item) => item.kind)
+/** The bounds of every floor together, so they're drawn to one scale. Not finite with no outlines. */
+export function boundsOf(floors: EditorFloor[]): Bounds {
+  const points = floors.flatMap((f) => f.plan.outlines.flat())
+  const minX = Math.min(...points.map((p) => p[0]))
+  const minZ = Math.min(...points.map((p) => p[1]))
+  return {
+    minX,
+    minZ,
+    width: Math.max(...points.map((p) => p[0])) - minX,
+    depth: Math.max(...points.map((p) => p[1])) - minZ,
+  }
+}
+
+export const kindsOf =(room: EditedRoom): ItemKind[] => room.items.map((item) => item.kind)
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 

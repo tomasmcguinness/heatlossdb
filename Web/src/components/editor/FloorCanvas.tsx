@@ -1,3 +1,4 @@
+import { roomFigures } from '../../fabric/heatLoss'
 import type { Point2 } from '../../scan/outline'
 import type { WallPiece } from '../../scan/plan'
 import { CheckIcon, ItemIcons } from './icons'
@@ -115,6 +116,7 @@ export function FloorCanvas({
             </svg>
             {rooms.map((room) => {
               const state = room.id === actions.selectedId ? ' selected' : room.id === actions.hoveredId ? ' hovered' : ''
+              const figures = roomFigures(room)
               return (
                 <div
                   key={room.id}
@@ -125,12 +127,13 @@ export function FloorCanvas({
                 >
                   <button
                     className="floor-label-main"
-                    aria-label={room.name + (room.checked ? ', checked' : '')}
+                    aria-label={room.name + (figures ? `, ${figures}` : '') + (room.checked ? ', checked' : '')}
                     aria-pressed={room.id === actions.selectedId}
                     onClick={unlessDragged(() => actions.select(room.id))}
                     onDoubleClick={() => actions.rename(room.id)}
                   >
                     <span className="room-name">{room.name}</span>
+                    {figures && <span className="room-figures">{figures}</span>}
                     <ItemIcons kinds={kindsOf(room)} />
                     {room.checked && (
                       <span className="room-checked">

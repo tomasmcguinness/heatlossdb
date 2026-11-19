@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import {
+  AIR_CHANGES_ERROR,
   FLOOR_INSULATION,
   FLOOR_TYPES,
+  formatAirChanges,
   hasRoomFabric,
   isHomeFabricSet,
   itemChoices,
@@ -9,11 +11,14 @@ import {
   labelIn,
   LOFT_DEPTHS,
   LOFTS,
+  parseAirChanges,
   WALLS,
   WINDOWS,
   type Choice,
+  type RoomFabricChoice,
   type RoomPlacement,
 } from '../../fabric/home'
+import { HEAT_LOSS_ERROR, parseHeatLoss, parseTargetTemperature, TARGET_TEMPERATURE_ERROR } from '../../fabric/heatLoss'
 import { useFabric, type EditedRoom, type HomeFabric, type RoomElement, type RoomFabric, type RoomSettings } from '../../fabric/store'
 import { BackIcon, BinIcon, InfoIcon, KindIcon, PencilIcon } from './icons'
 import { kindName, type ItemKind } from './kinds'
@@ -52,12 +57,13 @@ function loftFact(home: HomeFabric): string | undefined {
   return depth ? `Insulated, ${depth}` : 'Insulated'
 }
 
-/** The Home fabric card's four facts. */
+/** The Home fabric card's facts. */
 const fabricFacts = (home: HomeFabric): [string, string | undefined][] => [
   ['Loft', loftFact(home)],
   ['Outside walls', labelIn(WALLS, home.walls)],
   ['Windows', labelIn(WINDOWS, home.windows)],
   ['Ground floor', labelIn(FLOOR_TYPES, home.floorType)],
+  ['Air changes', formatAirChanges(home.airChangesPerHour)],
 ]
 
 function AllRooms({ floors, floor, actions, onFabric }: RoomPanelProps) {
@@ -230,6 +236,57 @@ function FabricField({ label, ...props }: Omit<Parameters<typeof FabricOptions>[
   )
 }
 
+/** A number typed in, saved on blur or Enter. Blank saves undefined; anything `parse` rejects (null)
+ *  shows `error` instead of saving. Key it on the saved value so a change from elsewhere starts afresh. */
+function NumberField({
+  label,
+  value,
+  placeholder,
+  parse,
+  error: message,
+  onChange,
+}: {
+  label: string
+  value: number | undefined
+  placeholder?: string
+  parse: (text: string) => number | undefined | null
+  error: string
+  onChange: (value: number | undefined) => void
+}) {
+  const [draft, setDraft] = useState(value?.toString() ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const save = () => {
+    const parsed = parse(draft)
+    if (parsed === null) {
+      setError(message)
+      return
+    }
+    setError(null)
+    setDraft(parsed?.toString() ?? '')
+    if (parsed !== value) onChange(parsed)
+  }
+  return (
+    <label className="panel-field">
+      <span>{label}</span>
+      <input
+        autoComplete="off"
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={draft}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === 'Enter' && save()}
+      />
+      {error && (
+        <span className="field-error" role="alert">
+          {error}
+        </span>
+      )}
+    </label>
+  )
+}
+
 /** The room's walls, and its ceiling (top storey) and floor (ground storey), where they're
  *  built differently from the rest of the home. Differences only make sense once the home's
  *  fabric is set (and applying it would clear them), so until then it asks for that first. */
@@ -246,7 +303,7 @@ function RoomFabricSection({
 }) {
   const setRoom = useFabric((s) => s.setRoom)
   const home = useFabric((s) => s.home)
-  const own = (key: keyof RoomFabric) => settings?.fabric?.[key]
+  const own = (key: RoomFabricChoice) => settings?.fabric?.[key]
   const set = (patch: RoomFabric) => setRoom(room.id, (s) => ({ ...s, fabric: { ...s.fabric, ...patch } }))
 
   if (!isHomeFabricSet(home)) {
@@ -270,6 +327,16 @@ function RoomFabricSection({
         <p className="small muted">Only change these if this room is built differently, such as an extension.</p>
       </div>
       <FabricField label="Outside walls" choices={WALLS} own={own('walls')} inherited={home.walls} onChange={(v) => set({ walls: v })} />
+      <NumberField
+        // Keyed so another room, or the value being cleared by Home fabric, starts afresh.
+        key={`${room.id}-${settings?.fabric?.airChangesPerHour ?? ''}`}
+        label="Air changes per hour"
+        value={settings?.fabric?.airChangesPerHour}
+        placeholder={`Same as home (${home.airChangesPerHour ?? 'not set'})`}
+        parse={parseAirChanges}
+        error={AIR_CHANGES_ERROR}
+        onChange={(v) => set({ airChangesPerHour: v })}
+      />
       {placement.top && (
         <>
           <FabricField
@@ -356,6 +423,35 @@ function RoomDetails({ floors, room, renaming, onRenaming, onClear, onFabric }: 
           <option value="no">No</option>
         </select>
       </label>
+
+      {room.heated && (
+        <section className="room-heat-loss" aria-labelledby="room-heat-loss-title">
+          <div>
+            <h3 id="room-heat-loss-title">Heat loss</h3>
+            <p className="small muted">From your heat loss report, if you have one. Shown on the floor plan.</p>
+          </div>
+          <div className="room-heat-loss-fields">
+            <NumberField
+              key={`${room.id}-temperature-${room.targetTemperature ?? ''}`}
+              label="Target temperature (°C)"
+              value={room.targetTemperature}
+              placeholder="e.g. 21"
+              parse={parseTargetTemperature}
+              error={TARGET_TEMPERATURE_ERROR}
+              onChange={(v) => update((s) => ({ ...s, targetTemperature: v }))}
+            />
+            <NumberField
+              key={`${room.id}-heat-loss-${room.heatLossW ?? ''}`}
+              label="Heat loss (W)"
+              value={room.heatLossW}
+              placeholder="e.g. 1250"
+              parse={parseHeatLoss}
+              error={HEAT_LOSS_ERROR}
+              onChange={(v) => update((s) => ({ ...s, heatLossW: v }))}
+            />
+          </div>
+        </section>
+      )}
 
       <RoomFabricSection room={room} settings={settings} placement={placement} onFabric={onFabric} />
 

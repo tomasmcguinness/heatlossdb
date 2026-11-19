@@ -113,6 +113,14 @@ export const SaveIcon = (props: IconProps) => (
   </Icon>
 )
 
+/** A set square: the floor plan squared up. */
+export const TidyIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M4 4 V20 H20 Z" />
+    <path d="M8 12 V16 H12 Z" />
+  </Icon>
+)
+
 export const ChevronIcon = (props: IconProps) => (
   <Icon size={16} {...props}>
     <path d="M6 9 L12 15 L18 9" />

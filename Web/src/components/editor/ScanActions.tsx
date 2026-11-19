@@ -4,9 +4,9 @@ import { useFabric } from '../../fabric/store'
 import { isComingSoon } from '../../features'
 import { saveToAccount } from '../../share/homes'
 import { useShare } from '../../share/share'
-import { downloadHome } from '../files'
+import { downloadHome, surveyIdFromPath } from '../files'
 import { useAccount } from '../useAccount'
-import { ChevronIcon, DownloadIcon, SaveIcon, SearchIcon, ShareIcon } from './icons'
+import { ChevronIcon, DownloadIcon, SaveIcon, SearchIcon, ShareIcon, TidyIcon } from './icons'
 
 interface Action {
   label: string
@@ -22,8 +22,11 @@ type SaveStatus = { state: 'idle' | 'saving' | 'saved' } | { state: 'failed'; me
 const SAVED_FOR = 3000
 
 /** The header's split button: Save to the user's account, with Search, Share and Download in its menu. */
-export function ScanActions({ onShare, onSearch }: { onShare: () => void; onSearch: () => void }) {
+export function ScanActions({ onShare, onSearch, onFloorplan }: { onShare: () => void; onSearch: () => void; onFloorplan: () => void }) {
   const shared = useShare()
+  // Tidying runs on the server, so only for a scan that's there: a survey link.
+  const onServer = surveyIdFromPath(location.pathname) !== null
+  const tidied = useFabric((s) => s.scan?.raw?.heatlossdbTidy !== undefined)
   // Scans kept by this browser before Save existed can't be saved; opening the file again fixes it.
   const hasFile = useFabric((s) => s.scan?.raw !== undefined)
   const { isSignedIn, openSignIn } = useAccount()
@@ -96,7 +99,13 @@ export function ScanActions({ onShare, onSearch }: { onShare: () => void; onSear
     icon: <SearchIcon />,
     run: isComingSoon('search') ? undefined : onSearch,
   }
-  const actions = [search, share, download, save]
+  const floorplan: Action = {
+    label: 'Floor plan',
+    text: !onServer ? 'Save the home first to tidy it' : tidied ? 'Tidied · see versions' : 'Tidy up walls and close rooms',
+    icon: <TidyIcon />,
+    run: onServer ? onFloorplan : undefined,
+  }
+  const actions = [floorplan, search, share, download, save]
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const menu = useRef<HTMLDivElement>(null)

@@ -34,7 +34,7 @@ interface ShareDialogProps {
  *  Only signed-in users can open it, so there's no account to create. */
 export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null)
-  const scanHash = useFabric((s) => s.scan?.hash)
+  const homeKey = useFabric((s) => s.homeKey)
   const home = useFabric((s) => s.home)
   const shared = useShare()
   const [step, setStep] = useState<Step>(shared ? 'done' : 'check')
@@ -68,7 +68,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
     setBusy(true)
     try {
       await submitShare(name, { postcodeDistrict: postcodeDistrict!, shareRoomNames: SHARE_ROOM_NAMES, home }, heatPump)
-      if (scanHash) saveShare(scanHash, { name, sharedAt: new Date().toISOString() })
+      if (homeKey) saveShare(homeKey, { name, sharedAt: new Date().toISOString() })
       setStep('done')
     } catch {
       setError('Couldn’t share your home. Check your connection and try again.')

@@ -1,3 +1,4 @@
+import { roomFigures } from '../../fabric/heatLoss'
 import { CheckIcon, ItemIcons, PencilIcon } from './icons'
 import { kindsOf, totalsOf, type EditorFloor, type RoomActions } from './model'
 import { MARGIN, usePanZoom, useSize } from './panZoom'
@@ -38,6 +39,7 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
                     {rooms.length ? (
                       rooms.map((room) => {
                         const state = room.id === actions.selectedId ? ' selected' : room.id === actions.hoveredId ? ' hovered' : ''
+                        const figures = roomFigures(room)
                         return (
                           <div
                             key={room.id}
@@ -47,12 +49,13 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
                           >
                             <button
                               className="overview-room-main"
-                              aria-label={room.name + (room.checked ? ', checked' : '')}
+                              aria-label={room.name + (figures ? `, ${figures}` : '') + (room.checked ? ', checked' : '')}
                               aria-pressed={room.id === actions.selectedId}
                               onClick={unlessDragged(() => actions.select(room.id))}
                               onDoubleClick={() => actions.rename(room.id)}
                             >
                               <span className="room-name">{room.name}</span>
+                              {figures && <span className="room-figures">{figures}</span>}
                               <ItemIcons kinds={kindsOf(room)} />
                               {room.checked && (
                                 <span className="room-checked">

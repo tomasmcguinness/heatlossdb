@@ -138,11 +138,12 @@ export async function surveyIdForCode(code: string): Promise<string> {
   return ((await response.json()) as { id: string }).id
 }
 
-/** Opens a survey uploaded from the app, as linked from the app after uploading. */
+/** Opens a survey uploaded from the app, as linked from the app after uploading: its current
+ *  floor plan, which is the tidied one once the owner has accepted a tidy. */
 export async function loadSurvey(id: string): Promise<void> {
   let response: Response
   try {
-    response = await fetch(`/api/surveys/${id}/scan`)
+    response = await fetch(`/api/surveys/${id}/scan/current`)
   } catch {
     throw new ScanParseError("Couldn't reach HeatLossDB. Check your connection and try again.")
   }
@@ -150,5 +151,6 @@ export async function loadSurvey(id: string): Promise<void> {
     throw new ScanParseError("This survey link isn't valid, or the survey has been removed.")
   }
   if (!response.ok) throw new ScanParseError("Couldn't load this survey. Try again in a moment.")
-  useFabric.getState().loadScan(parseScan(await response.json()))
+  // Keyed by the survey, so its original and tidied plans count as the same home.
+  useFabric.getState().loadScan(parseScan(await response.json()), undefined, `survey:${id}`)
 }

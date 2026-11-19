@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   AGE_BANDS,
+  AIR_CHANGES_ERROR,
   answeredCount,
   customFabricCount,
   DOORS,
@@ -8,6 +9,7 @@ import {
   FLOOR_TYPES,
   LOFT_DEPTHS,
   LOFTS,
+  parseAirChanges,
   PROPERTY_TYPES,
   QUESTION_COUNT,
   WALLS,
@@ -92,6 +94,15 @@ const FloorIcon = () =>
     </>,
   )
 
+const AirIcon = () =>
+  icon(
+    <>
+      <path d="M3 8 H14 A3 3 0 1 0 11 5" />
+      <path d="M3 12 H18 A3 3 0 1 1 15 15" />
+      <path d="M3 16 H9" />
+    </>,
+  )
+
 const WarningIcon = () =>
   icon(
     <>
@@ -118,6 +129,8 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
   const [confirming, setConfirming] = useState(false)
   const [postcode, setPostcode] = useState(saved.postcodeDistrict ?? '')
   const [postcodeError, setPostcodeError] = useState<string | null>(null)
+  const [airChanges, setAirChanges] = useState(saved.airChangesPerHour?.toString() ?? '')
+  const [airChangesError, setAirChangesError] = useState<string | null>(null)
   const custom = customFabricCount(elements, rooms)
 
   useEffect(() => {
@@ -145,12 +158,27 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
     set({ postcodeDistrict: district ?? undefined })
     return true
   }
+  // Optional too, but one that's typed must be a sensible number.
+  const checkAirChanges = () => {
+    const value = parseAirChanges(airChanges)
+    if (value === null) {
+      setAirChangesError(AIR_CHANGES_ERROR)
+      return false
+    }
+    setAirChangesError(null)
+    setAirChanges(value?.toString() ?? '')
+    set({ airChangesPerHour: value })
+    return true
+  }
   const applyClicked = () => {
-    if (!checkPostcode()) return
+    // Check both, so both errors show at once.
+    const postcodeOk = checkPostcode()
+    const airChangesOk = checkAirChanges()
+    if (!postcodeOk || !airChangesOk) return
     if (custom) setConfirming(true)
     else {
-      // The draft's postcode is set in the same click, so apply what checkPostcode just stored.
-      applyHome({ ...home, postcodeDistrict: outwardCode(postcode) ?? undefined })
+      // The draft's postcode and air changes are set in the same click, so apply what the checks just stored.
+      applyHome({ ...home, postcodeDistrict: outwardCode(postcode) ?? undefined, airChangesPerHour: parseAirChanges(airChanges) ?? undefined })
       close()
     }
   }
@@ -251,6 +279,29 @@ export function HomeFabricDialog({ onClose }: { onClose: () => void }) {
           <Question label="What is the ground floor made of?" choices={FLOOR_TYPES} value={home.floorType} onChange={(v) => set({ floorType: v })} />
           <Question label="Has it been insulated?" choices={FLOOR_INSULATION} value={home.floorInsulation} onChange={(v) => set({ floorInsulation: v })} />
           <Tip>a floor that sounds hollow, with air bricks low on the outside walls, is usually suspended timber.</Tip>
+        </Card>
+
+        <Card id="fabric-air" title="Draughts and ventilation" icon={<AirIcon />}>
+          <label className="field fabric-number">
+            <span className="field-label">Air changes per hour</span>
+            <input
+              autoComplete="off"
+              inputMode="decimal"
+              placeholder="1.0"
+              value={airChanges}
+              aria-invalid={airChangesError ? true : undefined}
+              aria-describedby="fabric-air-note"
+              onChange={(e) => setAirChanges(e.target.value)}
+              onBlur={checkAirChanges}
+            />
+            <span id="fabric-air-note" className={airChangesError ? 'share-error' : 'small muted'} role={airChangesError ? 'alert' : undefined}>
+              {airChangesError ?? 'Used for every room unless you change it for a room. Leave blank if you don’t know.'}
+            </span>
+          </label>
+          <Tip>
+            your installer’s heat loss report usually lists this for each room. Most homes are between about 0.5 and 3: older,
+            draughtier homes are higher.
+          </Tip>
         </Card>
       </main>
 

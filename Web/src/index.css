@@ -1345,6 +1345,74 @@ details summary {
   font: inherit;
 }
 
+/* Floor plan: versions and the tidy preview. */
+.floorplan-versions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.floorplan-versions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.floorplan-versions li > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.floorplan-tidy-button {
+  margin-left: auto;
+}
+
+.floorplan-summary {
+  margin: 0;
+  font-weight: 500;
+}
+
+.floorplan-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The editor's canvases fill their container, so the preview gives them a height. */
+.floorplan-canvas {
+  position: relative;
+  display: flex;
+  height: min(420px, 50dvh);
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.floorplan-review summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.floorplan-review ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
 .fabric-confirm-backdrop {
   position: absolute;
   inset: 0;
@@ -1799,6 +1867,15 @@ details summary {
   font-size: 0.98rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* A heated room's target temperature and heat loss, under its name on the plan. */
+.room-figures {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .room-checked {
@@ -2317,9 +2394,20 @@ span.panel-room {
 }
 
 /* Walls, ceiling and floor where a room is built differently from the rest of the home. */
-.room-fabric {
+.room-fabric,
+.room-heat-loss {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.room-heat-loss h3 {
+  margin: 0 0 4px;
+}
+
+.room-heat-loss-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -2541,12 +2629,21 @@ span.panel-room {
   text-transform: uppercase;
 }
 
-.fabric-postcode input {
+.fabric-postcode input,
+.fabric-number input {
   max-width: 12ch;
   min-height: 40px;
   box-sizing: border-box;
   font: inherit;
+}
+
+.fabric-postcode input {
   text-transform: uppercase;
+}
+
+.panel-field .field-error {
+  color: var(--error);
+  font-size: 0.8rem;
 }
 
 .page-back {

@@ -186,11 +186,42 @@ describe('rooms', () => {
     expect(state().rooms.r).toEqual({ name: 'Study', heated: false, checked: true, added })
   })
 
+  it('keeps the home’s air changes but clears rooms’ own when applied', () => {
+    state().setRoom('r', (s) => ({ ...s, fabric: { airChangesPerHour: 3 } }))
+    const doc = state().exportFabric()!
+    state().loadScan(scan)
+    state().importFabric(doc)
+    expect(state().rooms.r.fabric).toEqual({ airChangesPerHour: 3 })
+    state().applyHome({ airChangesPerHour: 1.5 })
+    expect(state().rooms.r).toEqual({})
+    expect(state().home).toEqual({ airChangesPerHour: 1.5, applied: true })
+  })
+
+  it('drops a room’s air changes when cleared', () => {
+    state().setRoom('r', (s) => ({ ...s, fabric: { airChangesPerHour: 2 } }))
+    state().setRoom('r', (s) => ({ ...s, fabric: { ...s.fabric, airChangesPerHour: undefined } }))
+    expect(state().rooms.r).toEqual({})
+  })
+
   it('still accepts documents saved before rooms were added', () => {
     const { rooms: _, ...older } = state().exportFabric()!
     expect(isFabricDocument(older)).toBe(true)
     state().importFabric(older)
     expect(state().rooms).toEqual({})
+  })
+})
+
+describe('a room’s heat loss figures', () => {
+  it('are carried into the room, kept by Home fabric and saved with the edits', () => {
+    state().setRoom('scanroom-0', (s) => ({ ...s, targetTemperature: 21, heatLossW: 1250 }))
+    const plain = { id: 'scanroom-0', story: 0, name: 'Room 1', centre: [0, 0] as [number, number], area: 12, shape: '', elements: [] }
+    expect(editedRoom(plain, state().rooms['scanroom-0'])).toMatchObject({ heated: true, targetTemperature: 21, heatLossW: 1250 })
+
+    state().applyHome({ walls: 'solid' })
+    const doc = state().exportFabric()!
+    state().loadScan(scan)
+    state().importFabric(doc)
+    expect(state().rooms['scanroom-0']).toEqual({ targetTemperature: 21, heatLossW: 1250 })
   })
 })
 
@@ -215,5 +246,68 @@ describe('saved files', () => {
 
   it('are refused when made by a newer version', () => {
     expect(() => parseScan({ ...saved(), heatlossdbVersion: 2 })).toThrow(/newer version/)
+  })
+})
+
+describe('another version of the floor plan', () => {
+  // As the tidier might leave it: the middle wall merged away and an inferred wall added.
+  const tidied = parseScan({
+    ...scan.raw!,
+    walls: [surface('outer', 'wall'), surface('inferred', 'wall', { transform: at(0, 1.2, 2) })],
+    heatlossdbTidy: { version: 1 },
+  })
+  const nudged = { rotation: 5, dx: 0.5, dz: 0 }
+
+  it('is a different scan', () => {
+    expect(tidied.hash).not.toBe(scan.hash)
+  })
+
+  it('takes the storeys’ alignment only from the same scan', () => {
+    state().setAlignment(0, nudged)
+    const doc = state().exportFabric()!
+    state().loadScan(scan)
+    state().importFabric(doc)
+    expect(state().alignment[0]).toEqual(nudged)
+
+    state().loadScan(tidied)
+    state().importFabric(doc)
+    expect(state().alignment).toEqual(state().autoAlignment)
+  })
+
+  it('keeps the user’s edits when switched to', () => {
+    state().applyHome({ walls: 'solid', airChangesPerHour: 1.5 })
+    state().setRole('outer', 'party')
+    state().setRole('middle', 'external')
+    state().setRoom('r', (s) => ({ ...s, name: 'Study', fabric: { airChangesPerHour: 3 } }))
+    state().setAlignment(0, nudged)
+    state().setTab('defaults')
+
+    state().switchScan(tidied)
+
+    expect(state().scan).toBe(tidied)
+    expect(state().home).toEqual({ walls: 'solid', airChangesPerHour: 1.5, applied: true })
+    expect(state().rooms.r).toEqual({ name: 'Study', fabric: { airChangesPerHour: 3 } })
+    // The middle wall isn't in the tidied plan, so its role goes.
+    expect(state().elements).toEqual({ outer: { role: 'party' } })
+    expect(state().alignment).toEqual(state().autoAlignment)
+    expect(state().tab).toBe('defaults')
+  })
+
+  it('is still the same home', () => {
+    expect(state().homeKey).toBe(scan.hash)
+    state().switchScan(tidied)
+    expect(state().homeKey).toBe(scan.hash)
+    state().loadScan(tidied, undefined, 'survey:abc')
+    expect(state().homeKey).toBe('survey:abc')
+    state().switchScan(scan)
+    expect(state().homeKey).toBe('survey:abc')
+  })
+
+  it('can be switched back from, keeping edits made on it', () => {
+    state().switchScan(tidied)
+    state().setRoom('r', (s) => ({ ...s, name: 'Office' }))
+    state().switchScan(scan)
+    expect(state().scan).toBe(scan)
+    expect(state().rooms.r).toEqual({ name: 'Office' })
   })
 })

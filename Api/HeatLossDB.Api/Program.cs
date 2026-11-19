@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
 using HeatLossDB.Api;
+using HeatLossDB.ScanTidy;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -126,6 +128,108 @@ app.MapGet("/api/codes/{code}", async (string code, SurveyStore store, Cancellat
 app.MapGet("/api/surveys/{id}/scan", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
     await store.OpenScanAsync(id, cancellationToken) is { } scan ? Results.Stream(scan, "application/json") : Results.NotFound());
 
+// The scan squared up and cleaned (see POST /api/surveys/{id}/tidy below), or 404 until it's been tidied.
+app.MapGet("/api/surveys/{id}/scan/tidied", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
+    await store.OpenTidiedScanAsync(id, cancellationToken) is { } scan ? Results.Stream(scan, "application/json") : Results.NotFound());
+
+// The website's Tidy button. Squares the scan up, makes the outside walls continuous, stacks the
+// storeys, merges partitions scanned from both sides, folds wardrobe gaps into their rooms and closes
+// every room (see HeatLossDB.ScanTidy). The result is kept beside the scan, which stays exactly as
+// uploaded, and tidying always starts again from the upload: pressing it twice gives the same plan,
+// and a better tidier can redo every scan. Returns what changed; the changes a person should check
+// (inferred walls, big moves, rooms still open) have needsReview set.
+app.MapPost("/api/surveys/{id}/tidy", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
+{
+    JsonNode? scan;
+    await using (var stored = await store.OpenScanAsync(id, cancellationToken))
+    {
+        if (stored is null) return Results.NotFound();
+        try
+        {
+            scan = await JsonNode.ParseAsync(stored, cancellationToken: cancellationToken);
+        }
+        catch (JsonException)
+        {
+            scan = null;
+        }
+    }
+    if (scan is null) return Results.UnprocessableEntity(new { error = "The stored scan isn't valid JSON." });
+
+    TidyResult result;
+    try
+    {
+        result = ScanTidier.Tidy(scan);
+    }
+    catch (ScanFormatException e)
+    {
+        return Results.UnprocessableEntity(new { error = e.Message });
+    }
+
+    result.Tidied["heatlossdbTidy"]!["tidiedAt"] = DateTimeOffset.UtcNow;
+    await store.SaveTidiedScanAsync(id, JsonSerializer.SerializeToUtf8Bytes(result.Tidied), cancellationToken);
+    return Results.Ok(new TidyResponse(result.Summary, result.Changes));
+});
+
+// The floor plan the survey opens with: the tidy its owner accepted, or else the scan as uploaded.
+// X-Floorplan-Version says which.
+app.MapGet("/api/surveys/{id}/scan/current", async (string id, HttpResponse response, SurveyStore store, CancellationToken cancellationToken) =>
+{
+    if (await store.OpenCurrentScanAsync(id, cancellationToken) is not var (scan, version)) return Results.NotFound();
+    response.Headers["X-Floorplan-Version"] = version;
+    return Results.Stream(scan, "application/json");
+});
+
+// The survey's floor plan versions: always the original upload, and the accepted tidy once there is one.
+app.MapGet("/api/surveys/{id}/versions", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
+    await store.VersionsAsync(id, cancellationToken) is { } versions ? Results.Ok(versions) : Results.NotFound());
+
+// Changing a survey's floor plan: once someone has saved the survey to their account only they
+// can; before that, anyone with the link can, as with sharing. Null when the change may go ahead.
+async Task<IResult?> CannotChangeFloorplanAsync(string id, ClaimsPrincipal user, SurveyStore store, CancellationToken cancellationToken)
+{
+    if (!await store.ExistsAsync(id, cancellationToken)) return Results.NotFound();
+    if (await store.OwnerOfAsync(id, cancellationToken) is { Length: > 0 } owner && user.Identity?.Name != owner)
+        return Results.Json(new { error = "Only the person who saved this home can change its floor plan." }, statusCode: StatusCodes.Status403Forbidden);
+    return null;
+}
+
+// "Use tidied plan": makes the latest tidy (POST /tidy) the survey's floor plan. It's copied, so
+// tidying again later doesn't change the plan until that tidy is accepted too.
+app.MapPost("/api/surveys/{id}/tidy/accept", async (string id, ClaimsPrincipal user, SurveyStore store, CancellationToken cancellationToken) =>
+{
+    if (await CannotChangeFloorplanAsync(id, user, store, cancellationToken) is { } refused) return refused;
+    if (!await store.AcceptTidiedAsync(id, cancellationToken)) return Results.Conflict(new { error = "Tidy the floor plan first." });
+    return Results.Ok(await store.VersionsAsync(id, cancellationToken));
+});
+
+// Switches between the versions kept: {"version": "original"} goes back to the upload,
+// {"version": "tidied"} to the tidy accepted last (409 if none has been).
+app.MapPut("/api/surveys/{id}/versions/current", async (
+    string id,
+    HttpRequest request,
+    ClaimsPrincipal user,
+    SurveyStore store,
+    CancellationToken cancellationToken) =>
+{
+    if (await CannotChangeFloorplanAsync(id, user, store, cancellationToken) is { } refused) return refused;
+
+    var body = await Uploads.ReadLimitedAsync(request.Body, Uploads.MaxProfileBytes, cancellationToken);
+    string? version = null;
+    try
+    {
+        if (body is not null && JsonNode.Parse(body)?["version"] is JsonValue value && value.TryGetValue<string>(out var text)) version = text;
+    }
+    catch (JsonException)
+    {
+    }
+    if (version is not (FloorplanVersion.Original or FloorplanVersion.Tidied))
+        return Results.BadRequest(new { error = "\"version\" must be \"original\" or \"tidied\"." });
+
+    if (!await store.UseVersionAsync(id, version, cancellationToken))
+        return Results.Conflict(new { error = "No tidied floor plan has been accepted yet." });
+    return Results.Ok(await store.VersionsAsync(id, cancellationToken));
+});
+
 // The website derives a shape profile from the scan (measurements and lined-up outlines) and
 // stores it here, so matching doesn't need every scan in full.
 app.MapPut("/api/surveys/{id}/profile", async (
@@ -248,6 +352,8 @@ app.MapFallbackToFile("index.html", websiteFiles);
 app.Run();
 
 public record UploadResult(string Id, string Url, string Code, DateTimeOffset CodeExpiresAt);
+
+public record TidyResponse(TidySummary Summary, IReadOnlyList<ChangeEntry> Changes);
 
 public static class Uploads
 {

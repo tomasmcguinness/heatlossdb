@@ -22,6 +22,10 @@
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy" Version="8.0.11" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\HeatLossDB.ScanTidy\HeatLossDB.ScanTidy.csproj" />
+  </ItemGroup>
+
   <!-- A fresh clone needs the website's packages before its dev server can start. -->
   <Target Name="InstallWebsitePackages" BeforeTargets="Build" Condition="'$(Configuration)' == 'Debug' And !Exists('$(WebsiteRoot)node_modules')">
     <Exec WorkingDirectory="$(WebsiteRoot)" Command="npm ci" />

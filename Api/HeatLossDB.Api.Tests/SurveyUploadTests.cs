@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -18,7 +20,10 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
     /// with a container and tables of its own that are deleted afterwards.</summary>
     public class Api : WebApplicationFactory<Program>
     {
-        private const string Storage = "UseDevelopmentStorage=true";
+        /// <summary>Azurite on its usual ports, unless HEATLOSSDB_TEST_STORAGE gives another connection
+        /// string (for when something else has those ports).</summary>
+        private static readonly string Storage =
+            Environment.GetEnvironmentVariable("HEATLOSSDB_TEST_STORAGE") is { Length: > 0 } storage ? storage : "UseDevelopmentStorage=true";
         private readonly string name = "test" + Guid.NewGuid().ToString("N")[..12];
 
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
@@ -177,6 +182,90 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         var upload = await response.Content.ReadFromJsonAsync<Upload>();
         var stored = await client.GetByteArrayAsync($"/api/surveys/{upload!.Id}/scan");
         Assert.Equal(bytes, stored);
+    }
+
+    /// <summary>A 4 m × 3 m room scanned at an angle, with its back wall stopping half a metre short of the corner.</summary>
+    internal static string SmallRoomScan()
+    {
+        var turn = 20 * Math.PI / 180;
+        (double X, double Z) Turned(double x, double z) => (x * Math.Cos(turn) - z * Math.Sin(turn), x * Math.Sin(turn) + z * Math.Cos(turn));
+        JsonObject Wall(string id, double x1, double z1, double x2, double z2)
+        {
+            var (ax, az) = Turned(x1, z1);
+            var (bx, bz) = Turned(x2, z2);
+            double length = Math.Sqrt((bx - ax) * (bx - ax) + (bz - az) * (bz - az)), ux = (bx - ax) / length, uz = (bz - az) / length;
+            double[] transform = [ux, 0, uz, 0, 0, 1, 0, 0, -uz, 0, ux, 0, (ax + bx) / 2, 1.2, (az + bz) / 2, 1];
+            return new JsonObject
+            {
+                ["identifier"] = id,
+                ["story"] = 0,
+                ["dimensions"] = new JsonArray(length, 2.4, 0.0),
+                ["transform"] = new JsonArray(transform.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray()),
+            };
+        }
+        var (lx, lz) = Turned(2, 1.5);
+        return new JsonObject
+        {
+            ["walls"] = new JsonArray(Wall("A", 0, 0, 4, 0), Wall("B", 4, 0, 4, 3), Wall("C", 3.5, 3, 0, 3), Wall("D", 0, 3, 0, 0)),
+            ["doors"] = new JsonArray(),
+            ["windows"] = new JsonArray(),
+            ["openings"] = new JsonArray(),
+            ["sections"] = new JsonArray(new JsonObject { ["center"] = new JsonArray(lx, 0.0, lz), ["label"] = "bedroom", ["story"] = 0 }),
+        }.ToJsonString();
+    }
+
+    [Fact]
+    public async Task TidyingKeepsTheUploadAsItIsAndStoresTheTidiedScanBesideIt()
+    {
+        var original = SmallRoomScan();
+        var upload = await (await client.PostAsync("/api/surveys", Json(original))).Content.ReadFromJsonAsync<Upload>();
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/surveys/{upload!.Id}/scan/tidied")).StatusCode);
+
+        var response = await client.PostAsync($"/api/surveys/{upload.Id}/tidy", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(body.RootElement.GetProperty("summary").GetProperty("allRoomsClosed").GetBoolean());
+        var changes = body.RootElement.GetProperty("changes").EnumerateArray().ToList();
+        var extended = Assert.Single(changes, c => c.GetProperty("kind").GetString() == "WallExtendedToClose");
+        Assert.Equal(500, extended.GetProperty("millimetres").GetDouble());
+        Assert.True(extended.GetProperty("needsReview").GetBoolean());
+
+        var tidied = JsonNode.Parse(await client.GetStringAsync($"/api/surveys/{upload.Id}/scan/tidied"))!;
+        Assert.Equal(HeatLossDB.ScanTidy.ScanTidier.Version, tidied["heatlossdbTidy"]!["version"]!.GetValue<int>());
+        Assert.NotNull(tidied["heatlossdbTidy"]!["tidiedAt"]);
+        Assert.Equal(original, await client.GetStringAsync($"/api/surveys/{upload.Id}/scan"));
+    }
+
+    [Fact]
+    public async Task TidyingAgainStartsFromTheUploadSoGivesTheSameResult()
+    {
+        var upload = await (await client.PostAsync("/api/surveys", Json(SmallRoomScan()))).Content.ReadFromJsonAsync<Upload>();
+
+        var first = await (await client.PostAsync($"/api/surveys/{upload!.Id}/tidy", null)).Content.ReadAsStringAsync();
+        var second = await (await client.PostAsync($"/api/surveys/{upload.Id}/tidy", null)).Content.ReadAsStringAsync();
+
+        Assert.Equal(first, second);
+    }
+
+    [Theory]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA")]
+    [InlineData("short")]
+    public async Task TidyingAnUnknownSurveyIsNotFound(string id)
+    {
+        var response = await client.PostAsync($"/api/surveys/{id}/tidy", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TidyingAScanWithoutWallGeometrySaysWhy()
+    {
+        var upload = await (await client.PostAsync("/api/surveys", Json(MinimalScan))).Content.ReadFromJsonAsync<Upload>();
+
+        var response = await client.PostAsync($"/api/surveys/{upload!.Id}/tidy", null);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("transform", await response.Content.ReadAsStringAsync());
     }
 }
 

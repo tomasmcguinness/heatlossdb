@@ -23,6 +23,12 @@ export interface RoomSettings {
   name?: string
   /** Rooms are heated unless the user says otherwise. */
   heated?: boolean
+  /** For a heated room: the temperature (°C) it's designed to be kept at, from its heat loss report.
+   *  Kept, but not shown, while the room is marked unheated. */
+  targetTemperature?: number
+  /** For a heated room: its heat loss (W) from the heat loss report. Kept, but not shown, while the
+   *  room is marked unheated. */
+  heatLossW?: number
   checked?: boolean
   /** Scanned doors and windows the user says aren't there. */
   removedElements?: string[]
@@ -43,6 +49,8 @@ export interface RoomFabric {
   loftDepth?: string
   floorType?: string
   floorInsulation?: string
+  /** Air changes per hour, where the room is draughtier or tighter than the home's. */
+  airChangesPerHour?: number
 }
 
 /** How the whole home is built, as answered in Home fabric. Values come from fabric/home.ts;
@@ -61,6 +69,9 @@ export interface HomeFabric {
   doors?: string
   floorType?: string
   floorInsulation?: string
+  /** Air changes per hour, as a heat loss report gives it. Every room uses it unless the room
+   *  has its own. Unset means not known; no typical value is assumed. */
+  airChangesPerHour?: number
   /** Set once the user has applied their answers to the whole home. */
   applied?: boolean
 }
@@ -101,6 +112,10 @@ interface FabricState {
   scan: Scan | null
   /** The file the scan was opened from, when it came from one. */
   scanName: string | null
+  /** Which home is open: the hash of the scan first opened, kept when switching to another version
+   *  of its floor plan. For what belongs to the home rather than to one plan (the page shown,
+   *  whether it's shared, which saved edits have been brought back). */
+  homeKey: string | null
   byId: Map<string, ScanElement>
   childrenOf: Map<string, ScanElement[]>
   autoRoles: Record<string, Role>
@@ -118,7 +133,9 @@ interface FabricState {
   /** Bumped to ask the viewer to re-frame the building. */
   viewResetToken: number
 
-  loadScan: (scan: Scan, name?: string) => void
+  /** Opens a scan. `homeKey` names the home when it's known some other way (a survey's id), so
+   *  its versions share it; otherwise it's the scan's hash. */
+  loadScan: (scan: Scan, name?: string, homeKey?: string) => void
   closeScan: () => void
   select: (id: string | null) => void
   hover: (id: string | null) => void
@@ -140,7 +157,12 @@ interface FabricState {
   applyHome: (home: HomeFabric) => void
 
   exportFabric: () => FabricDocument | null
+  /** Applies saved settings. How storeys line up only comes across from the same scan: nudges
+   *  made on another version of the floor plan wouldn't fit this one. */
   importFabric: (doc: FabricDocument) => void
+  /** Opens another version of the same home's floor plan (such as its tidied plan), keeping the
+   *  user's edits: Home fabric, defaults, rooms, and settings for elements it still has. */
+  switchScan: (scan: Scan) => void
 }
 
 const emptyDefaults = (): Record<ElementKind, KindDefaults> =>
@@ -230,6 +252,7 @@ function withElement(
 export const useFabric = create<FabricState>()((set, get) => ({
   scan: null,
   scanName: null,
+  homeKey: null,
   byId: new Map(),
   childrenOf: new Map(),
   autoRoles: {},
@@ -245,7 +268,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
   tab: 'summary',
   viewResetToken: 0,
 
-  loadScan: (scan, name) => {
+  loadScan: (scan, name, homeKey) => {
     const saved = readStorage<FabricDocument>(fabricKey(scan.hash))
     const valid = saved && isFabricDocument(saved) ? saved : null
     writeStorage(SCAN_KEY, scan)
@@ -253,6 +276,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
     set({
       scan,
       scanName: name ?? null,
+      homeKey: homeKey ?? scan.hash,
       ...indexScan(scan),
       autoRoles: classify(scan),
       defaults: { ...emptyDefaults(), ...valid?.defaults },
@@ -274,7 +298,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
     writeStorage(SCAN_KEY, null)
     // Its edits too, so opening it again starts afresh.
     if (scan) writeStorage(fabricKey(scan.hash), null)
-    set({ scan: null, scanName: null, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
+    set({ scan: null, scanName: null, homeKey: null, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
   },
 
   select: (id) => set(id ? { selectedId: id, tab: 'element' } : { selectedId: null }),
@@ -323,15 +347,24 @@ export const useFabric = create<FabricState>()((set, get) => ({
 
   importFabric: (doc) => {
     // Only keep settings for elements that exist in this scan.
-    const { byId } = get()
+    const { byId, scan } = get()
     const elements = Object.fromEntries(Object.entries(doc.elements).filter(([id]) => byId.has(id)))
+    const sameScan = doc.scanHash === scan?.hash
     set({
       defaults: { ...emptyDefaults(), ...doc.defaults },
       elements,
-      alignment: { ...get().autoAlignment, ...doc.alignment },
+      alignment: { ...get().autoAlignment, ...(sameScan ? doc.alignment : undefined) },
       rooms: doc.rooms ?? {},
       home: doc.home ?? {},
     })
+  },
+
+  switchScan: (next) => {
+    const edits = get().exportFabric()
+    const { scanName, tab, homeKey } = get()
+    get().loadScan(next, scanName ?? undefined, homeKey ?? undefined)
+    if (edits) get().importFabric(edits)
+    set({ tab })
   },
 }))
 
@@ -449,6 +482,8 @@ export interface EditedRoom extends PlanRoom {
   scannedName: string
   heated: boolean
   checked: boolean
+  targetTemperature?: number
+  heatLossW?: number
   /** Scanned doors and windows the user hasn't removed, then the ones they added. */
   items: RoomElement[]
 }
@@ -462,6 +497,8 @@ export function editedRoom(room: PlanRoom, settings: RoomSettings = {}): EditedR
     scannedName: room.name,
     heated: settings.heated ?? true,
     checked: settings.checked ?? false,
+    targetTemperature: settings.targetTemperature,
+    heatLossW: settings.heatLossW,
     items: [
       ...room.elements.filter((e) => !removed.has(e.id)).map((e) => ({ ...e, added: false as const })),
       ...(settings.added ?? []).map((e) => ({ ...e, added: true as const })),

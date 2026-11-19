@@ -40,6 +40,19 @@ public interface IScanStorage
 
     /// <summary>The stored scan, or null if there isn't one.</summary>
     Task<Stream?> OpenAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>Saves the tidied copy of a scan beside it. The scan itself is never overwritten.</summary>
+    Task SaveTidiedAsync(string id, byte[] scan, CancellationToken cancellationToken);
+
+    /// <summary>The tidied copy of a scan, or null if it hasn't been tidied.</summary>
+    Task<Stream?> OpenTidiedAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>Keeps the tidy the owner accepted as their floor plan. Tidying again replaces the
+    /// tidied copy but not this, so the floor plan only changes when they accept again.</summary>
+    Task SaveAcceptedAsync(string id, byte[] scan, CancellationToken cancellationToken);
+
+    /// <summary>The accepted tidy, or null if none has been accepted.</summary>
+    Task<Stream?> OpenAcceptedAsync(string id, CancellationToken cancellationToken);
 }
 
 /// <summary>Scans as blobs in a container. Blob uploads only become visible once complete, so a
@@ -54,17 +67,35 @@ public class BlobScanStorage : IScanStorage
         container.CreateIfNotExists();
     }
 
-    public async Task SaveAsync(string id, byte[] scan, CancellationToken cancellationToken)
+    public Task SaveAsync(string id, byte[] scan, CancellationToken cancellationToken) =>
+        UploadBlobAsync($"{id}.json", scan, cancellationToken);
+
+    public Task<Stream?> OpenAsync(string id, CancellationToken cancellationToken) =>
+        OpenBlobAsync($"{id}.json", cancellationToken);
+
+    public Task SaveTidiedAsync(string id, byte[] scan, CancellationToken cancellationToken) =>
+        UploadBlobAsync($"{id}.tidied.json", scan, cancellationToken);
+
+    public Task<Stream?> OpenTidiedAsync(string id, CancellationToken cancellationToken) =>
+        OpenBlobAsync($"{id}.tidied.json", cancellationToken);
+
+    public Task SaveAcceptedAsync(string id, byte[] scan, CancellationToken cancellationToken) =>
+        UploadBlobAsync($"{id}.accepted.json", scan, cancellationToken);
+
+    public Task<Stream?> OpenAcceptedAsync(string id, CancellationToken cancellationToken) =>
+        OpenBlobAsync($"{id}.accepted.json", cancellationToken);
+
+    private async Task UploadBlobAsync(string name, byte[] scan, CancellationToken cancellationToken)
     {
         var options = new BlobUploadOptions { HttpHeaders = new BlobHttpHeaders { ContentType = "application/json" } };
-        await container.GetBlobClient($"{id}.json").UploadAsync(new BinaryData(scan), options, cancellationToken);
+        await container.GetBlobClient(name).UploadAsync(new BinaryData(scan), options, cancellationToken);
     }
 
-    public async Task<Stream?> OpenAsync(string id, CancellationToken cancellationToken)
+    private async Task<Stream?> OpenBlobAsync(string name, CancellationToken cancellationToken)
     {
         try
         {
-            return await container.GetBlobClient($"{id}.json").OpenReadAsync(cancellationToken: cancellationToken);
+            return await container.GetBlobClient(name).OpenReadAsync(cancellationToken: cancellationToken);
         }
         catch (RequestFailedException e) when (e.Status == 404)
         {

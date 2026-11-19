@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Azure;
 using Azure.Data.Tables;
@@ -94,6 +95,86 @@ public partial class SurveyStore
     /// <summary>The stored scan, or null if there's no survey with this id.</summary>
     public Task<Stream?> OpenScanAsync(string id, CancellationToken cancellationToken) =>
         IdPattern().IsMatch(id) ? scans.OpenAsync(id, cancellationToken) : Task.FromResult<Stream?>(null);
+
+    /// <summary>The scan's tidied copy (see POST /api/surveys/{id}/tidy), or null if it hasn't been tidied.</summary>
+    public Task<Stream?> OpenTidiedScanAsync(string id, CancellationToken cancellationToken) =>
+        IdPattern().IsMatch(id) ? scans.OpenTidiedAsync(id, cancellationToken) : Task.FromResult<Stream?>(null);
+
+    /// <summary>Keeps a tidied copy of the scan beside it; the scan as uploaded is left alone.</summary>
+    public Task SaveTidiedScanAsync(string id, byte[] scan, CancellationToken cancellationToken) =>
+        IdPattern().IsMatch(id) ? scans.SaveTidiedAsync(id, scan, cancellationToken) : throw new ArgumentException("That isn't a survey id.", nameof(id));
+
+    /// <summary>The survey's floor plan versions and which is current, or null if there's no such survey.</summary>
+    public async Task<FloorplanVersions?> VersionsAsync(string id, CancellationToken cancellationToken)
+    {
+        string[] columns = [nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.CurrentScan), nameof(SurveyEntity.TidiedAcceptedAt), nameof(SurveyEntity.TidierVersion)];
+        if (await GetAsync(id, columns, cancellationToken) is not { } survey) return null;
+        var versions = new List<FloorplanVersion> { new(FloorplanVersion.Original, survey.CreatedAt, null) };
+        if (survey.TidiedAcceptedAt is { } acceptedAt) versions.Add(new(FloorplanVersion.Tidied, acceptedAt, survey.TidierVersion));
+        return new FloorplanVersions(CurrentOf(survey), versions);
+    }
+
+    /// <summary>The survey's current floor plan (the accepted tidy, or else the upload) and which
+    /// version it is, or null if there's no such survey.</summary>
+    public async Task<(Stream Scan, string Version)?> OpenCurrentScanAsync(string id, CancellationToken cancellationToken)
+    {
+        if (await GetAsync(id, [nameof(SurveyEntity.CurrentScan), nameof(SurveyEntity.TidiedAcceptedAt)], cancellationToken) is not { } survey) return null;
+        if (CurrentOf(survey) == FloorplanVersion.Tidied && await scans.OpenAcceptedAsync(id, cancellationToken) is { } accepted)
+            return (accepted, FloorplanVersion.Tidied);
+        return await scans.OpenAsync(id, cancellationToken) is { } original ? (original, FloorplanVersion.Original) : null;
+    }
+
+    /// <summary>
+    /// Makes the latest tidy the survey's floor plan: copies it to the accepted slot, so tidying again
+    /// doesn't change the plan until it's accepted again. False if the survey hasn't been tidied.
+    /// </summary>
+    public async Task<bool> AcceptTidiedAsync(string id, CancellationToken cancellationToken)
+    {
+        byte[] tidied;
+        await using (var stream = await scans.OpenTidiedAsync(id, cancellationToken))
+        {
+            if (stream is null) return false;
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellationToken);
+            tidied = buffer.ToArray();
+        }
+        int? version = null;
+        try
+        {
+            if (JsonNode.Parse(tidied)?["heatlossdbTidy"]?["version"] is JsonValue v && v.TryGetValue<int>(out var n)) version = n;
+        }
+        catch (JsonException)
+        {
+        }
+
+        await scans.SaveAcceptedAsync(id, tidied, cancellationToken);
+        await surveys.UpdateEntityAsync(
+            new TableEntity(id, "")
+            {
+                [nameof(SurveyEntity.CurrentScan)] = FloorplanVersion.Tidied,
+                [nameof(SurveyEntity.TidiedAcceptedAt)] = DateTimeOffset.UtcNow,
+                [nameof(SurveyEntity.TidierVersion)] = version,
+            },
+            ETag.All, TableUpdateMode.Merge, cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Switches between the versions already kept: the upload, or the tidy accepted last (not a
+    /// newer tidy that wasn't accepted). False for "tidied" when no tidy has been accepted.
+    /// </summary>
+    public async Task<bool> UseVersionAsync(string id, string version, CancellationToken cancellationToken)
+    {
+        if (version == FloorplanVersion.Tidied
+            && (await GetAsync(id, [nameof(SurveyEntity.TidiedAcceptedAt)], cancellationToken))?.TidiedAcceptedAt is null)
+            return false;
+        await SetAsync(id, nameof(SurveyEntity.CurrentScan), version, cancellationToken);
+        return true;
+    }
+
+    /// <summary>Older rows, and surveys never tidied, are on the original.</summary>
+    private static string CurrentOf(SurveyEntity survey) =>
+        survey.CurrentScan == FloorplanVersion.Tidied && survey.TidiedAcceptedAt is not null ? FloorplanVersion.Tidied : FloorplanVersion.Original;
 
     public async Task<bool> ExistsAsync(string id, CancellationToken cancellationToken) =>
         IdPattern().IsMatch(id) && (await GetAsync(id, [nameof(SurveyEntity.PartitionKey)], cancellationToken)) is not null;
@@ -252,7 +333,26 @@ public class SurveyEntity : ITableEntity
     /// <summary>Whether the home has been shared. Only shared homes are matched against (search
     /// and browsing). Older rows don't have it, which reads as false.</summary>
     public bool IsShared { get; set; }
+    /// <summary>Which floor plan the survey opens with: "original" (or null, the upload) or "tidied"
+    /// (the accepted tidy).</summary>
+    public string? CurrentScan { get; set; }
+    /// <summary>When a tidy was last accepted, or null if none has been.</summary>
+    public DateTimeOffset? TidiedAcceptedAt { get; set; }
+    /// <summary>The <c>ScanTidier.Version</c> of the accepted tidy.</summary>
+    public int? TidierVersion { get; set; }
 }
+
+/// <summary>One floor plan a survey can open with.</summary>
+/// <param name="Id">"original" or "tidied".</param>
+/// <param name="At">When it was uploaded, or when the tidy was accepted.</param>
+/// <param name="TidierVersion">For a tidy, the tidier version that made it.</param>
+public record FloorplanVersion(string Id, DateTimeOffset At, int? TidierVersion)
+{
+    public const string Original = "original";
+    public const string Tidied = "tidied";
+}
+
+public record FloorplanVersions(string Current, IReadOnlyList<FloorplanVersion> Versions);
 
 /// <summary>An upload code, keyed by the code itself.</summary>
 public class CodeEntity : ITableEntity

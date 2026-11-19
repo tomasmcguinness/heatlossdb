@@ -35,9 +35,9 @@ function writeShare(hash: string, share: SharedHome) {
 /** Shares made in this session, so the page updates without re-reading storage. */
 const useShares = create<{ shares: Record<string, SharedHome> }>(() => ({ shares: {} }))
 
-/** The open scan's share, if it has been shared from this tab. */
+/** The open home's share, if it has been shared from this tab (whichever version of its floor plan is open). */
 export function useShare(): SharedHome | null {
-  const hash = useFabric((s) => s.scan?.hash)
+  const hash = useFabric((s) => s.homeKey)
   const made = useShares((s) => (hash ? s.shares[hash] : undefined))
   return hash ? (made ?? readShare(hash)) : null
 }

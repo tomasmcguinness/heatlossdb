@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   answeredCount,
   customFabricCount,
+  formatAirChanges,
   hasCustomFabric,
   hasRoomFabric,
   isHomeFabricSet,
   itemFabricValue,
+  MAX_AIR_CHANGES,
+  parseAirChanges,
   QUESTION_COUNT,
+  roomAirChanges,
   roomFabricValue,
 } from './home'
 
@@ -66,5 +70,35 @@ describe('Room fabric', () => {
     expect(hasRoomFabric({ itemFabric: { w1: 'triple' } })).toBe(true)
     const rooms = { a: { fabric: { walls: 'solid' }, itemFabric: { w1: 'triple', d1: 'composite' } }, b: { checked: true } }
     expect(customFabricCount({ outer: { uValue: 0.3 }, middle: { role: 'party' } }, rooms)).toBe(4)
+  })
+})
+
+describe('Air changes per hour', () => {
+  it('is the home’s unless the room has its own', () => {
+    expect(roomAirChanges({ airChangesPerHour: 1.5 }, undefined)).toEqual({ value: 1.5, own: false })
+    expect(roomAirChanges({}, {})).toEqual({ value: undefined, own: false })
+    expect(roomAirChanges({ airChangesPerHour: 1.5 }, { fabric: { airChangesPerHour: 3 } })).toEqual({ value: 3, own: true })
+  })
+
+  it('counts a room with only its own air changes as having its own fabric', () => {
+    const rooms = { a: { fabric: { airChangesPerHour: 2 } } }
+    expect(hasRoomFabric(rooms.a)).toBe(true)
+    expect(customFabricCount({}, rooms)).toBe(1)
+  })
+
+  it('reads typed values, rejecting anything not above 0 and up to the maximum', () => {
+    expect(parseAirChanges('')).toBeUndefined()
+    expect(parseAirChanges('  ')).toBeUndefined()
+    expect(parseAirChanges('1.5')).toBe(1.5)
+    expect(parseAirChanges(' 2 ')).toBe(2)
+    expect(parseAirChanges('.5')).toBe(0.5)
+    expect(parseAirChanges('0,75')).toBe(0.75)
+    expect(parseAirChanges(String(MAX_AIR_CHANGES))).toBe(MAX_AIR_CHANGES)
+    for (const bad of ['0', '-1', 'abc', '1.5.2', '1e2', '21']) expect(parseAirChanges(bad)).toBeNull()
+  })
+
+  it('reads as so many per hour', () => {
+    expect(formatAirChanges(1.5)).toBe('1.5 per hour')
+    expect(formatAirChanges(undefined)).toBeUndefined()
   })
 })

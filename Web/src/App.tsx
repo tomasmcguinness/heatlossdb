@@ -23,21 +23,24 @@ const PAGE_FOR: Record<Choice, Page> = { view: 'scan', share: 'share', search: '
  *  account for it. Those replace this tab's, as opening a downloaded file's do. */
 function useSavedEdits(surveyId: string | null, ready: boolean) {
   const { isSignedIn } = useAccount()
-  const hash = useFabric((s) => s.scan?.hash)
+  // Once per home: switching to another version of its floor plan carries this tab's edits across,
+  // which bringing back older saved ones would undo.
+  const homeKey = useFabric((s) => s.homeKey)
   const loaded = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!surveyId || !ready || !isSignedIn || !hash) return
-    const key = `${surveyId}:${hash}`
+    if (!surveyId || !ready || !isSignedIn || !homeKey) return
+    const key = `${surveyId}:${homeKey}`
     if (loaded.current === key) return
     loaded.current = key
+    const hash = useFabric.getState().scan?.hash
     loadSavedEdits(surveyId)
       .then((edits) => {
         if (edits && useFabric.getState().scan?.hash === hash) useFabric.getState().importFabric(edits)
       })
       // Without them the survey still opens, with this tab's edits.
       .catch(() => {})
-  }, [surveyId, ready, isSignedIn, hash])
+  }, [surveyId, ready, isSignedIn, homeKey])
 }
 
 export default function App() {
@@ -48,10 +51,12 @@ export default function App() {
   const [surveyId] = useState(() => surveyIdFromPath(location.pathname))
   const [loadingSurvey, setLoadingSurvey] = useState(surveyId !== null)
   useSavedEdits(surveyId, !loadingSurvey)
-  // Every newly opened scan starts on What next?, so the page is remembered per scan.
-  const [pageFor, setPageFor] = useState<{ hash: string; page: Page } | null>(null)
-  const page: Page = scan && pageFor?.hash === scan.hash ? pageFor.page : 'next'
-  const setPage = (p: Page) => scan && setPageFor({ hash: scan.hash, page: p })
+  // Every newly opened home starts on What next?, so the page is remembered per home (not per
+  // floor plan: switching to its tidied plan stays in the editor).
+  const homeKey = useFabric((s) => s.homeKey)
+  const [pageFor, setPageFor] = useState<{ home: string; page: Page } | null>(null)
+  const page: Page = homeKey && pageFor?.home === homeKey ? pageFor.page : 'next'
+  const setPage = (p: Page) => homeKey && setPageFor({ home: homeKey, page: p })
   const profile = useProfile(surveyId)
   const editing = !onHomes && scan !== null && !loadingSurvey && (page === 'scan' || page === 'share')
   const [fabricOpen, setFabricOpen] = useState(false)

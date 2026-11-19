@@ -65,6 +65,8 @@ export interface RawStructure {
   heatlossdbVersion?: number
   /** In a file saved by the website: the user's edits. */
   edits?: unknown
+  /** In a scan tidied by HeatLossDB's server: the tidier's version and what it changed. */
+  heatlossdbTidy?: unknown
 }
 
 export type ElementKind = 'wall' | 'window' | 'door' | 'opening' | 'floor' | 'ceiling' | 'storage'

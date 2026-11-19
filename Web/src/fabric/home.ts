@@ -132,11 +132,14 @@ export interface RoomPlacement {
   top: boolean
 }
 
-const CEILING_KEYS: (keyof RoomFabric)[] = ['loft', 'loftDepth']
-const FLOOR_KEYS: (keyof RoomFabric)[] = ['floorType', 'floorInsulation']
+/** The parts of a room's fabric answered with one of the choices above. */
+export type RoomFabricChoice = Exclude<keyof RoomFabric, 'airChangesPerHour'>
+
+const CEILING_KEYS: RoomFabricChoice[] = ['loft', 'loftDepth']
+const FLOOR_KEYS: RoomFabricChoice[] = ['floorType', 'floorInsulation']
 
 /** Whether a room in this placement can have its own value for this part of its fabric. */
-export function canChange(placement: RoomPlacement, key: keyof RoomFabric): boolean {
+export function canChange(placement: RoomPlacement, key: RoomFabricChoice): boolean {
   if (CEILING_KEYS.includes(key)) return placement.top
   if (FLOOR_KEYS.includes(key)) return placement.ground
   return true
@@ -150,13 +153,38 @@ export interface Resolved {
 
 /** One part of a room's fabric: its own answer where it has one, else the home's. Loft depth
  *  follows the loft: a room with its own loft answer doesn't take the home's depth. */
-export function roomFabricValue(home: HomeFabric, settings: RoomSettings | undefined, placement: RoomPlacement, key: keyof RoomFabric): Resolved {
+export function roomFabricValue(home: HomeFabric, settings: RoomSettings | undefined, placement: RoomPlacement, key: RoomFabricChoice): Resolved {
   const fabric = settings?.fabric ?? {}
   const own = canChange(placement, key) ? fabric[key] : undefined
   if (own) return { value: own, own: true }
   if (key === 'loftDepth' && canChange(placement, 'loft') && fabric.loft) return { value: undefined, own: true }
   return { value: home[key], own: false }
 }
+
+/** The highest air changes per hour accepted. Even very draughty rooms are well below it. */
+export const MAX_AIR_CHANGES = 20
+
+/** A room's air changes per hour: its own where set, else the home's. Any storey can differ. */
+export function roomAirChanges(home: HomeFabric, settings: RoomSettings | undefined): { value: number | undefined; own: boolean } {
+  const own = settings?.fabric?.airChangesPerHour
+  if (own !== undefined) return { value: own, own: true }
+  return { value: home.airChangesPerHour, own: false }
+}
+
+/** Typed air changes per hour: undefined when blank, null when it isn't a number above 0 and up
+ *  to MAX_AIR_CHANGES. A comma is read as a decimal point. */
+export function parseAirChanges(text: string): number | undefined | null {
+  const trimmed = text.trim().replace(',', '.')
+  if (!trimmed) return undefined
+  if (!/^\d*\.?\d+$/.test(trimmed)) return null
+  const value = Number(trimmed)
+  return value > 0 && value <= MAX_AIR_CHANGES ? value : null
+}
+
+export const AIR_CHANGES_ERROR = `Enter a number above 0 and up to ${MAX_AIR_CHANGES}, like 1.5, or leave it blank.`
+
+/** Such as "1.5 per hour", or undefined when not set. */
+export const formatAirChanges = (value: number | undefined) => (value === undefined ? undefined : `${value} per hour`)
 
 /** The answers a door, window or skylight's own fabric is chosen from. */
 export const itemChoices = (kind: 'door' | 'window' | 'skylight'): Choice[] => (kind === 'door' ? DOORS : WINDOWS)

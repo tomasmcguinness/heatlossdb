@@ -17,6 +17,15 @@ export class SignedOutError extends Error {
   }
 }
 
+/** fetch, signed in as the current user if there is one; signed out otherwise. */
+export async function fetchAsUser(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = await getToken().catch(() => null)
+  if (!token) return fetch(url, init)
+  const headers = new Headers(init.headers)
+  headers.set('Authorization', `Bearer ${token}`)
+  return fetch(url, { ...init, headers })
+}
+
 /** fetch, signed in as the current user. */
 export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = await getToken()

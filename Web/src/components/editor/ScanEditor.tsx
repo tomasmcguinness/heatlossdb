@@ -3,9 +3,10 @@ import { isHomeFabricSet } from '../../fabric/home'
 import { effectiveRole, useFabric } from '../../fabric/store'
 import { HomeFabricDialog } from '../fabric/HomeFabricDialog'
 import { ShareDialog } from '../share/ShareDialog'
-import { FloorCanvas, type Bounds } from './FloorCanvas'
+import { FloorCanvas } from './FloorCanvas'
+import { FloorPlanDialog } from './FloorPlanDialog'
 import { BackIcon, DoorIcon, HomeIcon, SkylightIcon, WindowIcon } from './icons'
-import { useEditorFloors, type RoomActions } from './model'
+import { boundsOf, useEditorFloors, type RoomActions } from './model'
 import { OverviewCanvas } from './OverviewCanvas'
 import { RoomPanel } from './RoomPanel'
 import { ScanActions } from './ScanActions'
@@ -28,7 +29,11 @@ export function ScanEditor({
   const autoRoles = useFabric((s) => s.autoRoles)
   const byId = useFabric((s) => s.byId)
   const floors = useEditorFloors()
-  const [view, setView] = useState<View>('overview')
+  // Opens on the ground floor (the lowest storey). Null until the user picks a view, so it follows
+  // the floors when they change, such as on switching to another version of the floor plan.
+  const [picked, setView] = useState<View | null>(null)
+  const ground = floors[0]?.plan.story
+  const view: View = picked !== null && (picked === 'overview' || floors.some((f) => f.plan.story === picked)) ? picked : (ground ?? 'overview')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -36,8 +41,9 @@ export function ScanEditor({
   const [sharing, setSharing] = useState(startSharing)
   const home = useFabric((s) => s.home)
   const [fabricOpen, setFabricOpen] = useState(false)
+  const [floorplanOpen, setFloorplanOpen] = useState(false)
 
-  const floor = view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
+  const floor =view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
   const rooms = floors.flatMap((f) => f.rooms)
   const room = rooms.find((r) => r.id === selectedId) ?? null
 
@@ -61,15 +67,7 @@ export function ScanEditor({
   }
 
   // Every floor is drawn within the bounds of them all, so they share a scale.
-  const points = floors.flatMap((f) => f.plan.outlines.flat())
-  const minX = Math.min(...points.map((p) => p[0]))
-  const minZ = Math.min(...points.map((p) => p[1]))
-  const bounds: Bounds = {
-    minX,
-    minZ,
-    width: Math.max(...points.map((p) => p[0])) - minX,
-    depth: Math.max(...points.map((p) => p[1])) - minZ,
-  }
+  const bounds = boundsOf(floors)
 
   return (
     <div className="editor">
@@ -119,7 +117,7 @@ export function ScanEditor({
             <HomeIcon />
             Home fabric
           </button>
-          <ScanActions onShare={() => setSharing(true)} onSearch={onSearch} />
+          <ScanActions onShare={() => setSharing(true)} onSearch={onSearch} onFloorplan={() => setFloorplanOpen(true)} />
           <AccountButton />
         </div>
       </header>
@@ -173,6 +171,17 @@ export function ScanEditor({
       </div>
 
       {fabricOpen && <HomeFabricDialog onClose={() => setFabricOpen(false)} />}
+
+      {floorplanOpen && (
+        <FloorPlanDialog
+          onClose={() => setFloorplanOpen(false)}
+          // Another plan can have other storeys, so start again from its ground floor.
+          onSwitched={() => {
+            setView(null)
+            clear()
+          }}
+        />
+      )}
 
       {sharing && (
         <ShareDialog
