@@ -198,6 +198,26 @@ export function wallCavity(home: HomeFabric, settings: RoomSettings | undefined)
   return value === 'cavity-filled' ? 'filled' : value === 'cavity-unfilled' ? 'empty' : null
 }
 
+/** The insulation the side view shows for the whole home, from Home fabric. */
+export interface HomeInsulation {
+  /** Loft insulation: deep where it comes up above the joists, shallow where it's up to them or
+   *  the depth isn't known. Null with no loft insulation (or no loft). */
+  loft: 'deep' | 'shallow' | null
+  walls: WallCavity | null
+  floor: boolean
+}
+
+/** What the side view shows: nothing until Home fabric has been applied, then the insulation it
+ *  says is there. "Not sure" shows nothing, as nothing is known to be there. */
+export function homeInsulation(home: HomeFabric): HomeInsulation {
+  if (!isHomeFabricSet(home)) return { loft: null, walls: null, floor: false }
+  return {
+    loft: home.loft === 'yes' ? (home.loftDepth === 'above' ? 'deep' : 'shallow') : null,
+    walls: wallCavity(home, undefined),
+    floor: home.floorInsulation === 'yes',
+  }
+}
+
 /** The answers a door, window or skylight's own fabric is chosen from. */
 export const itemChoices = (kind: 'door' | 'window' | 'skylight'): Choice[] => (kind === 'door' ? DOORS : WINDOWS)
 

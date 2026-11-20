@@ -21,6 +21,9 @@ public class HeatLossDbOptions
     /// <summary>The blob container saved edits go in.</summary>
     public string EditsContainer { get; set; } = "edits";
 
+    /// <summary>The blob container shared homes' snapshots go in (see <see cref="SharedHomeStore"/>).</summary>
+    public string SharesContainer { get; set; } = "shares";
+
     /// <summary>Clerk's Frontend API address (https://&lt;instance&gt;.clerk.accounts.dev), which issues
     /// the session tokens the website sends. Without it, nothing needing sign-in can be used.</summary>
     public string ClerkIssuer { get; set; } = "";

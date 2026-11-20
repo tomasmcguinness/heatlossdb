@@ -31,6 +31,8 @@ builder.Services.AddSingleton(services =>
     var options = services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value;
     return new HomeStore(account.Tables.GetTableClient(options.HomesTable), account.Blobs.GetBlobContainerClient(options.EditsContainer));
 });
+builder.Services.AddSingleton(services => new SharedHomeStore(
+    services.GetRequiredService<StorageAccount>().Blobs.GetBlobContainerClient(services.GetRequiredService<IOptions<HeatLossDbOptions>>().Value.SharesContainer)));
 // Signing in is Clerk's: the website sends the user's Clerk session token, a JWT signed with keys
 // Clerk publishes at the issuer. The tokens have no audience; "azp" says which site asked for them.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
@@ -113,10 +115,7 @@ app.MapPost("/api/surveys", async (
 
     var appSurveyId = request.Headers["X-App-Survey-Id"].FirstOrDefault();
     var saved = await store.SaveAsync(body, appSurveyId, cancellationToken);
-    var webBase = options.Value.PublicWebBaseUrl is { Length: > 0 } configured
-        ? configured
-        : $"{request.Scheme}://{request.Host}";
-    var url = $"{webBase.TrimEnd('/')}/s/{saved.Id}";
+    var url = $"{WebBase(request, options.Value)}/s/{saved.Id}";
     return Results.Created($"/api/surveys/{saved.Id}", new UploadResult(saved.Id, url, saved.Code, saved.CodeExpiresAt));
 });
 
@@ -325,6 +324,52 @@ me.MapPut("/homes/{surveyId}", async (
     return Results.NoContent();
 });
 
+// Shares the home by link: a snapshot of the owner's saved edits (room names removed unless they
+// allowed them) and the floor plan as it is now, at /h/{id}. Only the survey's owner can, once
+// they've given the share details (PUT /api/surveys/{id}/share) and saved the home to their
+// account. Sharing again replaces the snapshot and keeps the link.
+me.MapPut("/homes/{surveyId}/share-link", async (
+    string surveyId,
+    HttpRequest request,
+    ClaimsPrincipal user,
+    SurveyStore surveys,
+    HomeStore homes,
+    SharedHomeStore shared,
+    IOptions<HeatLossDbOptions> options,
+    CancellationToken cancellationToken) =>
+{
+    var userId = user.Identity!.Name!;
+    if (await surveys.ShareStateAsync(surveyId, cancellationToken) is not { } state) return Results.NotFound();
+    if (state.OwnerId is { Length: > 0 } owner && owner != userId)
+        return Results.Json(new { error = "Only the person who saved this home can share it." }, statusCode: StatusCodes.Status403Forbidden);
+    if (!state.IsShared || state.Share is null)
+        return Results.Conflict(new { error = "Give the home's share details first." });
+    if (await homes.GetAsync(userId, surveyId, cancellationToken) is not { } saved)
+        return Results.Conflict(new { error = "Save the home to your account first." });
+
+    byte[] scan;
+    if (await surveys.OpenCurrentScanAsync(surveyId, cancellationToken) is not var (stream, _)) return Results.NotFound();
+    await using (stream)
+    {
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, cancellationToken);
+        scan = buffer.ToArray();
+    }
+
+    var (name, shareRoomNames) = SharedHomes.Details(state.Share);
+    var shareId = await surveys.ShareLinkIdAsync(surveyId, cancellationToken);
+    await shared.SaveAsync(shareId, SharedHomes.Snapshot(name, DateTimeOffset.UtcNow, saved.Edits, shareRoomNames), SharedHomes.Scan(scan), cancellationToken);
+    return Results.Ok(new ShareLinkResult(shareId, $"{WebBase(request, options.Value)}/h/{shareId}"));
+});
+
+// A home shared by link, for anyone with the link: its name, when it was shared and the owner's
+// edits, then the floor plan as it was then. Read-only; nothing here leads back to the survey.
+app.MapGet("/api/shared/{shareId}", async (string shareId, SharedHomeStore shared, CancellationToken cancellationToken) =>
+    await shared.OpenHomeAsync(shareId, cancellationToken) is { } home ? Results.Stream(home, "application/json") : Results.NotFound());
+
+app.MapGet("/api/shared/{shareId}/scan", async (string shareId, SharedHomeStore shared, CancellationToken cancellationToken) =>
+    await shared.OpenScanAsync(shareId, cancellationToken) is { } scan ? Results.Stream(scan, "application/json") : Results.NotFound());
+
 if (app.Environment.IsDevelopment())
 {
     // Development only: gives every home that has a profile but no figures made-up heat loss and
@@ -350,6 +395,11 @@ app.MapFallback("/api/{**path}", () => Results.NotFound());
 app.MapFallbackToFile("index.html", websiteFiles);
 
 app.Run();
+
+// The website's address, for links handed out: PublicWebBaseUrl, or else this API's own address,
+// which serves the website when deployed.
+static string WebBase(HttpRequest request, HeatLossDbOptions options) =>
+    (options.PublicWebBaseUrl is { Length: > 0 } configured ? configured : $"{request.Scheme}://{request.Host}").TrimEnd('/');
 
 public record UploadResult(string Id, string Url, string Code, DateTimeOffset CodeExpiresAt);
 

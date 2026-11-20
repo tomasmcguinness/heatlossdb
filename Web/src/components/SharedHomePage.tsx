@@ -1,0 +1,236 @@
+import { useEffect, useMemo, useState } from 'react'
+import { formatHeatLoss } from '../fabric/heatLoss'
+import { homeInsulation, wallCavity } from '../fabric/home'
+import { effectiveRole } from '../fabric/store'
+import { classify } from '../scan/classify'
+import { indexScan } from '../scan/parse'
+import {
+  loadSharedHome,
+  placementOf,
+  reportedTotals,
+  roomFacts,
+  sharedFloors,
+  type SharedHome,
+} from '../share/sharedHome'
+import type { OutsideStretch, PlanWall } from '../scan/plan'
+import { FloorCanvas } from './editor/FloorCanvas'
+import { BackIcon, DoorIcon, SkylightIcon, WindowIcon } from './editor/icons'
+import { boundsOf, squareMetres, type EditorFloor, type RoomActions } from './editor/model'
+import { OverviewCanvas } from './editor/OverviewCanvas'
+
+type View = 'overview' | number
+
+/** A home someone has shared by link: its floor plan and every room's details, to look at only. */
+export function SharedHomePage({ shareId }: { shareId: string }) {
+  const [home, setHome] = useState<SharedHome | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadSharedHome(shareId)
+      .then(setHome)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+  }, [shareId])
+
+  if (error || !home) {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <Brand />
+        </header>
+        <div className="dropzone">
+          {error ? (
+            <>
+              <p role="alert">{error}</p>
+              <a className="button" href="/">
+                Go to HeatLossDB
+              </a>
+            </>
+          ) : (
+            <p className="muted">Opening shared home…</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+  return <SharedHomeView home={home} />
+}
+
+function Brand() {
+  return (
+    <a className="brand" href="/" aria-label="HeatLossDB">
+      <img src="/logo.svg" alt="" width={26} height={26} />
+      <span aria-hidden="true">
+        heatloss<span className="brand-db">db</span>
+      </span>
+    </a>
+  )
+}
+
+function SharedHomeView({ home: shared }: { home: SharedHome }) {
+  const { scan, edits } = shared
+  const floors = useMemo(() => sharedFloors(scan, edits), [scan, edits])
+  const isExternal = useMemo(() => {
+    const roles = { elements: edits.elements ?? {}, autoRoles: classify(scan), byId: indexScan(scan).byId }
+    return (id: string) => effectiveRole(roles, id) !== 'internal'
+  }, [scan, edits])
+  const home = useMemo(() => edits.home ?? {}, [edits])
+  // Outside walls are drawn as cavity walls where the home or room has one, as in the editor.
+  const cavityOf = useMemo(
+    () => (wall: PlanWall, stretch: OutsideStretch) => {
+      const chosen = edits.elements?.[wall.id]?.role
+      return chosen === 'internal' || chosen === 'party' ? null : wallCavity(home, edits.rooms?.[stretch.room])
+    },
+    [edits, home],
+  )
+  const [picked, setView] = useState<View | null>(null)
+  const ground = floors[0]?.plan.story
+  const view: View = picked ?? ground ?? 'overview'
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  const floor = view === 'overview' ? null : (floors.find((f) => f.plan.story === view) ?? null)
+  const rooms = floors.flatMap((f) => f.rooms)
+  const room = rooms.find((r) => r.id === selectedId) ?? null
+  const bounds = boundsOf(floors)
+  const actions: RoomActions = {
+    hoveredId,
+    selectedId,
+    hover: setHoveredId,
+    select: (id) => setSelectedId((current) => (current === id ? null : id)),
+    rename: () => {},
+  }
+  const sharedOn = new Date(shared.sharedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  return (
+    <div className="editor shared-home">
+      <header className="editor-head">
+        <div className="editor-title">
+          <Brand />
+          <span className="editor-divider" aria-hidden="true" />
+          <h1 className="editor-file shared-home-name">{shared.name}</h1>
+        </div>
+
+        <div className="view-tabs" role="tablist" aria-label="Views">
+          {(['overview', ...floors.map((f) => f.plan.story)] as View[]).map((v) => (
+            <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
+              {v === 'overview' ? 'Overview' : floors.find((f) => f.plan.story === v)?.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="editor-status">
+          <span className="muted small">Shared {sharedOn}</span>
+        </div>
+      </header>
+
+      <div className="editor-body">
+        <section className="editor-canvas" aria-label={floor ? `${floor.name} plan` : 'Side view'}>
+          {floor && Number.isFinite(bounds.width) ? (
+            <FloorCanvas floor={floor} bounds={bounds} actions={actions} isExternal={isExternal} cavityOf={cavityOf} readOnly />
+          ) : floor ? (
+            <p className="muted canvas-empty">The scan has no floor outline for this storey.</p>
+          ) : (
+            <OverviewCanvas floors={floors} actions={actions} insulation={homeInsulation(home)} readOnly />
+          )}
+          <p className="canvas-hint">Click a room to see its details. Scroll to zoom, drag to move.</p>
+          <div className="canvas-legend" aria-hidden="true">
+            <span>
+              <WindowIcon size={16} />
+              Window
+            </span>
+            <span>
+              <DoorIcon size={16} />
+              External door
+            </span>
+            <span>
+              <SkylightIcon size={16} />
+              Skylight
+            </span>
+          </div>
+        </section>
+
+        <aside className="editor-panel" aria-label="Rooms">
+          {room ? (
+            <>
+              <button className="link back-link" onClick={() => setSelectedId(null)}>
+                <BackIcon />
+                All rooms
+              </button>
+              <div className="panel-intro">
+                <h2>{room.name}</h2>
+                <p className="muted">{floors.find((f) => f.plan.story === room.story)?.name}</p>
+              </div>
+              <dl className="fabric-facts">
+                {roomFacts(room, home, edits.rooms?.[room.id], placementOf(floors, room)).map((fact) => (
+                  <div key={fact.label}>
+                    <dt>{fact.label}</dt>
+                    <dd>
+                      {fact.value}
+                      {fact.own && <span className="tag tag-set">This room</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          ) : (
+            <AllRooms floors={floors} floor={floor} actions={actions} />
+          )}
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function AllRooms({ floors, floor, actions }: { floors: EditorFloor[]; floor: EditorFloor | null; actions: RoomActions }) {
+  const all = floors.flatMap((f) => f.rooms)
+  const totals = reportedTotals(all)
+  const area = all.reduce((total, r) => total + (r.area ?? 0), 0)
+  const shown = (floor ? [floor] : floors).flatMap((f) => f.rooms.map((room) => ({ room, floorName: f.name })))
+
+  return (
+    <>
+      <div className="panel-intro">
+        <h2>This home</h2>
+        <p className="muted">
+          {all.length} {all.length === 1 ? 'room' : 'rooms'} · {squareMetres(area)}
+          {totals.withFigures > 0 && ` · ${formatHeatLoss(totals.heatLossW)} reported heat loss`}
+        </p>
+        {totals.withFigures > 0 && totals.withFigures < totals.heated && (
+          <p className="small muted">
+            {totals.withFigures} of {totals.heated} heated rooms have a heat loss figure; the total is for those rooms only.
+          </p>
+        )}
+      </div>
+
+      <section className="panel-rooms" aria-labelledby="rooms-title">
+        <h3 id="rooms-title">{floor ? `${floor.name} rooms` : 'All rooms'}</h3>
+        {shown.length ? (
+          <ul className="panel-room-list">
+            {shown.map(({ room: r, floorName }) => (
+              <li
+                key={r.id}
+                className={r.id === actions.hoveredId ? 'hovered' : ''}
+                onMouseEnter={() => actions.hover(r.id)}
+                onMouseLeave={() => actions.hover(null)}
+              >
+                <button className="panel-room" onClick={() => actions.select(r.id)}>
+                  <span className="panel-room-name">
+                    <span>{r.name}</span>
+                    {!floor && <span className="small muted">{floorName}</span>}
+                  </span>
+                  <span className="panel-room-status">
+                    <span className="muted small">
+                      {!r.heated ? 'Not heated' : r.heatLossW !== undefined ? formatHeatLoss(r.heatLossW) : r.area !== null ? squareMetres(r.area) : ''}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted small">No rooms on this floor.</p>
+        )}
+      </section>
+    </>
+  )
+}

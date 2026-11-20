@@ -203,6 +203,36 @@ public partial class SurveyStore
         }
     }
 
+    /// <summary>What sharing the home by link needs from its row, or null if there's no such survey.</summary>
+    public async Task<ShareState?> ShareStateAsync(string id, CancellationToken cancellationToken) =>
+        await GetAsync(id, [nameof(SurveyEntity.OwnerId), nameof(SurveyEntity.IsShared), nameof(SurveyEntity.Share)], cancellationToken) is { } survey
+            ? new ShareState(survey.OwnerId, survey.IsShared, survey.Share)
+            : null;
+
+    /// <summary>
+    /// The id of the survey's shared link (/h/{id}), made the first time it's asked for. Sharing again
+    /// keeps the same link, so links already handed out show the new snapshot.
+    /// </summary>
+    public async Task<string> ShareLinkIdAsync(string id, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var survey = await GetAsync(id, [nameof(SurveyEntity.ShareLinkId)], cancellationToken)
+                ?? throw new InvalidOperationException($"There's no survey {id}.");
+            if (survey.ShareLinkId is { Length: > 0 } existing) return existing;
+            var shareId = NewId();
+            try
+            {
+                // Only if no other share has made one since it was read.
+                await surveys.UpdateEntityAsync(new TableEntity(id, "") { [nameof(SurveyEntity.ShareLinkId)] = shareId }, survey.ETag, TableUpdateMode.Merge, cancellationToken);
+                return shareId;
+            }
+            catch (RequestFailedException e) when (e.Status == 412)
+            {
+            }
+        }
+    }
+
     /// <summary>The Clerk user id of whoever owns the survey, or null if nobody has saved it yet.</summary>
     public async Task<string?> OwnerOfAsync(string id, CancellationToken cancellationToken) =>
         (await GetAsync(id, [nameof(SurveyEntity.OwnerId)], cancellationToken))?.OwnerId;
@@ -340,7 +370,15 @@ public class SurveyEntity : ITableEntity
     public DateTimeOffset? TidiedAcceptedAt { get; set; }
     /// <summary>The <c>ScanTidier.Version</c> of the accepted tidy.</summary>
     public int? TidierVersion { get; set; }
+    /// <summary>The id of the home's shared link (/h/{id}; see <see cref="SharedHomeStore"/>), or
+    /// null until its owner first shares it by link.</summary>
+    public string? ShareLinkId { get; set; }
 }
+
+/// <param name="OwnerId">Who saved the survey first, or null.</param>
+/// <param name="IsShared">Whether its share details have been given.</param>
+/// <param name="Share">The share details (JSON), or null.</param>
+public record ShareState(string? OwnerId, bool IsShared, string? Share);
 
 /// <summary>One floor plan a survey can open with.</summary>
 /// <param name="Id">"original" or "tidied".</param>

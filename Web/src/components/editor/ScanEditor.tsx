@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { isHomeFabricSet, wallCavity } from '../../fabric/home'
+import { homeInsulation, isHomeFabricSet, wallCavity } from '../../fabric/home'
 import { effectiveRole, useFabric } from '../../fabric/store'
 import type { OutsideStretch, PlanWall } from '../../scan/plan'
 import { HomeFabricDialog } from '../fabric/HomeFabricDialog'
@@ -60,7 +60,11 @@ export function ScanEditor({
     },
     [elements, home, roomSettings],
   )
-  const shownCavities = new Set(floor ? floor.plan.walls.flatMap((w) => w.outside.map((s) => cavityOf(w, s))).filter(Boolean) : [])
+  // The side view shows the whole home's insulation, from Home fabric.
+  const insulation = homeInsulation(home)
+  const shownCavities = new Set(
+    floor ? floor.plan.walls.flatMap((w) => w.outside.map((s) => cavityOf(w, s))).filter(Boolean) : [insulation.walls].filter(Boolean),
+  )
 
   const actions: RoomActions = {
     hoveredId,
@@ -150,7 +154,7 @@ export function ScanEditor({
           ) : floor ? (
             <p className="muted canvas-empty">The scan has no floor outline for this storey.</p>
           ) : (
-            <OverviewCanvas floors={floors} actions={actions} />
+            <OverviewCanvas floors={floors} actions={actions} insulation={insulation} />
           )}
 
           <p className="canvas-hint">
@@ -181,6 +185,18 @@ export function ScanEditor({
               <span>
                 <span className="legend-cavity empty" />
                 Empty cavity
+              </span>
+            )}
+            {!floor && insulation.loft && (
+              <span>
+                <span className="legend-insulation" />
+                Loft insulation
+              </span>
+            )}
+            {!floor && insulation.floor && (
+              <span>
+                <span className="legend-insulation" />
+                Floor insulation
               </span>
             )}
           </div>

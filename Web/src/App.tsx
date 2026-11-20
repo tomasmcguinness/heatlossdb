@@ -4,8 +4,10 @@ import { DropZone } from './components/DropZone'
 import { ExplorePage } from './components/ExplorePage'
 import { MatchesPage } from './components/MatchesPage'
 import { MyHomesPage } from './components/MyHomesPage'
+import { SharedHomePage } from './components/SharedHomePage'
 import { useAccount } from './components/useAccount'
 import { loadSavedEdits } from './share/homes'
+import { shareIdFromPath } from './share/sharedHome'
 import { WhatNext, type Choice } from './components/WhatNext'
 import { ScanEditor } from './components/editor/ScanEditor'
 import { HomeFabricDialog } from './components/fabric/HomeFabricDialog'
@@ -43,7 +45,13 @@ function useSavedEdits(surveyId: string | null, ready: boolean) {
   }, [surveyId, ready, isSignedIn, homeKey])
 }
 
+/** A shared home's link (/h/<id>) opens it to look at; every other page is the app itself. */
 export default function App() {
+  const [shareId] = useState(() => shareIdFromPath(location.pathname))
+  return shareId ? <SharedHomePage shareId={shareId} /> : <ScanApp />
+}
+
+function ScanApp() {
   const scan = useFabric((s) => s.scan)
   const [error, setError] = useState<string | null>(null)
   const [onHomes] = useState(() => /^\/scans\/?$/.test(location.pathname))

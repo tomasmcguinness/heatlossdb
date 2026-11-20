@@ -3,7 +3,7 @@ import { useFabric, type EditedRoom } from '../../fabric/store'
 import { answeredCount, isHomeFabricSet, QUESTION_COUNT } from '../../fabric/home'
 import { listingName } from '../../share/listing'
 import { outwardCode } from '../../share/postcode'
-import { saveShare, submitShare, useShare } from '../../share/share'
+import { saveShare, submitShare, updateShareLink, useShare, type SharedHome } from '../../share/share'
 import { EMPTY_HEAT_PUMP_FORM, heatPumpRecord, isHeatPumpFormEmpty, type HeatPumpForm } from '../../share/heatPumpForm'
 import type { HeatPumpData } from '../../match/heatPump'
 import { CheckIcon } from '../editor/icons'
@@ -67,8 +67,8 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
     setError(null)
     setBusy(true)
     try {
-      await submitShare(name, { postcodeDistrict: postcodeDistrict!, shareRoomNames: SHARE_ROOM_NAMES, home }, heatPump)
-      if (homeKey) saveShare(homeKey, { name, sharedAt: new Date().toISOString() })
+      const link = await submitShare(name, { postcodeDistrict: postcodeDistrict!, shareRoomNames: SHARE_ROOM_NAMES, home }, heatPump)
+      if (homeKey) saveShare(homeKey, { name, sharedAt: new Date().toISOString(), url: link.url })
       setStep('done')
     } catch {
       setError('Couldn’t share your home. Check your connection and try again.')
@@ -261,6 +261,7 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
           <p>
             It appears in search as <strong>{shared.name}</strong>, so others with similar homes can learn from it.
           </p>
+          <ShareLinkField share={shared} />
           <div className="share-actions">
             <button className="button" onClick={close}>
               Close
@@ -269,5 +270,75 @@ export function ShareDialog({ rooms, onClose, onFabric, onCheckRooms }: ShareDia
         </div>
       )}
     </dialog>
+  )
+}
+
+/**
+ * The home's own link, to send to anyone: it opens the home to look at, with room names hidden, as
+ * it was when shared. Update link shares the home as it is now under the same link. A home shared
+ * before links existed gets one here.
+ */
+function ShareLinkField({ share }: { share: SharedHome }) {
+  const homeKey = useFabric((s) => s.homeKey)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const update = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const link = await updateShareLink()
+      if (homeKey) saveShare(homeKey, { ...share, sharedAt: new Date().toISOString(), url: link.url })
+    } catch {
+      setError('Couldn’t update the link. Check your connection and try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const copy = async () => {
+    if (!share.url) return
+    try {
+      await navigator.clipboard.writeText(share.url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('Couldn’t copy the link. Select it and copy it instead.')
+    }
+  }
+
+  return (
+    <div className="share-link">
+      {share.url ? (
+        <>
+          <label className="field">
+            <span className="field-label">Link to your home</span>
+            <span className="share-link-row">
+              <input readOnly value={share.url} onFocus={(e) => e.currentTarget.select()} />
+              <button type="button" className="button" onClick={() => void copy()}>
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </span>
+          </label>
+          <p className="small muted">
+            Anyone with the link can see your floor plan and each room’s details, but not your room names, postcode or email. It
+            shows your home as it was when you shared it.
+          </p>
+          <button type="button" className="button subtle" disabled={busy} onClick={() => void update()}>
+            {busy ? 'Updating…' : 'Update link with my latest changes'}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="button" disabled={busy} onClick={() => void update()}>
+          {busy ? 'Making link…' : 'Get a link to your home'}
+        </button>
+      )}
+      {error && (
+        <p className="share-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }

@@ -35,6 +35,7 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
             builder.UseSetting("HeatLossDB:PublicWebBaseUrl", "http://web.test/");
             builder.UseSetting("HeatLossDB:HomesTable", name + "homes");
             builder.UseSetting("HeatLossDB:EditsContainer", name + "edits");
+            builder.UseSetting("HeatLossDB:SharesContainer", name + "shares");
             // Instead of Clerk's tokens, the signed-in user is whoever X-Test-User names.
             builder.ConfigureTestServices(services => services
                 .AddAuthentication(TestUser.Scheme)
@@ -47,6 +48,7 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
             var account = new StorageAccount(Storage);
             account.Blobs.GetBlobContainerClient(name).DeleteIfExists();
             account.Blobs.GetBlobContainerClient(name + "edits").DeleteIfExists();
+            account.Blobs.GetBlobContainerClient(name + "shares").DeleteIfExists();
             account.Tables.DeleteTable(name + "surveys");
             account.Tables.DeleteTable(name + "codes");
             account.Tables.DeleteTable(name + "homes");

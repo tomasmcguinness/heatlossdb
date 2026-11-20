@@ -71,6 +71,7 @@ export function FloorCanvas({
   actions,
   isExternal,
   cavityOf,
+  readOnly = false,
 }: {
   floor: EditorFloor
   bounds: Bounds
@@ -79,6 +80,8 @@ export function FloorCanvas({
   /** Whether a stretch of outside wall is a cavity wall, filled or empty, to draw it as one.
    *  Without it, every wall is drawn plain. */
   cavityOf?: CavityOf
+  /** For a shared home: rooms can be picked but not renamed, and the owner's checks aren't shown. */
+  readOnly?: boolean
 }) {
   const { viewport, size, view, setView, pointerHandlers, unlessDragged } = usePanZoom()
   const { zoom } = view
@@ -131,7 +134,7 @@ export function FloorCanvas({
                   onMouseEnter={() => actions.hover(room.id)}
                   onMouseLeave={() => actions.hover(null)}
                   onClick={unlessDragged(() => actions.select(room.id))}
-                  onDoubleClick={() => actions.rename(room.id)}
+                  onDoubleClick={readOnly ? undefined : () => actions.rename(room.id)}
                 />
               ))}
               {/* Each wall runs along its own X axis from -width/2 to +width/2, placed by its transform
@@ -195,15 +198,15 @@ export function FloorCanvas({
                 >
                   <button
                     className="floor-label-main"
-                    aria-label={room.name + (figures ? `, ${figures}` : '') + (room.checked ? ', checked' : '')}
+                    aria-label={room.name + (figures ? `, ${figures}` : '') + (room.checked && !readOnly ? ', checked' : '')}
                     aria-pressed={room.id === actions.selectedId}
                     onClick={unlessDragged(() => actions.select(room.id))}
-                    onDoubleClick={() => actions.rename(room.id)}
+                    onDoubleClick={readOnly ? undefined : () => actions.rename(room.id)}
                   >
                     <span className="room-name">{room.name}</span>
                     {figures && <span className="room-figures">{figures}</span>}
                     <ItemIcons kinds={kindsOf(room)} />
-                    {room.checked && (
+                    {room.checked && !readOnly && (
                       <span className="room-checked">
                         <CheckIcon />
                         Checked

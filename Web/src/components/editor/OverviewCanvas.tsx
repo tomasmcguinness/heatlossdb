@@ -1,3 +1,4 @@
+import type { HomeInsulation } from '../../fabric/home'
 import { roomFigures } from '../../fabric/heatLoss'
 import { CheckIcon, ItemIcons, PencilIcon } from './icons'
 import { kindsOf, totalsOf, type EditorFloor, type RoomActions } from './model'
@@ -7,8 +8,22 @@ import { ZoomControls } from './ZoomControls'
 /**
  * A side view of the home: the roof, then each floor (top first) with its rooms side by side.
  * It starts fitted to the canvas (never larger than its natural size) and zooms like the plans.
+ * With `insulation`, it shows the loft insulation under the roof, the outside walls' cavity
+ * (insulated or empty) and the ground floor's insulation.
  */
-export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; actions: RoomActions }) {
+export function OverviewCanvas({
+  floors,
+  actions,
+  insulation,
+  readOnly = false,
+}: {
+  floors: EditorFloor[]
+  actions: RoomActions
+  insulation?: HomeInsulation
+  /** For a shared home: rooms can be picked but not renamed, and the owner's checks aren't shown. */
+  readOnly?: boolean
+}) {
+  const walls = insulation?.walls ? ` cavity-${insulation.walls}` : ''
   const { viewport, size, view, setView, pointerHandlers, unlessDragged } = usePanZoom()
   const [content, natural] = useSize<HTMLDivElement>()
   const fit = natural.width
@@ -27,10 +42,11 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
             <div className="overview-roof" aria-hidden="true">
               <span>Roof</span>
             </div>
+            {insulation?.loft && <div className={`overview-insulation loft ${insulation.loft}`} title="Loft insulation" aria-hidden="true" />}
             {[...floors].reverse().map((floor) => {
               const rooms = floor.rooms
               return (
-                <div key={floor.plan.story} className="overview-floor">
+                <div key={floor.plan.story} className={`overview-floor${walls}`}>
                   <div className="overview-floor-head">
                     <span className="overview-floor-name">{floor.name}</span>
                     <span className="muted small">{totalsOf(rooms)}</span>
@@ -49,24 +65,26 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
                           >
                             <button
                               className="overview-room-main"
-                              aria-label={room.name + (figures ? `, ${figures}` : '') + (room.checked ? ', checked' : '')}
+                              aria-label={room.name + (figures ? `, ${figures}` : '') + (room.checked && !readOnly ? ', checked' : '')}
                               aria-pressed={room.id === actions.selectedId}
                               onClick={unlessDragged(() => actions.select(room.id))}
-                              onDoubleClick={() => actions.rename(room.id)}
+                              onDoubleClick={readOnly ? undefined : () => actions.rename(room.id)}
                             >
                               <span className="room-name">{room.name}</span>
                               {figures && <span className="room-figures">{figures}</span>}
                               <ItemIcons kinds={kindsOf(room)} />
-                              {room.checked && (
+                              {room.checked && !readOnly && (
                                 <span className="room-checked">
                                   <CheckIcon />
                                   Checked
                                 </span>
                               )}
                             </button>
-                            <button className="room-pencil" aria-label={`Rename ${room.name}`} onClick={unlessDragged(() => actions.rename(room.id))}>
-                              <PencilIcon />
-                            </button>
+                            {!readOnly && (
+                              <button className="room-pencil" aria-label={`Rename ${room.name}`} onClick={unlessDragged(() => actions.rename(room.id))}>
+                                <PencilIcon />
+                              </button>
+                            )}
                           </div>
                         )
                       })
@@ -77,6 +95,7 @@ export function OverviewCanvas({ floors, actions }: { floors: EditorFloor[]; act
                 </div>
               )
             })}
+            {insulation?.floor && <div className="overview-insulation floor" title="Floor insulation" aria-hidden="true" />}
             <div className="overview-ground" aria-hidden="true" />
           </div>
         </div>

@@ -5,6 +5,7 @@ import {
   formatAirChanges,
   hasCustomFabric,
   hasRoomFabric,
+  homeInsulation,
   isHomeFabricSet,
   itemFabricValue,
   MAX_AIR_CHANGES,
@@ -91,6 +92,27 @@ describe('Cavity walls', () => {
 
   it('aren’t drawn for any other answer', () => {
     for (const walls of ['solid', 'timber-frame', 'not-sure', undefined]) expect(wallCavity({ walls, applied: true }, undefined)).toBeNull()
+  })
+})
+
+describe('The home’s insulation in the side view', () => {
+  it('shows nothing until Home fabric is applied', () => {
+    expect(homeInsulation({ loft: 'yes', walls: 'cavity-filled', floorInsulation: 'yes' })).toEqual({ loft: null, walls: null, floor: false })
+  })
+
+  it('shows the loft, walls and floor insulation it says is there', () => {
+    expect(homeInsulation({ applied: true, loft: 'yes', loftDepth: 'above', walls: 'cavity-filled', floorInsulation: 'yes' })).toEqual({
+      loft: 'deep',
+      walls: 'filled',
+      floor: true,
+    })
+    expect(homeInsulation({ applied: true, loft: 'yes', walls: 'cavity-unfilled' })).toEqual({ loft: 'shallow', walls: 'empty', floor: false })
+    expect(homeInsulation({ applied: true, loft: 'yes', loftDepth: 'below' }).loft).toBe('shallow')
+  })
+
+  it('shows nothing for no, none or not sure', () => {
+    for (const loft of ['no', 'none', 'not-sure']) expect(homeInsulation({ applied: true, loft }).loft).toBeNull()
+    expect(homeInsulation({ applied: true, floorInsulation: 'not-sure' }).floor).toBe(false)
   })
 })
 

@@ -2,12 +2,16 @@ import { create } from 'zustand'
 import { surveyIdFromPath } from '../components/files'
 import { useFabric, type HomeFabric } from '../fabric/store'
 import type { HeatPumpData } from '../match/heatPump'
+import { saveToAccount } from './homes'
+import { createShareLink, type ShareLink } from './sharedHome'
 
 /** A home the user has shared from this browser. Only signed-in users can share. */
 export interface SharedHome {
   /** What the home is listed under, such as "Detached, 1945–64, insulated home". */
   name: string
   sharedAt: string
+  /** The home's own link (/h/<id>) for others to open it, once it has one. */
+  url?: string
 }
 
 // Kept apart from the scan's edits, so a saved file doesn't say it was shared. Session storage, not
@@ -18,7 +22,8 @@ export function readShare(hash: string): SharedHome | null {
   try {
     const value = sessionStorage.getItem(shareKey(hash))
     const share = value ? (JSON.parse(value) as Partial<SharedHome>) : null
-    return typeof share?.name === 'string' && typeof share.sharedAt === 'string' ? { name: share.name, sharedAt: share.sharedAt } : null
+    if (typeof share?.name !== 'string' || typeof share.sharedAt !== 'string') return null
+    return { name: share.name, sharedAt: share.sharedAt, ...(typeof share.url === 'string' ? { url: share.url } : {}) }
   } catch {
     return null
   }
@@ -57,15 +62,26 @@ export interface ShareDetails {
   home: HomeFabric
 }
 
-/** Sends the listing name, the share details and any heat pump figures to HeatLossDB, which
- *  lists the home in search straight away. */
-export async function submitShare(name: string, details: ShareDetails, heatPump: HeatPumpData | null): Promise<void> {
-  // TODO: API. Upload the scan with its edits (as Save writes them) if it isn't uploaded yet.
-  // Scans opened from the app's link are uploaded already, so their details can be saved now.
+/**
+ * Shares the home: saves it to the user's account (uploading the scan first if it was opened from a
+ * file), sends the listing name, the share details and any heat pump figures to HeatLossDB, which
+ * lists the home in search straight away, and makes the home's own link.
+ */
+export async function submitShare(name: string, details: ShareDetails, heatPump: HeatPumpData | null): Promise<ShareLink> {
+  await saveToAccount()
   const surveyId = surveyIdFromPath(location.pathname)
-  if (!surveyId) return
+  if (!surveyId) throw new Error('The home has no survey to share.')
   await saveShareDetails(surveyId, name, details)
   if (heatPump) await saveHeatPump(surveyId, heatPump)
+  return createShareLink(surveyId)
+}
+
+/** Updates what the home's link shows to the home as it is now: saves it, then shares the link again. */
+export async function updateShareLink(): Promise<ShareLink> {
+  await saveToAccount()
+  const surveyId = surveyIdFromPath(location.pathname)
+  if (!surveyId) throw new Error('The home has no survey to share.')
+  return createShareLink(surveyId)
 }
 
 async function saveShareDetails(surveyId: string, name: string, details: ShareDetails): Promise<void> {
