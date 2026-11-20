@@ -116,6 +116,9 @@ interface FabricState {
    *  of its floor plan. For what belongs to the home rather than to one plan (the page shown,
    *  whether it's shared, which saved edits have been brought back). */
   homeKey: string | null
+  /** Saved to the user's account: its edits are kept there (saved as they're made, see
+   *  share/homes) and nothing about it is kept in this tab's storage. */
+  inAccount: boolean
   byId: Map<string, ScanElement>
   childrenOf: Map<string, ScanElement[]>
   autoRoles: Record<string, Role>
@@ -137,6 +140,8 @@ interface FabricState {
    *  its versions share it; otherwise it's the scan's hash. */
   loadScan: (scan: Scan, name?: string, homeKey?: string) => void
   closeScan: () => void
+  /** Marks the open scan as saved to the user's account, dropping this tab's copy of it. */
+  setInAccount: (inAccount: boolean) => void
   select: (id: string | null) => void
   hover: (id: string | null) => void
   setTab: (tab: SidebarTab) => void
@@ -253,6 +258,7 @@ export const useFabric = create<FabricState>()((set, get) => ({
   scan: null,
   scanName: null,
   homeKey: null,
+  inAccount: false,
   byId: new Map(),
   childrenOf: new Map(),
   autoRoles: {},
@@ -269,14 +275,17 @@ export const useFabric = create<FabricState>()((set, get) => ({
   viewResetToken: 0,
 
   loadScan: (scan, name, homeKey) => {
-    const saved = readStorage<FabricDocument>(fabricKey(scan.hash))
+    // Another version of a home in the account stays in the account, and out of this tab's storage.
+    const inAccount = get().inAccount && homeKey !== undefined && homeKey === get().homeKey
+    const saved = inAccount ? null : readStorage<FabricDocument>(fabricKey(scan.hash))
     const valid = saved && isFabricDocument(saved) ? saved : null
-    writeStorage(SCAN_KEY, scan)
+    if (!inAccount) writeStorage(SCAN_KEY, scan)
     const automatic = autoAlign(scan)
     set({
       scan,
       scanName: name ?? null,
       homeKey: homeKey ?? scan.hash,
+      inAccount,
       ...indexScan(scan),
       autoRoles: classify(scan),
       defaults: { ...emptyDefaults(), ...valid?.defaults },
@@ -298,7 +307,16 @@ export const useFabric = create<FabricState>()((set, get) => ({
     writeStorage(SCAN_KEY, null)
     // Its edits too, so opening it again starts afresh.
     if (scan) writeStorage(fabricKey(scan.hash), null)
-    set({ scan: null, scanName: null, homeKey: null, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
+    set({ scan: null, scanName: null, homeKey: null, inAccount: false, byId: new Map(), childrenOf: new Map(), autoRoles: {}, selectedId: null, hoveredId: null })
+  },
+
+  setInAccount: (inAccount) => {
+    const { scan } = get()
+    if (inAccount && scan) {
+      writeStorage(SCAN_KEY, null)
+      writeStorage(fabricKey(scan.hash), null)
+    }
+    set({ inAccount })
   },
 
   select: (id) => set(id ? { selectedId: id, tab: 'element' } : { selectedId: null }),
@@ -368,18 +386,19 @@ export const useFabric = create<FabricState>()((set, get) => ({
   },
 }))
 
-// Save fabric settings whenever they change.
+type Edits = Pick<FabricState, 'defaults' | 'elements' | 'alignment' | 'rooms' | 'home'>
+
+/** Whether the user's edits changed between two states of the store. */
+export const editsChanged = (state: Edits, previous: Edits): boolean =>
+  state.defaults !== previous.defaults ||
+  state.elements !== previous.elements ||
+  state.alignment !== previous.alignment ||
+  state.rooms !== previous.rooms ||
+  state.home !== previous.home
+
+// Keep fabric settings in this tab whenever they change, unless the account keeps them.
 useFabric.subscribe((state, previous) => {
-  if (!state.scan) return
-  if (
-    state.defaults === previous.defaults &&
-    state.elements === previous.elements &&
-    state.alignment === previous.alignment &&
-    state.rooms === previous.rooms &&
-    state.home === previous.home
-  ) {
-    return
-  }
+  if (!state.scan || state.inAccount || !editsChanged(state, previous)) return
   writeStorage(fabricKey(state.scan.hash), state.exportFabric())
 })
 

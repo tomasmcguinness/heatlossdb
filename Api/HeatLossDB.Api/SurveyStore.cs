@@ -280,6 +280,10 @@ public partial class SurveyStore
 
     /// <summary>Where the survey's saved figures came from ("sample", "heatpumpmonitor"…), or
     /// null if it has none.</summary>
+    /// <summary>The survey's heat loss and heat pump record (JSON), or null if it has none.</summary>
+    public async Task<string?> HeatPumpAsync(string id, CancellationToken cancellationToken) =>
+        (await GetAsync(id, [nameof(SurveyEntity.HeatPump)], cancellationToken))?.HeatPump;
+
     public async Task<string?> HeatPumpSourceAsync(string id, CancellationToken cancellationToken)
     {
         if ((await GetAsync(id, [nameof(SurveyEntity.HeatPump)], cancellationToken))?.HeatPump is not { } json) return null;

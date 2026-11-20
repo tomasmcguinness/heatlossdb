@@ -88,10 +88,26 @@ public class SharedHomeTests : IClassFixture<SurveyUploadTests.Api>
         var room = home.GetProperty("edits").GetProperty("rooms").GetProperty("scanroom-0");
         Assert.Equal(1250, room.GetProperty("heatLossW").GetInt32());
         Assert.Equal(21, room.GetProperty("targetTemperature").GetInt32());
+        Assert.Equal("SW1A", home.GetProperty("postcodeDistrict").GetString());
+        Assert.False(home.TryGetProperty("heatPump", out _));
 
         var scan = await As(null).GetAsync($"/api/shared/{link.Id}/scan");
         Assert.Equal(HttpStatusCode.OK, scan.StatusCode);
         Assert.True((await scan.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("walls", out _));
+    }
+
+    [Fact]
+    public async Task TheHeatPumpFiguresAreShared()
+    {
+        var user = NewUser();
+        var id = await SavedAndSharedAsync(user);
+        const string figures = """{"source":"owner","designHeatLossW":6200,"heatPump":{"make":"Vaillant","model":"aroTHERM plus","capacityKw":7}}""";
+        Assert.Equal(HttpStatusCode.NoContent, (await As(null).PutAsync($"/api/surveys/{id}/heat-pump", Json(figures))).StatusCode);
+
+        var heatPump = (await SharedAsync((await ShareLinkAsync(user, id)).Id)).GetProperty("heatPump");
+
+        Assert.Equal(6200, heatPump.GetProperty("designHeatLossW").GetInt32());
+        Assert.Equal(7, heatPump.GetProperty("heatPump").GetProperty("capacityKw").GetInt32());
     }
 
     [Fact]

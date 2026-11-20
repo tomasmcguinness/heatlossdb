@@ -30,4 +30,9 @@ public class HeatLossDbOptions
 
     /// <summary>The website addresses Clerk tokens may come from (their "azp"). Empty allows any.</summary>
     public string[] ClerkAuthorizedParties { get; set; } = [];
+
+    /// <summary>Features held back as "coming soon", comma-separated: search, share, explore. Only
+    /// accounts let in through their Clerk metadata can use them (see <see cref="Features"/>).
+    /// Keep it the same as the website's VITE_COMING_SOON.</summary>
+    public string ComingSoon { get; set; } = "";
 }

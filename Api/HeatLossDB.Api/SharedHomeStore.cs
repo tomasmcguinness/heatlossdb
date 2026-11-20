@@ -63,12 +63,14 @@ public partial class SharedHomeStore
 public static class SharedHomes
 {
     /// <summary>
-    /// The shared home's home.json: its listing name, when it was shared, and the owner's edits.
+    /// The shared home's home.json: its listing name, when it was shared, its postcode district, the
+    /// owner's edits and its heat loss and heat pump figures, if it has any.
     /// Unless the owner allowed room names, the names they gave rooms are removed, so the rooms show
     /// as the scan numbered them (Room 1, Room 2…). Room names can say who lives there.
     /// </summary>
-    public static byte[] Snapshot(string name, DateTimeOffset sharedAt, JsonElement edits, bool shareRoomNames)
+    public static byte[] Snapshot(ShareDetails details, DateTimeOffset sharedAt, JsonElement edits, string? heatPump)
     {
+        var (name, shareRoomNames, postcodeDistrict) = details;
         var shared = JsonNode.Parse(edits.GetRawText())!.AsObject();
         if (!shareRoomNames && shared["rooms"] is JsonObject rooms)
         {
@@ -81,6 +83,8 @@ public static class SharedHomes
             ["sharedAt"] = sharedAt,
             ["edits"] = shared,
         };
+        if (postcodeDistrict is { Length: > 0 }) home["postcodeDistrict"] = postcodeDistrict;
+        if (heatPump is not null && JsonNode.Parse(heatPump) is JsonObject figures) home["heatPump"] = figures;
         return JsonSerializer.SerializeToUtf8Bytes(home);
     }
 
@@ -94,16 +98,20 @@ public static class SharedHomes
     }
 
     /// <summary>Reads what the owner said when sharing (see <see cref="ScanValidator.ValidateShare"/>):
-    /// the listing name and whether room names may be shown.</summary>
-    public static (string Name, bool ShareRoomNames) Details(string share)
+    /// the listing name, whether room names may be shown, and the postcode district.</summary>
+    public static ShareDetails Details(string share)
     {
         using var document = JsonDocument.Parse(share);
         var root = document.RootElement;
         var name = root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : "";
         var roomNames = root.TryGetProperty("shareRoomNames", out var r) && r.ValueKind == JsonValueKind.True;
-        return (name, roomNames);
+        var district = root.TryGetProperty("postcodeDistrict", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null;
+        return new ShareDetails(name, roomNames, district);
     }
 }
+
+/// <summary>What the owner said when sharing that the shared link uses.</summary>
+public record ShareDetails(string Name, bool ShareRoomNames, string? PostcodeDistrict);
 
 /// <param name="Id">The share's id, as in /h/{id}.</param>
 /// <param name="Url">The link to hand out.</param>

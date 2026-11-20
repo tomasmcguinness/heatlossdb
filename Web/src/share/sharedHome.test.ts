@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { EditedRoom, HomeFabric } from '../fabric/store'
-import { heatLossPerSquareMetre, reportedTotals, roomFacts, shareIdFromPath } from './sharedHome'
+import type { HeatPumpData } from '../match/heatPump'
+import { heatLossFacts, heatLossPerSquareMetre, heatPumpFacts, kilowatts, reportedTotals, roomFacts, shareIdFromPath } from './sharedHome'
 
 const room = (patch: Partial<EditedRoom> = {}): EditedRoom => ({
   id: 'scanroom-0',
@@ -89,5 +90,53 @@ describe('reportedTotals', () => {
       room({ heated: false, heatLossW: 300 }),
     ])
     expect(totals).toEqual({ heatLossW: 1500, withFigures: 2, heated: 3 })
+  })
+})
+
+describe('the home’s heat loss and heat pump', () => {
+  const figures: HeatPumpData = {
+    source: 'owner',
+    designHeatLossW: 6240,
+    designOutdoorTemperature: -2,
+    designIndoorTemperature: 21,
+    heatLossBasis: 'survey',
+    heatPump: { make: 'Vaillant', model: 'aroTHERM plus', capacityKw: 7 },
+    designFlowTemperature: 45,
+    emitters: 'radiators',
+    annual: { heatDeliveredKwh: 9800, electricityKwh: 2800, scop: 3.5 },
+  }
+  const asObject = (facts: { label: string; value: string }[]) => Object.fromEntries(facts.map((f) => [f.label, f.value]))
+
+  it('shows kilowatts to one place', () => {
+    expect(kilowatts(6240)).toBe('6.2 kW')
+  })
+
+  it('gives the design heat loss, per m², what it was worked out for, and the rooms’ total', () => {
+    const rooms = [room({ heatLossW: 1000 }), room({ heatLossW: 1500 }), room({ heated: false })]
+    expect(asObject(heatLossFacts(figures, rooms, 104))).toEqual({
+      'Design heat loss': '6.2 kW',
+      'Per m² of floor': '60 W/m²',
+      'Designed for': '-2 °C outside, 21 °C inside',
+      'Worked out': 'From a heat loss survey',
+      'Rooms added up': '2.5 kW',
+    })
+  })
+
+  it('falls back to the rooms’ total without a design figure', () => {
+    expect(asObject(heatLossFacts(null, [room({ heatLossW: 2500 })], 50))).toEqual({ 'Rooms added up': '2.5 kW', 'Per m² of floor': '50 W/m²' })
+    expect(heatLossFacts(null, [room()], 50)).toEqual([])
+  })
+
+  it('describes the heat pump and how it runs', () => {
+    expect(asObject(heatPumpFacts(figures))).toEqual({
+      'Make and model': 'Vaillant aroTHERM plus',
+      Output: '7 kW',
+      'Flow temperature': '45 °C',
+      'Heats with': 'Radiators',
+      'Measured SCOP': '3.5',
+      'Heat a year': '9,800 kWh',
+      'Electricity a year': '2,800 kWh',
+    })
+    expect(heatPumpFacts(null)).toEqual([])
   })
 })

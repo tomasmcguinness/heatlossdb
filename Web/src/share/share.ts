@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { fetchAsUser } from '../api'
 import { surveyIdFromPath } from '../components/files'
 import { useFabric, type HomeFabric } from '../fabric/store'
 import type { HeatPumpData } from '../match/heatPump'
@@ -87,7 +88,7 @@ export async function updateShareLink(): Promise<ShareLink> {
 async function saveShareDetails(surveyId: string, name: string, details: ShareDetails): Promise<void> {
   // "applied" is the editor's own bookkeeping, not part of how the home is built.
   const { applied: _applied, ...home } = details.home
-  const response = await fetch(`/api/surveys/${surveyId}/share`, {
+  const response = await fetchAsUser(`/api/surveys/${surveyId}/share`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, ...details, home }),
@@ -96,7 +97,7 @@ async function saveShareDetails(surveyId: string, name: string, details: ShareDe
 }
 
 export async function saveHeatPump(surveyId: string, heatPump: HeatPumpData): Promise<void> {
-  const response = await fetch(`/api/surveys/${surveyId}/heat-pump`, {
+  const response = await fetchAsUser(`/api/surveys/${surveyId}/heat-pump`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(heatPump),

@@ -20,7 +20,8 @@ import { useProfile } from './match/useProfile'
 type Page = 'hub' | 'matches' | 'explore'
 
 /** Once a survey is open and the user is signed in, brings back the edits they saved to their
- *  account for it. Those replace this tab's, as opening a downloaded file's do. */
+ *  account for it. Those replace this tab's, as opening a downloaded file's do, and from then on
+ *  the account keeps them (see share/homes). */
 function useSavedEdits(surveyId: string | null, ready: boolean) {
   const { isSignedIn } = useAccount()
   // Once per home: switching to another version of its floor plan carries this tab's edits across,
@@ -35,8 +36,10 @@ function useSavedEdits(surveyId: string | null, ready: boolean) {
     loaded.current = key
     const hash = useFabric.getState().scan?.hash
     loadSavedEdits(surveyId)
-      .then((edits) => {
-        if (edits && useFabric.getState().scan?.hash === hash) useFabric.getState().importFabric(edits)
+      .then((saved) => {
+        if (!saved || useFabric.getState().scan?.hash !== hash) return
+        if (saved.edits) useFabric.getState().importFabric(saved.edits)
+        useFabric.getState().setInAccount(true)
       })
       // Without them the survey still opens, with this tab's edits.
       .catch(() => {})

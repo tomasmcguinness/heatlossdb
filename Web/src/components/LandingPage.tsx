@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { isAuthConfigured } from '../auth'
-import { isComingSoon } from '../features'
 import { errorMessage, isValidCode, normaliseCode, openFile, surveyIdForCode, surveyIdFromPath } from './files'
-import { useAccount } from './useAccount'
+import { useAccount, useComingSoon } from './useAccount'
 
 /** A pasted survey link (…/s/<id>) opens that survey; anything else is read as a code. */
 function surveyLinkIn(text: string): string | null {
@@ -22,7 +21,7 @@ export function LandingPage({ error, onError }: { error: string | null; onError:
   const { isSignedIn, openSignIn } = useAccount()
   const [signingIn, setSigningIn] = useState(false)
   const typed = normaliseCode(code)
-  const exploreSoon = isComingSoon('explore')
+  const exploreSoon = useComingSoon()('explore')
 
   useEffect(() => {
     if (signingIn && isSignedIn) location.assign('/scans')

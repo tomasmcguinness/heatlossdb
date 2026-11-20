@@ -247,14 +247,19 @@ app.MapPut("/api/surveys/{id}/profile", async (
     return Results.NoContent();
 });
 
+// Held-back features (HeatLossDbOptions.ComingSoon) are refused with a 403, except for accounts
+// let in through their Clerk metadata (see Features). Shared links (/api/shared) stay open to anyone.
+
 // Other homes to match against: every shared home (IsShared, set by sharing it) with a profile.
 // Matching itself runs in the browser.
 app.MapGet("/api/surveys/{id}/candidates", async (string id, SurveyStore store, CancellationToken cancellationToken) =>
-    await store.ExistsAsync(id, cancellationToken) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound());
+    await store.ExistsAsync(id, cancellationToken) ? Results.Ok(await store.CandidatesForAsync(id, cancellationToken)) : Results.NotFound())
+    .RequireFeature(Features.Search);
 
 // The same, for a scan opened from a file (which isn't on the server), and for browsing.
 app.MapGet("/api/candidates", async (SurveyStore store, CancellationToken cancellationToken) =>
-    Results.Ok(await store.CandidatesForAsync(null, cancellationToken)));
+    Results.Ok(await store.CandidatesForAsync(null, cancellationToken)))
+    .RequireFeature(Features.Search, Features.Explore);
 
 // What the owner said when sharing the home (see ScanValidator.ValidateShare).
 app.MapPut("/api/surveys/{id}/share", async (
@@ -271,7 +276,7 @@ app.MapPut("/api/surveys/{id}/share", async (
         return Results.BadRequest(new { error });
     await store.SaveShareAsync(id, body, cancellationToken);
     return Results.NoContent();
-});
+}).RequireFeature(Features.Share);
 
 // A survey's heat loss and heat pump figures. Real ones will come from HeatPumpMonitor or a
 // heat loss survey; until then, sample figures fill the gap (see below).
@@ -289,7 +294,7 @@ app.MapPut("/api/surveys/{id}/heat-pump", async (
         return Results.BadRequest(new { error });
     await store.SaveHeatPumpAsync(id, body, cancellationToken);
     return Results.NoContent();
-});
+}).RequireFeature(Features.Share);
 
 // Homes the signed-in user has saved: their edits to a survey, kept with their account.
 var me = app.MapGroup("/api/me").RequireAuthorization();
@@ -325,7 +330,7 @@ me.MapPut("/homes/{surveyId}", async (
 });
 
 // Shares the home by link: a snapshot of the owner's saved edits (room names removed unless they
-// allowed them) and the floor plan as it is now, at /h/{id}. Only the survey's owner can, once
+// allowed them), its postcode district and heat pump figures, and the floor plan as it is now, at /h/{id}. Only the survey's owner can, once
 // they've given the share details (PUT /api/surveys/{id}/share) and saved the home to their
 // account. Sharing again replaces the snapshot and keeps the link.
 me.MapPut("/homes/{surveyId}/share-link", async (
@@ -356,11 +361,12 @@ me.MapPut("/homes/{surveyId}/share-link", async (
         scan = buffer.ToArray();
     }
 
-    var (name, shareRoomNames) = SharedHomes.Details(state.Share);
+    var details = SharedHomes.Details(state.Share);
+    var heatPump = await surveys.HeatPumpAsync(surveyId, cancellationToken);
     var shareId = await surveys.ShareLinkIdAsync(surveyId, cancellationToken);
-    await shared.SaveAsync(shareId, SharedHomes.Snapshot(name, DateTimeOffset.UtcNow, saved.Edits, shareRoomNames), SharedHomes.Scan(scan), cancellationToken);
+    await shared.SaveAsync(shareId, SharedHomes.Snapshot(details, DateTimeOffset.UtcNow, saved.Edits, heatPump), SharedHomes.Scan(scan), cancellationToken);
     return Results.Ok(new ShareLinkResult(shareId, $"{WebBase(request, options.Value)}/h/{shareId}"));
-});
+}).RequireFeature(Features.Share);
 
 // A home shared by link, for anyone with the link: its name, when it was shared and the owner's
 // edits, then the floor plan as it was then. Read-only; nothing here leads back to the survey.

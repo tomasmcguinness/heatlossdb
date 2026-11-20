@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchAsUser } from '../api'
 import type { HomeFabric } from '../fabric/store'
 import { isHeatPumpData, type HeatPumpData } from './heatPump'
 import { isShapeProfile, type ShapeProfile } from './profile'
@@ -69,7 +70,8 @@ export function useCandidates(surveyId: string | null, reload = 0): CandidatesSt
 
   useEffect(() => {
     let cancelled = false
-    fetch(surveyId ? `/api/surveys/${surveyId}/candidates` : '/api/candidates')
+    // As the user, if signed in: their account may be let in to features still held back.
+    fetchAsUser(surveyId ? `/api/surveys/${surveyId}/candidates` : '/api/candidates')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((list: RawCandidate[]) => !cancelled && setFetched({ request, candidates: parseCandidates(list) }))
       .catch(() => !cancelled && setFetched({ request, candidates: null }))

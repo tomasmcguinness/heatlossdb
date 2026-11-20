@@ -5,11 +5,15 @@ import { effectiveRole } from '../fabric/store'
 import { classify } from '../scan/classify'
 import { indexScan } from '../scan/parse'
 import {
+  heatLossFacts,
+  heatPumpFacts,
+  homeFacts,
   loadSharedHome,
   placementOf,
   reportedTotals,
   roomFacts,
   sharedFloors,
+  type RoomFact,
   type SharedHome,
 } from '../share/sharedHome'
 import type { OutsideStretch, PlanWall } from '../scan/plan'
@@ -21,7 +25,8 @@ import { OverviewCanvas } from './editor/OverviewCanvas'
 
 type View = 'overview' | number
 
-/** A home someone has shared by link: its floor plan and every room's details, to look at only. */
+/** A home someone has shared by link, to look at only: its floor plan filling the screen, with the
+ *  home's details, heat loss and heat pump beside it, and each room's details when picked. */
 export function SharedHomePage({ shareId }: { shareId: string }) {
   const [home, setHome] = useState<SharedHome | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -114,6 +119,24 @@ function SharedHomeView({ home: shared }: { home: SharedHome }) {
       </header>
 
       <div className="editor-body">
+        <aside className="editor-panel" aria-label={room ? room.name : 'This home'}>
+          {room ? (
+            <>
+              <button className="link back-link" onClick={() => setSelectedId(null)}>
+                <BackIcon />
+                This home
+              </button>
+              <div className="panel-intro">
+                <h2>{room.name}</h2>
+                <p className="muted">{floors.find((f) => f.plan.story === room.story)?.name}</p>
+              </div>
+              <Facts facts={roomFacts(room, home, edits.rooms?.[room.id], placementOf(floors, room))} />
+            </>
+          ) : (
+            <HomeSummary shared={shared} floors={floors} floor={floor} actions={actions} />
+          )}
+        </aside>
+
         <section className="editor-canvas" aria-label={floor ? `${floor.name} plan` : 'Side view'}>
           {floor && Number.isFinite(bounds.width) ? (
             <FloorCanvas floor={floor} bounds={bounds} actions={actions} isExternal={isExternal} cavityOf={cavityOf} readOnly />
@@ -138,59 +161,69 @@ function SharedHomeView({ home: shared }: { home: SharedHome }) {
             </span>
           </div>
         </section>
-
-        <aside className="editor-panel" aria-label="Rooms">
-          {room ? (
-            <>
-              <button className="link back-link" onClick={() => setSelectedId(null)}>
-                <BackIcon />
-                All rooms
-              </button>
-              <div className="panel-intro">
-                <h2>{room.name}</h2>
-                <p className="muted">{floors.find((f) => f.plan.story === room.story)?.name}</p>
-              </div>
-              <dl className="fabric-facts">
-                {roomFacts(room, home, edits.rooms?.[room.id], placementOf(floors, room)).map((fact) => (
-                  <div key={fact.label}>
-                    <dt>{fact.label}</dt>
-                    <dd>
-                      {fact.value}
-                      {fact.own && <span className="tag tag-set">This room</span>}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </>
-          ) : (
-            <AllRooms floors={floors} floor={floor} actions={actions} />
-          )}
-        </aside>
       </div>
     </div>
   )
 }
 
-function AllRooms({ floors, floor, actions }: { floors: EditorFloor[]; floor: EditorFloor | null; actions: RoomActions }) {
+function Facts({ facts }: { facts: RoomFact[] }) {
+  return (
+    <dl className="fabric-facts">
+      {facts.map((fact) => (
+        <div key={fact.label}>
+          <dt>{fact.label}</dt>
+          <dd>
+            {fact.value}
+            {fact.own && <span className="tag tag-set">This room</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/** The home at a glance, its heat loss and heat pump, then its rooms. */
+function HomeSummary({
+  shared,
+  floors,
+  floor,
+  actions,
+}: {
+  shared: SharedHome
+  floors: EditorFloor[]
+  floor: EditorFloor | null
+  actions: RoomActions
+}) {
   const all = floors.flatMap((f) => f.rooms)
   const totals = reportedTotals(all)
   const area = all.reduce((total, r) => total + (r.area ?? 0), 0)
   const shown = (floor ? [floor] : floors).flatMap((f) => f.rooms.map((room) => ({ room, floorName: f.name })))
+  const heatLoss = heatLossFacts(shared.heatPump, all, area)
+  const heatPump = heatPumpFacts(shared.heatPump)
+  const sample = shared.heatPump?.source === 'sample'
 
   return (
     <>
-      <div className="panel-intro">
-        <h2>This home</h2>
-        <p className="muted">
-          {all.length} {all.length === 1 ? 'room' : 'rooms'} · {squareMetres(area)}
-          {totals.withFigures > 0 && ` · ${formatHeatLoss(totals.heatLossW)} reported heat loss`}
-        </p>
+      <section className="shared-section" aria-labelledby="home-title">
+        <h2 id="home-title">About this home</h2>
+        <Facts facts={homeFacts(shared.edits.home ?? {}, shared.postcodeDistrict, floors)} />
+      </section>
+
+      <section className="shared-section" aria-labelledby="heat-loss-title">
+        <h3 id="heat-loss-title">Heat loss</h3>
+        {heatLoss.length ? <Facts facts={heatLoss} /> : <p className="muted small">No heat loss figures were shared.</p>}
         {totals.withFigures > 0 && totals.withFigures < totals.heated && (
           <p className="small muted">
-            {totals.withFigures} of {totals.heated} heated rooms have a heat loss figure; the total is for those rooms only.
+            {totals.withFigures} of {totals.heated} heated rooms have a heat loss figure; the rooms’ total is for those only.
           </p>
         )}
-      </div>
+      </section>
+
+      <section className="shared-section" aria-labelledby="heat-pump-title">
+        <h3 id="heat-pump-title">Heat pump</h3>
+        {heatPump.length ? <Facts facts={heatPump} /> : <p className="muted small">No heat pump details were shared.</p>}
+        {sample && <p className="small muted">These are sample figures, made up for testing.</p>}
+      </section>
 
       <section className="panel-rooms" aria-labelledby="rooms-title">
         <h3 id="rooms-title">{floor ? `${floor.name} rooms` : 'All rooms'}</h3>

@@ -311,3 +311,36 @@ describe('another version of the floor plan', () => {
     expect(state().rooms.r).toEqual({ name: 'Office' })
   })
 })
+
+describe('a scan saved to the account', () => {
+  const items = new Map<string, string>()
+  beforeEach(() => {
+    items.clear()
+    globalThis.sessionStorage = {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      removeItem: (key: string) => void items.delete(key),
+    } as Storage
+    state().loadScan(scan, undefined, 'survey:abc')
+  })
+
+  it('is kept in the tab until it is in the account, then not at all', () => {
+    state().setRoom('r', (s) => ({ ...s, name: 'Study' }))
+    expect(items.size).toBe(2)
+
+    state().setInAccount(true)
+    expect(items.size).toBe(0)
+    state().setRoom('r', (s) => ({ ...s, name: 'Office' }))
+    expect(items.size).toBe(0)
+  })
+
+  it('stays in the account when switching floor plan versions, but not for another home', () => {
+    state().setInAccount(true)
+    state().switchScan(scan)
+    expect(state().inAccount).toBe(true)
+    expect(items.size).toBe(0)
+
+    state().loadScan(scan)
+    expect(state().inAccount).toBe(false)
+  })
+})

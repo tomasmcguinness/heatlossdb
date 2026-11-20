@@ -55,7 +55,8 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         }
     }
 
-    /// <summary>Signs the request in as the user named in X-Test-User, if there is one.</summary>
+    /// <summary>Signs the request in as the user named in X-Test-User, if there is one, with the Clerk
+    /// public metadata in X-Test-Metadata.</summary>
     public class TestUser(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
@@ -64,7 +65,10 @@ public class SurveyUploadTests : IClassFixture<SurveyUploadTests.Api>
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
             if (Request.Headers["X-Test-User"].FirstOrDefault() is not { Length: > 0 } user) return Task.FromResult(AuthenticateResult.NoResult());
-            var identity = new ClaimsIdentity([new Claim("sub", user)], Scheme, "sub", null);
+            Claim[] claims = Request.Headers["X-Test-Metadata"].FirstOrDefault() is { Length: > 0 } metadata
+                ? [new Claim("sub", user), new Claim(Features.MetadataClaim, metadata, "JSON")]
+                : [new Claim("sub", user)];
+            var identity = new ClaimsIdentity(claims, Scheme, "sub", null);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme)));
         }
     }

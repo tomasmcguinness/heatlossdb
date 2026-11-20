@@ -1260,6 +1260,23 @@ details summary {
   border-radius: 0 8px 8px 0;
 }
 
+/* Whether a scan in the account has saved its edits, beside the menu. */
+.autosave {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+
+/* The menu on its own, when there's nothing to save. */
+.split-toggle.alone {
+  padding: 8px 12px 8px 14px;
+  border-left-color: var(--accent);
+  border-radius: 8px;
+}
+
 .split-menu {
   position: absolute;
   z-index: 20;
@@ -3165,6 +3182,54 @@ a.brand {
 
 .shared-home .fabric-facts dd .tag {
   margin-left: 6px;
+}
+
+/* The shared home fills the screen: its details down the left, the floor plan in the rest. */
+.shared-home {
+  height: 100dvh;
+}
+
+.shared-home .editor-panel {
+  order: -1;
+  flex: 0 0 360px;
+  border-left: 0;
+  border-right: 1px solid var(--border);
+}
+
+.shared-home .editor-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.shared-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shared-section + .shared-section,
+.shared-section + .panel-rooms {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .shared-home {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  /* On a phone the plan comes first, then the details under it. */
+  .shared-home .editor-canvas {
+    flex: 1 1 100%;
+    min-height: 70dvh;
+  }
+
+  .shared-home .editor-panel {
+    order: 1;
+    flex: 1 1 100%;
+    border-right: 0;
+  }
 }
 
 /* Scan hub: where an opened scan lands, with View (the editor), Share and Compare down the side */

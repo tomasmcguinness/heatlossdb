@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { isAuthConfigured } from '../../auth'
 import { useFabric } from '../../fabric/store'
-import { isComingSoon } from '../../features'
+import type { Feature } from '../../features'
 import { useShare } from '../../share/share'
 import { AccountButton } from '../AccountButton'
 import { Brand } from '../Brand'
 import { CheckIcon } from '../editor/icons'
 import { useEditorFloors } from '../editor/model'
 import { ScanEditor } from '../editor/ScanEditor'
-import { useAccount } from '../useAccount'
+import { useAccount, useComingSoon } from '../useAccount'
 
 export type HubTab = 'view' | 'share' | 'compare'
 type Tab = HubTab
@@ -21,12 +21,11 @@ const icon = (paths: ReactNode) => (
   </svg>
 )
 
-const TABS: { id: Tab; label: string; sub: string; icon: ReactNode; soon: boolean }[] = [
+const TABS: { id: Tab; label: string; sub: string; icon: ReactNode; feature?: Feature }[] = [
   {
     id: 'view',
     label: 'View',
     sub: 'Check and edit your floor plan and rooms',
-    soon: false,
     icon: icon(
       <>
         <path d="M2 12 C4.5 7 8 4.5 12 4.5 C16 4.5 19.5 7 22 12 C19.5 17 16 19.5 12 19.5 C8 19.5 4.5 17 2 12 Z" />
@@ -38,7 +37,7 @@ const TABS: { id: Tab; label: string; sub: string; icon: ReactNode; soon: boolea
     id: 'share',
     label: 'Share',
     sub: 'Add your home to the database',
-    soon: isComingSoon('share'),
+    feature: 'share',
     icon: icon(
       <>
         <path d="M3 11 L12 3.5 L21 11" />
@@ -52,7 +51,7 @@ const TABS: { id: Tab; label: string; sub: string; icon: ReactNode; soon: boolea
     id: 'compare',
     label: 'Compare',
     sub: 'See how similar homes perform',
-    soon: isComingSoon('search'),
+    feature: 'search',
     icon: icon(
       <>
         <rect x="3" y="7" width="7" height="13" rx="1" />
@@ -88,6 +87,7 @@ export function ScanHub({ tab, onTab, onSearch, onExplore }: ScanHubProps) {
     onTab('view')
   }
   const tabList = useRef<HTMLDivElement>(null)
+  const isComingSoon = useComingSoon()
 
   // Up and down (or left and right) move between the tabs, as in any tab list.
   const onKeyDown = (e: KeyboardEvent) => {
@@ -135,7 +135,7 @@ export function ScanHub({ tab, onTab, onSearch, onExplore }: ScanHubProps) {
                 <span className="hub-tab-text">
                   <span className="hub-tab-label">
                     {t.label}
-                    {t.soon && <span className="soon-badge">Coming soon</span>}
+                    {t.feature && isComingSoon(t.feature) && <span className="soon-badge">Coming soon</span>}
                   </span>
                   <span className="hub-tab-sub">{t.sub}</span>
                 </span>
@@ -172,6 +172,7 @@ const SHARE_STEPS = [
 function SharePanel({ onShare }: { onShare: () => void }) {
   const shared = useShare()
   const { isSignedIn, openSignIn } = useAccount()
+  const isComingSoon = useComingSoon()
   const soon = isComingSoon('share')
   // Sharing needs an account: Start sharing while signed out signs in first, then carries on.
   const afterSignIn = useRef(false)
@@ -257,6 +258,7 @@ function SharePanel({ onShare }: { onShare: () => void }) {
 }
 
 function ComparePanel({ onCompare, onShareTab }: { onCompare: () => void; onShareTab: () => void }) {
+  const isComingSoon = useComingSoon()
   const soon = isComingSoon('search')
   return (
     <>

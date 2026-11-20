@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { isAuthConfigured } from '../../auth'
 import { useFabric } from '../../fabric/store'
-import { isComingSoon } from '../../features'
-import { saveToAccount } from '../../share/homes'
+import { retryAutosave, saveAfterSigningIn, saveToAccount, useAutosave } from '../../share/homes'
 import { useShare } from '../../share/share'
 import { downloadHome, surveyIdFromPath } from '../files'
-import { useAccount } from '../useAccount'
+import { useAccount, useComingSoon } from '../useAccount'
 import { ChevronIcon, DownloadIcon, ExploreIcon, SaveIcon, SearchIcon, ShareIcon, TidyIcon } from './icons'
 
 interface Action {
@@ -21,7 +20,9 @@ type SaveStatus = { state: 'idle' | 'saving' | 'saved' } | { state: 'failed'; me
 /** How long "Saved" shows on the button (ms). */
 const SAVED_FOR = 3000
 
-/** The header's split button: Save to the user's account, with Search, Explore, Share and Download in its menu. */
+/** The header's split button: Save to the user's account, with Search, Explore, Share and Download in its menu.
+ *  A survey (opened by its code or link) has just Tidy and Download, and Save only until it's in
+ *  the user's account: from then on its edits save themselves, and how that's going shows instead. */
 export function ScanActions({
   onShare,
   onSearch,
@@ -35,19 +36,22 @@ export function ScanActions({
 }) {
   const shared = useShare()
   // Tidying runs on the server, so only for a scan that's there: a survey link.
-  const onServer = surveyIdFromPath(location.pathname) !== null
+  const surveyId = surveyIdFromPath(location.pathname)
+  const onServer = surveyId !== null
+  const inAccount = useFabric((s) => s.inAccount)
   const tidied = useFabric((s) => s.scan?.raw?.heatlossdbTidy !== undefined)
   // Scans kept by this browser before Save existed can't be saved; opening the file again fixes it.
   const hasFile = useFabric((s) => s.scan?.raw !== undefined)
   const { isSignedIn, openSignIn } = useAccount()
+  const isComingSoon = useComingSoon()
   const [status, setStatus] = useState<SaveStatus>({ state: 'idle' })
   // Save was asked for while signed out: it happens once they've signed in.
   const [saveAfterSignIn, setSaveAfterSignIn] = useState(false)
 
-  const runSave = async () => {
+  const runSave = async (justSignedIn = false) => {
     setStatus({ state: 'saving' })
     try {
-      await saveToAccount()
+      await (justSignedIn ? saveAfterSigningIn() : saveToAccount())
       setStatus({ state: 'saved' })
     } catch (e) {
       setStatus({ state: 'failed', message: e instanceof Error ? e.message : 'Saving failed.' })
@@ -57,7 +61,7 @@ export function ScanActions({
   useEffect(() => {
     if (!saveAfterSignIn || !isSignedIn) return
     setSaveAfterSignIn(false)
-    void runSave()
+    void runSave(true)
     // runSave only reads the store, so it needn't be a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveAfterSignIn, isSignedIn])
@@ -121,7 +125,8 @@ export function ScanActions({
     icon: <TidyIcon />,
     run: onServer ? onFloorplan : undefined,
   }
-  const actions = [floorplan, search, explore, share, download, save]
+  const actions = onServer ? [floorplan, download] : [floorplan, search, explore, share, download, save]
+  const showSave = !(onServer && inAccount)
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -155,18 +160,22 @@ export function ScanActions({
 
   return (
     <div className="split-button" ref={root} onKeyDown={onKeyDown}>
-      <button className="button split-main" disabled={!save.run} title={save.text} onClick={save.run}>
-        {save.icon}
-        {save.label}
-      </button>
+      {!showSave && <AutosaveStatus />}
+      {showSave && (
+        <button className="button split-main" disabled={!save.run} title={save.text} onClick={save.run}>
+          {save.icon}
+          {save.label}
+        </button>
+      )}
       <button
         ref={toggle}
-        className="button split-toggle"
-        aria-label="More actions"
+        className={`button split-toggle${showSave ? '' : ' alone'}`}
+        aria-label={showSave ? 'More actions' : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
+        {!showSave && 'Actions'}
         <ChevronIcon />
       </button>
       {open && (
@@ -197,5 +206,22 @@ export function ScanActions({
         </p>
       )}
     </div>
+  )
+}
+
+/** How saving the edits to the account is going, with Try again when it failed. */
+function AutosaveStatus() {
+  const autosave = useAutosave()
+  const text =
+    autosave.state === 'failed' ? autosave.message : autosave.state === 'saved' ? 'Saved to your account' : 'Saving…'
+  return (
+    <span className={`autosave small${autosave.state === 'failed' ? ' error' : ' muted'}`} role="status">
+      {text}
+      {autosave.state === 'failed' && (
+        <button type="button" className="link" onClick={retryAutosave}>
+          Try again
+        </button>
+      )}
+    </span>
   )
 }
