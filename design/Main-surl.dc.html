@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Your home checklist</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0;background:#17181C}
+a{color:#F2994A}a:hover{color:#FFC08A}
+button,input,select{font:inherit}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #17181C; color: #F2F2F2; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif">
+
+  <header style="min-height: 64px; box-sizing: border-box; padding: 10px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; background: #1E1F23; border-bottom: 1px solid #2C2E33">
+    <span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700">heatloss<span style="color: #F2994A">db</span></span>
+    <span style="font-size: 14px; color: #A9ADB5">Your home</span>
+  </header>
+
+  <main style="max-width: 1160px; margin: 0 auto; padding: 32px 20px 48px; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+
+    <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700">Add your heat loss report</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 24px; color: #A9ADB5; max-width: 620px">Your scan shows the shape of your home. Your installer’s heat loss report says how much heat it needs. Together, they help others size heat pumps for homes like yours.</p>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; font-size: 14px; color: #A9ADB5">
+          <span>{{doneCount}} of {{requiredCount}} needed steps done</span>
+          <span>{{percent}}%</span>
+        </div>
+        <div role="progressbar" aria-label="Steps done" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{percent}}" style="height: 8px; border-radius: 4px; background: #2C2E33; overflow: hidden">
+          <div style="height: 8px; width: {{percent}}%; background: #E07B35; border-radius: 4px"></div>
+        </div>
+      </div>
+
+      <sc-for list="{{groups}}" as="group" hint-placeholder-count="4">
+        <section style="display: flex; flex-direction: column; gap: 10px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #A9ADB5">{{group.title}}</h2>
+          <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+            <sc-for list="{{group.items}}" as="it" hint-placeholder-count="2">
+              <li style="display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; padding: 16px 18px; background: #202125; border: {{it.border}}; border-radius: 14px">
+                <span aria-hidden="true" style="width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; background: {{it.markBg}}; border: {{it.markBorder}}; color: {{it.markColor}}">
+                  <sc-if value="{{it.done}}" hint-placeholder-val="{{false}}">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#17181C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 17.5 L19 7"></path></svg>
+                  </sc-if>
+                  <sc-if value="{{it.locked}}" hint-placeholder-val="{{false}}">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A9ADB5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11 V8 a4 4 0 0 1 8 0 V11"></path></svg>
+                  </sc-if>
+                  <sc-if value="{{it.showNumber}}" hint-placeholder-val="{{true}}">{{it.n}}</sc-if>
+                </span>
+                <div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 600">{{it.title}}</h3>
+                    <sc-if value="{{it.optional}}" hint-placeholder-val="{{false}}">
+                      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; color: #9CC3F5; background: #1C2A3D">Optional</span>
+                    </sc-if>
+                    <sc-if value="{{it.needed}}" hint-placeholder-val="{{false}}">
+                      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; color: #F6B97E; background: #3A2614">Needed to share</span>
+                    </sc-if>
+                  </div>
+                  <p style="margin: 0; font-size: 14px; line-height: 20px; color: #A9ADB5">{{it.text}}</p>
+                </div>
+                <sc-if value="{{it.primary}}" hint-placeholder-val="{{false}}">
+                  <a href="{{it.href}}" style="min-height: 44px; box-sizing: border-box; padding: 11px 18px; border-radius: 10px; background: #B35A1F; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">{{it.action}}</a>
+                </sc-if>
+                <sc-if value="{{it.subtle}}" hint-placeholder-val="{{true}}">
+                  <a href="{{it.href}}" style="min-height: 44px; box-sizing: border-box; padding: 11px 18px; border-radius: 10px; background: #2A2C31; border: 1px solid #4A4D55; color: #F2F2F2; font-size: 15px; text-decoration: none; display: inline-flex; align-items: center">{{it.action}}</a>
+                </sc-if>
+              </li>
+            </sc-for>
+          </ol>
+        </section>
+      </sc-for>
+    </div>
+
+    <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <section aria-labelledby="summary-title" style="padding: 20px; background: #202125; border: 1px solid #2C2E33; border-radius: 14px; display: flex; flex-direction: column; gap: 16px">
+        <h2 id="summary-title" style="margin: 0; font-size: 17px; font-weight: 600">Your heat loss</h2>
+        <sc-if value="{{hasReport}}" hint-placeholder-val="{{true}}">
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 13px; color: #A9ADB5">On the coldest day</span>
+              <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">7.7 kW</span>
+              <span style="font-size: 13px; color: #A9ADB5">at −5 °C outside</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 13px; color: #A9ADB5">Per degree</span>
+              <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">321 W/K</span>
+              <span style="font-size: 13px; color: #A9ADB5">at 19 °C inside</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 13px; color: #A9ADB5">Ventilation</span>
+              <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">41%</span>
+              <span style="font-size: 13px; color: #A9ADB5">3.14 kW of the total</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 13px; color: #A9ADB5">Per m² of floor</span>
+              <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">53 W/m²</span>
+              <span style="font-size: 13px; color: #A9ADB5">144.9 m²</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{noReport}}" hint-placeholder-val="{{false}}">
+          <p style="margin: 0; font-size: 14px; line-height: 21px; color: #A9ADB5">Add your heat loss totals to see how much heat your home needs, per degree and per m².</p>
+        </sc-if>
+      </section>
+
+      <section aria-labelledby="need-title" style="padding: 20px; background: #202125; border: 1px solid #2C2E33; border-radius: 14px; display: flex; flex-direction: column; gap: 12px">
+        <h2 id="need-title" style="margin: 0; font-size: 17px; font-weight: 600">What you’ll need</h2>
+        <ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 21px; color: #D4D6DB">
+          <li>Your installer’s heat loss report. It may be called a system design report or heat loss survey. A PDF or printout is fine.</li>
+          <li>About 5 minutes. Room by room takes about 10 more.</li>
+          <li>Your system’s page on HeatPumpMonitor.org, if it’s listed there.</li>
+        </ul>
+      </section>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"progress":{"editor":"enum","options":["Just scanned","Report started","Ready to share"],"default":"Report started"},"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const progress = this.props.progress ?? 'Report started';
+    const doneIds = {
+      'Just scanned': ['scan'],
+      'Report started': ['scan', 'check'],
+      'Ready to share': ['scan', 'check', 'totals', 'heatpump'],
+    }[progress] || ['scan'];
+    const currentId = { 'Just scanned': 'check', 'Report started': 'totals', 'Ready to share': 'share' }[progress] || 'check';
+    const steps = [
+      { id: 'scan', group: 'Your scan', title: 'Scan your home', text: '[N] rooms on [N] floors, [X] m² of floor.', href: '#' },
+      { id: 'check', group: 'Your scan', title: 'Check your rooms', text: 'Every room named and heated or not, with its outside doors and windows.', href: '#' },
+      { id: 'totals', group: 'Heat loss report', title: 'Heat loss totals', text: 'The total heat loss, the design temperatures and how much is ventilation.', href: 'HeatLossTotals.dc.html', needed: true },
+      { id: 'rooms', group: 'Heat loss report', title: 'Room by room', text: 'Each room’s heat loss, matched to your scanned rooms. Shows which rooms lose the most per m².', href: 'RoomHeatLoss.dc.html', optional: true },
+      { id: 'heatpump', group: 'Heat loss report', title: 'Heat pump and design', text: 'The heat pump fitted, its flow temperature and the predicted efficiency.', href: 'HeatPumpDesign.dc.html', needed: true },
+      { id: 'hpm', group: 'Real-world data', title: 'Link HeatPumpMonitor.org', text: 'Show how your heat pump really performs, next to what the report predicted.', href: '#', optional: true },
+      { id: 'share', group: 'Share', title: 'Share your home', text: 'List your home so others can find it. Your address and full postcode are never shown.', href: '#' },
+    ];
+    const neededDone = ['totals', 'heatpump'].every((id) => doneIds.includes(id));
+    const requiredIds = ['scan', 'check', 'totals', 'heatpump'];
+    const doneCount = requiredIds.filter((id) => doneIds.includes(id)).length;
+    const items = steps.map((s, i) => {
+      const done = doneIds.includes(s.id);
+      const locked = s.id === 'share' && !neededDone;
+      const current = !done && !locked && s.id === currentId;
+      const text = locked ? 'Add the heat loss totals and heat pump details first.' : s.text;
+      const action = done ? 'Edit' : locked ? '' : current ? (s.id === 'share' ? 'Share' : 'Start') : 'Add';
+      return {
+        n: i + 1,
+        title: s.title,
+        text,
+        href: s.href,
+        optional: !!s.optional && !done,
+        needed: !!s.needed && !done,
+        done,
+        locked,
+        showNumber: !done && !locked,
+        primary: current,
+        subtle: !current && !locked,
+        action,
+        border: current ? '1px solid #E07B35' : '1px solid #2C2E33',
+        markBg: done ? '#E07B35' : '#2A2C31',
+        markBorder: current ? '2px solid #E07B35' : done ? '2px solid #E07B35' : '1px solid #4A4D55',
+        markColor: current ? '#F2994A' : '#A9ADB5',
+        group: s.group,
+      };
+    });
+    const groups = [];
+    items.forEach((it) => {
+      let g = groups.find((x) => x.title === it.group);
+      if (!g) { g = { title: it.group, items: [] }; groups.push(g); }
+      g.items.push(it);
+    });
+    const hasReport = doneIds.includes('totals');
+    return {
+      groups,
+      doneCount,
+      requiredCount: requiredIds.length,
+      percent: Math.round((doneCount / requiredIds.length) * 100),
+      hasReport,
+      noReport: !hasReport,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -26,12 +26,12 @@ export function MyHomesPage() {
 
   return (
     <div className="explore-page my-homes">
-      <div className="page-back">
-        <a className="link" href="/">
-          ← Open a scan
+      <div className="my-homes-head">
+        <h2>My scans</h2>
+        <a className="button" href="/new">
+          Add a scan
         </a>
       </div>
-      <h2>My scans</h2>
 
       {!isAuthConfigured ? (
         <p className="muted">Sign-in isn't set up on this site.</p>
@@ -52,7 +52,7 @@ export function MyHomesPage() {
         </p>
       ) : homes.homes.length === 0 ? (
         <p className="muted">
-          You haven't saved any scans yet. Open a scan, then choose <strong>Save</strong> at the top right of the editor.
+          You haven't saved any scans yet. Add a scan, then choose <strong>Save</strong> at the top right of the editor.
         </p>
       ) : (
         <ul className="my-homes-list">

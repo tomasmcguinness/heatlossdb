@@ -10,71 +10,81 @@
       "x": 0,
       "y": 0
     },
-    "WhatNext.dc.html": {
-      "h": 900,
-      "page": "page-x1j87x",
-      "title": "Screen · What next?",
-      "w": 1440,
-      "x": 0,
-      "y": 1224,
-      "expand": "fill",
-      "is_interactive": true
-    },
-    "ViewScan.dc.html": {
-      "h": 900,
-      "page": "page-x1j87x",
-      "title": "Screen · View my scan",
-      "w": 1440,
-      "x": 1560,
-      "y": 1224,
-      "expand": "fill",
-      "is_interactive": true
-    },
-    "ShareHome.dc.html": {
-      "h": 900,
-      "page": "page-x1j87x",
-      "title": "Screen · Share your home",
-      "w": 1440,
-      "x": 3120,
-      "y": 1224,
-      "expand": "fill",
-      "is_interactive": true
-    },
-    "PlanEditor.dc.html": {
-      "h": 900,
-      "page": "page-x1j87x",
-      "title": "Screen · View my scan v2 (full-screen editor)",
-      "w": 1440,
-      "x": 1560,
-      "y": 2244,
-      "expand": "fill",
-      "is_interactive": true
-    },
-    "HomeFabric.dc.html": {
-      "h": 1100,
-      "page": "page-x1j87x",
-      "title": "Screen · Home fabric (full-screen modal)",
-      "w": 1440,
-      "x": 3120,
-      "y": 2244,
-      "expand": "fill",
-      "is_interactive": true
-    },
-    "FindSimilar.dc.html": {
-      "h": 1100,
-      "page": "page-x1j87x",
-      "title": "Screen · Find similar homes",
-      "w": 1440,
-      "x": 4680,
-      "y": 1224,
-      "expand": "fill",
-      "is_interactive": true
-    },
     "FanHouse.dc.html": {
       "h": 720,
       "title": "B · Fan House",
       "w": 1200,
       "x": 1280,
+      "y": 0
+    },
+    "FindSimilar.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Find similar homes",
+      "w": 1440,
+      "x": 4680,
+      "y": 1224
+    },
+    "HeatLossTotals-yh62.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Step · Heat loss totals",
+      "w": 1440,
+      "x": 1520,
+      "y": 3764
+    },
+    "HeatPumpDesign-ox9h.dc.html": {
+      "expand": "fill",
+      "h": 1040,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Step · Heat pump and design",
+      "w": 1440,
+      "x": 4560,
+      "y": 3764
+    },
+    "HomeFabric.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Home fabric (full-screen modal)",
+      "w": 1440,
+      "x": 3120,
+      "y": 2244
+    },
+    "HomeHeat.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Your home's heat (predicted vs measured)",
+      "w": 1440,
+      "x": 0,
+      "y": 2244
+    },
+    "Landing.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Landing page",
+      "w": 1440,
+      "x": 3016,
+      "y": 0
+    },
+    "Explore.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Explore the database",
+      "w": 1440,
+      "x": 4576,
       "y": 0
     },
     "LossGrid.dc.html": {
@@ -83,6 +93,16 @@
       "w": 1200,
       "x": 0,
       "y": 840
+    },
+    "Main-surl.dc.html": {
+      "expand": "fill",
+      "h": 1040,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Your home · checklist",
+      "w": 1440,
+      "x": 0,
+      "y": 3764
     },
     "Main.dc.html": {
       "h": 720,
@@ -97,6 +117,66 @@
       "w": 1200,
       "x": 1280,
       "y": 840
+    },
+    "PlanEditor.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · View my scan v2 (full-screen editor)",
+      "w": 1440,
+      "x": 1560,
+      "y": 2244
+    },
+    "RoomHeatLoss-lykg.dc.html": {
+      "expand": "fill",
+      "h": 1300,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Step · Room by room (optional)",
+      "w": 1440,
+      "x": 3040,
+      "y": 3764
+    },
+    "ScanHub.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Your scan (tabs: View / Share / Compare)",
+      "w": 1440,
+      "x": 6240,
+      "y": 1224
+    },
+    "ShareHome.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · Share your home",
+      "w": 1440,
+      "x": 3120,
+      "y": 1224
+    },
+    "ViewScan.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · View my scan",
+      "w": 1440,
+      "x": 1560,
+      "y": 1224
+    },
+    "WhatNext.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "page-x1j87x",
+      "title": "Screen · What next?",
+      "w": 1440,
+      "x": 0,
+      "y": 1224
     }
   },
   "createdOnFiles": {
@@ -108,6 +188,15 @@
     "view": "canvas"
   },
   "notes": {
+    "note-dzmz1q": {
+      "kind": "title1",
+      "maxW": 6000,
+      "page": "page-x1j87x",
+      "text": "After the scan: capture the heat loss report",
+      "w": 240,
+      "x": 0,
+      "y": 3464
+    },
     "title": {
       "kind": "title1",
       "maxW": 2480,
@@ -128,7 +217,15 @@
     "ShareHome.dc.html",
     "FindSimilar.dc.html",
     "PlanEditor.dc.html",
-    "HomeFabric.dc.html"
+    "HomeFabric.dc.html",
+    "HomeHeat.dc.html",
+    "Main-surl.dc.html",
+    "HeatLossTotals-yh62.dc.html",
+    "RoomHeatLoss-lykg.dc.html",
+    "HeatPumpDesign-ox9h.dc.html",
+    "Landing.dc.html",
+    "Explore.dc.html",
+    "ScanHub.dc.html"
   ],
   "pages": [
     {

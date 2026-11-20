@@ -275,7 +275,7 @@ export function MatchesPage({ surveyId, profile, onBack, onFabric }: MatchesPage
     <div className="matches-page">
       <div className="page-back">
         <button className="link" onClick={onBack}>
-          ← What next?
+          ← Back to floor plan
         </button>
       </div>
       <YourHome profile={profile} onFabric={onFabric} />

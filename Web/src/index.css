@@ -761,226 +761,6 @@ details summary {
   white-space: nowrap;
 }
 
-/* What next? */
-
-.what-next {
-  overflow-y: auto;
-  width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 40px 16px 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 40px;
-}
-
-.what-next h1,
-.what-next h2,
-.next-option-title {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.scan-loaded {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 24px;
-  padding: 20px 24px;
-  border-radius: 14px;
-}
-
-.scan-loaded-plan {
-  width: 168px;
-  height: 112px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  padding: 8px;
-  box-sizing: border-box;
-  border-radius: 10px;
-  background: var(--bg);
-}
-
-.scan-loaded-plan .plan {
-  max-height: 96px;
-}
-
-.scan-loaded-text {
-  flex: 1 1 280px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.scan-loaded-text h1 {
-  font-size: 1.45rem;
-  overflow-wrap: anywhere;
-}
-
-.scan-loaded-status {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: var(--ok);
-}
-
-.scan-loaded .link {
-  padding: 12px 4px;
-}
-
-.next-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.next-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.next-intro h2 {
-  font-size: 2rem;
-  letter-spacing: -0.01em;
-}
-
-.next-intro p {
-  max-width: 640px;
-  font-size: 1.05rem;
-  line-height: 1.5;
-}
-
-.next-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 20px;
-}
-
-.next-option {
-  min-height: 260px;
-  padding: 24px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  border: 2px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  cursor: pointer;
-}
-
-.next-option:has(input:checked) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-}
-
-.next-option:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.next-option.coming-soon {
-  cursor: not-allowed;
-  border-style: dashed;
-  background: transparent;
-}
-
-.next-option-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.next-option-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: var(--surface-2);
-}
-
-.next-option-dot {
-  width: 22px;
-  height: 22px;
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: 2px solid var(--muted);
-}
-
-.next-option:has(input:checked) .next-option-dot {
-  border: 7px solid var(--accent);
-}
-
-.next-option-title {
-  font-size: 1.3rem;
-}
-
-.next-option-text {
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.next-option-foot {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.badge {
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-
-.badge-free {
-  color: var(--badge-free-text);
-  background: var(--badge-free-bg);
-}
-
-.badge-account {
-  color: var(--badge-account-text);
-  background: var(--badge-account-bg);
-}
-
-.badge-soon {
-  color: var(--bg);
-  background: var(--muted);
-}
-
-.next-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-}
-
-.next-footer p {
-  max-width: 560px;
-  line-height: 1.45;
-}
-
-.next-action {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 12px 22px;
-  font-size: 1.05rem;
-}
-
 /* View my scan: the room editor */
 
 .app.full {
@@ -1062,10 +842,6 @@ details summary {
 .icon-only:hover {
   color: var(--text);
   background: var(--surface-2);
-}
-
-.back-button {
-  color: var(--accent);
 }
 
 .view-tabs {
@@ -2774,6 +2550,14 @@ span.panel-room {
   max-width: 720px;
 }
 
+.my-homes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .my-homes-list {
   margin: 0;
   padding: 0;
@@ -2885,9 +2669,12 @@ span.panel-room {
   font-weight: 600;
 }
 
-.shared-home .brand {
-  color: inherit;
+a.brand {
   text-decoration: none;
+}
+
+.topbar-brand {
+  font-size: inherit;
 }
 
 .shared-home .fabric-facts dd .tag {

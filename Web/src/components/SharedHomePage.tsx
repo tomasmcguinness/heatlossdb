@@ -13,6 +13,7 @@ import {
   type SharedHome,
 } from '../share/sharedHome'
 import type { OutsideStretch, PlanWall } from '../scan/plan'
+import { Brand } from './Brand'
 import { FloorCanvas } from './editor/FloorCanvas'
 import { BackIcon, DoorIcon, SkylightIcon, WindowIcon } from './editor/icons'
 import { boundsOf, squareMetres, type EditorFloor, type RoomActions } from './editor/model'
@@ -53,17 +54,6 @@ export function SharedHomePage({ shareId }: { shareId: string }) {
     )
   }
   return <SharedHomeView home={home} />
-}
-
-function Brand() {
-  return (
-    <a className="brand" href="/" aria-label="HeatLossDB">
-      <img src="/logo.svg" alt="" width={26} height={26} />
-      <span aria-hidden="true">
-        heatloss<span className="brand-db">db</span>
-      </span>
-    </a>
-  )
 }
 
 function SharedHomeView({ home: shared }: { home: SharedHome }) {

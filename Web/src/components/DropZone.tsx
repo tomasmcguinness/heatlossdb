@@ -1,11 +1,20 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { isAuthConfigured } from '../auth'
 import { errorMessage, isValidCode, normaliseCode, openFile, surveyIdForCode } from './files'
+import { useAccount } from './useAccount'
 
 export function DropZone({ error, onError }: { error: string | null; onError: (message: string | null) => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [code, setCode] = useState('')
   const [checkingCode, setCheckingCode] = useState(false)
+  const { isSignedIn, openSignIn } = useAccount()
+  // Signing in from here leads on to the scans you've saved.
+  const [signingIn, setSigningIn] = useState(false)
+
+  useEffect(() => {
+    if (signingIn && isSignedIn) location.assign('/scans')
+  }, [signingIn, isSignedIn])
 
   const open = async (file: File | undefined) => {
     if (!file) return
@@ -96,6 +105,21 @@ export function DropZone({ error, onError }: { error: string | null; onError: (m
             e.target.value = ''
           }}
         />
+        {isAuthConfigured && isSignedIn === false && (
+          <>
+            <p className="dropzone-or muted small">or</p>
+            <p className="muted">Sign in to open a scan you've saved.</p>
+            <button
+              className="button subtle"
+              onClick={() => {
+                setSigningIn(true)
+                openSignIn()
+              }}
+            >
+              Sign in
+            </button>
+          </>
+        )}
         {error && (
           <p className="error" role="alert">
             {error}

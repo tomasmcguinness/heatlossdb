@@ -6,7 +6,7 @@ import { saveToAccount } from '../../share/homes'
 import { useShare } from '../../share/share'
 import { downloadHome, surveyIdFromPath } from '../files'
 import { useAccount } from '../useAccount'
-import { ChevronIcon, DownloadIcon, SaveIcon, SearchIcon, ShareIcon, TidyIcon } from './icons'
+import { ChevronIcon, DownloadIcon, ExploreIcon, SaveIcon, SearchIcon, ShareIcon, TidyIcon } from './icons'
 
 interface Action {
   label: string
@@ -21,8 +21,18 @@ type SaveStatus = { state: 'idle' | 'saving' | 'saved' } | { state: 'failed'; me
 /** How long "Saved" shows on the button (ms). */
 const SAVED_FOR = 3000
 
-/** The header's split button: Save to the user's account, with Search, Share and Download in its menu. */
-export function ScanActions({ onShare, onSearch, onFloorplan }: { onShare: () => void; onSearch: () => void; onFloorplan: () => void }) {
+/** The header's split button: Save to the user's account, with Search, Explore, Share and Download in its menu. */
+export function ScanActions({
+  onShare,
+  onSearch,
+  onExplore,
+  onFloorplan,
+}: {
+  onShare: () => void
+  onSearch: () => void
+  onExplore: () => void
+  onFloorplan: () => void
+}) {
   const shared = useShare()
   // Tidying runs on the server, so only for a scan that's there: a survey link.
   const onServer = surveyIdFromPath(location.pathname) !== null
@@ -99,13 +109,19 @@ export function ScanActions({ onShare, onSearch, onFloorplan }: { onShare: () =>
     icon: <SearchIcon />,
     run: isComingSoon('search') ? undefined : onSearch,
   }
+  const explore: Action = {
+    label: 'Explore',
+    text: isComingSoon('explore') ? 'Browse shared homes · coming soon' : 'Browse shared homes',
+    icon: <ExploreIcon />,
+    run: isComingSoon('explore') ? undefined : onExplore,
+  }
   const floorplan: Action = {
     label: 'Floor plan',
     text: !onServer ? 'Save the home first to tidy it' : tidied ? 'Tidied · see versions' : 'Tidy up walls and close rooms',
     icon: <TidyIcon />,
     run: onServer ? onFloorplan : undefined,
   }
-  const actions = [floorplan, search, share, download, save]
+  const actions = [floorplan, search, explore, share, download, save]
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const menu = useRef<HTMLDivElement>(null)

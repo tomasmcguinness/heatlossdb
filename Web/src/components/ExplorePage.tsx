@@ -110,7 +110,7 @@ export function ExplorePage({ surveyId, onBack }: { surveyId: string | null; onB
     <div className="explore-page">
       <div className="page-back">
         <button className="link" onClick={onBack}>
-          ← What next?
+          ← Back to floor plan
         </button>
       </div>
       <div className="matches-heading">

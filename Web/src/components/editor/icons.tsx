@@ -88,6 +88,14 @@ export const SearchIcon = (props: IconProps) => (
   </Icon>
 )
 
+export const ExploreIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M3 6.5 L9 4 L15 6.5 L21 4 V17.5 L15 20 L9 17.5 L3 20 Z" />
+    <path d="M9 4 V17.5" />
+    <path d="M15 6.5 V20" />
+  </Icon>
+)
+
 export const ShareIcon = (props: IconProps) => (
   <Icon size={16} {...props}>
     <path d="M12 15 V3.5" />

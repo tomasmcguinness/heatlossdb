@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Brand } from '../Brand'
 import { homeInsulation, isHomeFabricSet, wallCavity } from '../../fabric/home'
 import { effectiveRole, useFabric } from '../../fabric/store'
 import type { OutsideStretch, PlanWall } from '../../scan/plan'
@@ -6,7 +7,7 @@ import { HomeFabricDialog } from '../fabric/HomeFabricDialog'
 import { ShareDialog } from '../share/ShareDialog'
 import { FloorCanvas } from './FloorCanvas'
 import { FloorPlanDialog } from './FloorPlanDialog'
-import { BackIcon, DoorIcon, HomeIcon, SkylightIcon, WindowIcon } from './icons'
+import { DoorIcon, HomeIcon, SkylightIcon, WindowIcon } from './icons'
 import { boundsOf, useEditorFloors, type RoomActions } from './model'
 import { OverviewCanvas } from './OverviewCanvas'
 import { RoomPanel } from './RoomPanel'
@@ -16,15 +17,7 @@ import { AccountButton } from '../AccountButton'
 type View = 'overview' | number
 
 /** View my scan: every room to check and correct, as a side view of the home or floor by floor. */
-export function ScanEditor({
-  onBack,
-  onSearch,
-  startSharing = false,
-}: {
-  onBack: () => void
-  onSearch: () => void
-  startSharing?: boolean
-}) {
+export function ScanEditor({ onSearch, onExplore }: { onSearch: () => void; onExplore: () => void }) {
   const scanName = useFabric((s) => s.scanName)
   const elements = useFabric((s) => s.elements)
   const autoRoles = useFabric((s) => s.autoRoles)
@@ -38,8 +31,7 @@ export function ScanEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  // "Share your home" on What next opens the editor with Share already open.
-  const [sharing, setSharing] = useState(startSharing)
+  const [sharing, setSharing] = useState(false)
   const home = useFabric((s) => s.home)
   const [fabricOpen, setFabricOpen] = useState(false)
   const [floorplanOpen, setFloorplanOpen] = useState(false)
@@ -92,15 +84,7 @@ export function ScanEditor({
     <div className="editor">
       <header className="editor-head">
         <div className="editor-title">
-          <button className="icon-only back-button" aria-label="Back to options" title="Back to options" onClick={onBack}>
-            <BackIcon />
-          </button>
-          <span className="brand" aria-label="HeatLossDB">
-            <img src="/logo.svg" alt="" width={26} height={26} />
-            <span aria-hidden="true">
-              heatloss<span className="brand-db">db</span>
-            </span>
-          </span>
+          <Brand />
           <span className="editor-divider" aria-hidden="true" />
           <span className="muted editor-file">{scanName ?? 'Your scan'}</span>
         </div>
@@ -136,7 +120,7 @@ export function ScanEditor({
             <HomeIcon />
             Home fabric
           </button>
-          <ScanActions onShare={() => setSharing(true)} onSearch={onSearch} onFloorplan={() => setFloorplanOpen(true)} />
+          <ScanActions onShare={() => setSharing(true)} onSearch={onSearch} onExplore={onExplore} onFloorplan={() => setFloorplanOpen(true)} />
           <AccountButton />
         </div>
       </header>

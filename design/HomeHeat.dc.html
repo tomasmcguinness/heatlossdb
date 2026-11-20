@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>heatlossdb – Your home's heat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0;background:#17181C}
+a{color:#F2994A}a:hover{color:#FFC08A}
+button{font:inherit}
+</style>
+</helmet>
+<div style="min-height: 1000px; background: #17181C; color: #F2F2F2; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif">
+  <header style="height: 68px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; background: #1E1F23; border-bottom: 1px solid #2C2E33">
+    <svg width="36" height="36" viewBox="0 0 100 100" aria-hidden="true" style="border-radius: 8px"><rect width="100" height="100" fill="#12233B"></rect><polygon points="26,69.5 50,81.5 50,86.5 26,74.5" fill="#24507F"></polygon><polygon points="50,81.5 74,69.5 74,74.5 50,86.5" fill="#1B3F66"></polygon><polygon points="26,69.5 50,57.5 74,69.5 50,81.5" fill="#3B6EA5"></polygon><polygon points="26,49.5 50,61.5 50,66.5 26,54.5" fill="#24507F"></polygon><polygon points="50,61.5 74,49.5 74,54.5 50,66.5" fill="#1B3F66"></polygon><polygon points="26,49.5 50,37.5 74,49.5 50,61.5" fill="#3B6EA5"></polygon><polygon points="26,29.5 50,41.5 50,46.5 26,34.5" fill="#C4621A"></polygon><polygon points="50,41.5 74,29.5 74,34.5 50,46.5" fill="#A04E12"></polygon><polygon points="50,17.5 74,29.5 62,25.5 38,13.5" fill="#F6B97E"></polygon><polygon points="26,29.5 50,41.5 62,25.5 38,13.5" fill="#F2994A"></polygon><polygon points="50,41.5 74,29.5 62,25.5" fill="#A04E12"></polygon></svg>
+    <span style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; letter-spacing: -0.02em">heatloss<span style="color: #F2994A">db</span></span>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <a href="ViewScan.dc.html" style="font-size: 14px; display: flex; align-items: center; gap: 6px; text-decoration: none; padding: 4px 0">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12 H5"></path><path d="M11 6 L5 12 L11 18"></path></svg>
+          Back to scan
+        </a>
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; letter-spacing: -0.01em">Your home's heat</h1>
+        <p style="margin: 0; font-size: 14px; color: #A9ADB5">B91 · Survey by Warmur, March 2026 · Kronoterm Adapt 9 kW</p>
+      </div>
+      <sc-if value="{{showSample}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: #3A2A1C; color: #FFD9B8; font-size: 14px">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2994A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8 V13"></path><path d="M12 16.5 V16.6"></path></svg>
+          Measured values are sample data until monitoring is connected
+        </div>
+      </sc-if>
+    </div>
+
+    <section aria-label="Whole house" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+      <div style="background: #202125; border: 1px solid #2C2E33; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #A9ADB5">Predicted heat loss</span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">7.65 kW</span>
+        <span style="font-size: 13px; color: #A9ADB5">at −5 °C outside</span>
+      </div>
+      <div style="background: #202125; border: 1px solid #2C2E33; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #A9ADB5">Measured heat loss</span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">{{houseMeasured}}</span>
+        <a href="https://heatpumpmonitor.org" style="font-size: 13px">View on heatpumpmonitor.org</a>
+      </div>
+      <div style="background: #202125; border: 1px solid #2C2E33; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #A9ADB5">Floor area</span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">144.9 m²</span>
+        <span style="font-size: 13px; color: #A9ADB5">12 heated rooms</span>
+      </div>
+      <div style="background: #202125; border: 1px solid #2C2E33; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #A9ADB5">Heat loss per m²</span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">53 W/m²</span>
+        <span style="font-size: 13px; color: #A9ADB5">Ventilation 41% of total</span>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+      <section aria-label="Floor plan" style="flex: 999 1 560px; min-width: 0; background: #202125; border: 1px solid #2C2E33; border-radius: 14px; overflow: hidden">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #2C2E33">
+          <div role="tablist" aria-label="Floors" style="display: flex; gap: 4px; padding: 4px; background: #17181C; border-radius: 10px">
+            <button type="button" role="tab" aria-selected="{{groundSel}}" onClick="{{pickGround}}" style="cursor: pointer; min-height: 40px; padding: 8px 16px; border: none; border-radius: 7px; font-size: 14px; color: {{groundFg}}; background: {{groundBg}}">Ground floor</button>
+            <button type="button" role="tab" aria-selected="{{firstSel}}" onClick="{{pickFirst}}" style="cursor: pointer; min-height: 40px; padding: 8px 16px; border: none; border-radius: 7px; font-size: 14px; color: {{firstFg}}; background: {{firstBg}}">First floor</button>
+          </div>
+          <div role="tablist" aria-label="Layer" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: #17181C; border-radius: 10px">
+            <sc-for list="{{layers}}" as="ly" hint-placeholder-count="3">
+              <button type="button" role="tab" aria-selected="{{ly.sel}}" onClick="{{ly.pick}}" style="cursor: pointer; min-height: 40px; padding: 8px 14px; border: none; border-radius: 7px; font-size: 14px; color: {{ly.fg}}; background: {{ly.bg}}">{{ly.label}}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="position: relative; padding: 20px; min-height: 520px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background-color: #17181C; background-image: linear-gradient(#202125 1px, transparent 1px), linear-gradient(90deg, #202125 1px, transparent 1px); background-size: 24px 24px">
+          <svg viewBox="{{viewBox}}" role="img" aria-label="{{planLabel}}" style="width: 100%; max-width: 640px; max-height: 620px; height: auto">
+            <defs>
+              <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="8" height="8" fill="#1C1D21"></rect>
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#3A3C42" stroke-width="3"></line>
+              </pattern>
+            </defs>
+            <sc-for list="{{rooms}}" as="r" hint-placeholder-count="7">
+              <g onClick="{{r.pick}}" style="cursor: {{r.cursor}}">
+                <polygon points="{{r.points}}" fill="{{r.fill}}" stroke="{{r.stroke}}" stroke-width="{{r.strokeW}}" stroke-linejoin="miter"></polygon>
+                <text x="{{r.lx}}" y="{{r.ly}}" fill="{{r.fg}}" font-size="13" font-weight="600" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif">{{r.short}}</text>
+                <text x="{{r.lx}}" y="{{r.ly2}}" fill="{{r.fg}}" font-size="12" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif">{{r.value}}</text>
+              </g>
+            </sc-for>
+            <sc-for list="{{rads}}" as="e" hint-placeholder-count="5">
+              <g onClick="{{e.pick}}" style="cursor: pointer">
+                <rect x="{{e.x}}" y="{{e.y}}" width="{{e.w}}" height="{{e.h}}" rx="2" fill="{{e.fill}}" stroke="#17181C" stroke-width="1.5"></rect>
+                <circle cx="{{e.cx}}" cy="{{e.cy}}" r="9" fill="#17181C" stroke="#F2F2F2" stroke-width="1.5"></circle>
+                <text x="{{e.cx}}" y="{{e.ty}}" fill="#F2F2F2" font-size="10" font-weight="700" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif">{{e.id}}</text>
+              </g>
+            </sc-for>
+          </svg>
+
+          <div style="position: absolute; left: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(23,24,28,0.92); border: 1px solid #2C2E33; font-size: 12px; color: #D4D6DB">
+            <span style="font-weight: 600; color: #F2F2F2">{{legendTitle}}</span>
+            <sc-for list="{{legend}}" as="lg" hint-placeholder-count="4">
+              <span style="display: flex; align-items: center; gap: 8px"><span style="width: 14px; height: 14px; border-radius: 3px; background: {{lg.color}}; border: 1px solid #4A4D55"></span>{{lg.label}}</span>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid #2C2E33">
+          <div role="tablist" aria-label="Time" style="display: flex; gap: 4px; padding: 4px; background: #17181C; border-radius: 10px">
+            <sc-for list="{{times}}" as="tm" hint-placeholder-count="3">
+              <button type="button" role="tab" aria-selected="{{tm.sel}}" onClick="{{tm.pick}}" style="cursor: pointer; min-height: 40px; padding: 8px 14px; border: none; border-radius: 7px; font-size: 14px; color: {{tm.fg}}; background: {{tm.bg}}">{{tm.label}}</button>
+            </sc-for>
+          </div>
+          <span style="font-size: 13px; color: #A9ADB5">{{timeNote}}</span>
+        </div>
+      </section>
+
+      <aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+        <sc-if value="{{hasSel}}" hint-placeholder-val="{{ false }}">
+          <section aria-labelledby="room-title" style="background: #202125; border: 1px solid #2C2E33; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+              <div style="display: flex; flex-direction: column; gap: 4px">
+                <h2 id="room-title" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700">{{sel.name}}</h2>
+                <span style="font-size: 13px; color: #A9ADB5">{{sel.meta}}</span>
+              </div>
+              <button type="button" aria-label="Close room details" onClick="{{clearSel}}" style="cursor: pointer; width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #2A2C31; border: 1px solid #3A3C42; border-radius: 8px"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2F2F2" stroke-width="2.2" stroke-linecap="round"><path d="M6 6 L18 18"></path><path d="M18 6 L6 18"></path></svg></button>
+            </div>
+
+            <dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+              <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 13px; color: #A9ADB5">Predicted</dt><dd style="margin: 0; font-size: 18px; font-weight: 600">{{sel.pred}}</dd></div>
+              <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 13px; color: #A9ADB5">Per m²</dt><dd style="margin: 0; font-size: 18px; font-weight: 600">{{sel.wm2}}</dd></div>
+              <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 13px; color: #A9ADB5">Room now</dt><dd style="margin: 0; font-size: 18px; font-weight: 600">{{sel.now}}</dd></div>
+              <div style="display: flex; flex-direction: column; gap: 2px"><dt style="font-size: 13px; color: #A9ADB5">Radiator water</dt><dd style="margin: 0; font-size: 18px; font-weight: 600">{{sel.mwt}}</dd></div>
+            </dl>
+
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #A9ADB5">Predicted vs measured, at −5 °C</h3>
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <div style="display: flex; justify-content: space-between; font-size: 13px"><span>Predicted</span><span>{{sel.pred}}</span></div>
+                <div style="height: 12px; border-radius: 6px; background: #17181C; overflow: hidden"><div style="height: 12px; border-radius: 6px; background: #8FB0DD; width: {{sel.predPct}}%"></div></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <div style="display: flex; justify-content: space-between; font-size: 13px"><span>Measured</span><span>{{sel.meas}}</span></div>
+                <div style="height: 12px; border-radius: 6px; background: #17181C; overflow: hidden"><div style="height: 12px; border-radius: 6px; background: #F2994A; width: {{sel.measPct}}%"></div></div>
+              </div>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #D4D6DB">{{sel.verdict}}</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #A9ADB5">Emitters</h3>
+              <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+                <sc-for list="{{sel.emitters}}" as="em" hint-placeholder-count="1">
+                  <li style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid #2C2E33; font-size: 14px">
+                    <span style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 14px; background: #17181C; border: 1.5px solid #F2F2F2; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">{{em.id}}</span>
+                    <span style="flex: 1">{{em.type}}</span>
+                    <span style="color: #A9ADB5">{{em.rated}}</span>
+                  </li>
+                </sc-for>
+              </ul>
+            </div>
+          </section>
+        </sc-if>
+
+        <section aria-labelledby="rooms-title" style="background: #202125; border: 1px solid #2C2E33; border-radius: 14px; padding: 20px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px">
+            <h2 id="rooms-title" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700">{{floorName}} rooms</h2>
+            <span style="font-size: 13px; color: #A9ADB5">{{listHeader}}</span>
+          </div>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+            <sc-for list="{{roomList}}" as="rl" hint-placeholder-count="6">
+              <li style="border-top: 1px solid #2C2E33">
+                <button type="button" onClick="{{rl.pick}}" aria-pressed="{{rl.pressed}}" style="cursor: pointer; width: 100%; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 8px 6px; border: none; border-radius: 8px; background: {{rl.bg}}; color: #F2F2F2; font-size: 15px; text-align: left">
+                  <span style="width: 14px; height: 14px; flex-shrink: 0; border-radius: 3px; background: {{rl.swatch}}; border: 1px solid #4A4D55"></span>
+                  <span style="flex: 1">{{rl.name}}</span>
+                  <span style="color: #D4D6DB">{{rl.value}}</span>
+                </button>
+              </li>
+            </sc-for>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"sampleData":{"editor":"boolean","default":true},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { floor: 'ground', layer: 'pred', time: 'cold', sel: null };
+  }
+  renderVals() {
+    const sample = this.props.sampleData ?? true;
+    const s = this.state;
+    const g = s.floor === 'ground';
+    const on = { fg: '#FFFFFF', bg: '#C8692A' };
+    const off = { fg: '#A9ADB5', bg: 'transparent' };
+
+    const EM = {
+      A: { room: 'entrance', type: 'Column radiator', rated: 677, x: 262, y: 290, w: 10, h: 55, mwt: 38 },
+      B: { room: 'sitting', type: 'Panel radiator', rated: 1048, x: 370, y: 300, w: 10, h: 78, mwt: 39 },
+      C: { room: 'living', type: 'Panel radiator', rated: 1320, x: 403, y: 462, w: 97, h: 10, mwt: 40 },
+      D: { room: 'kitchen', type: 'Column radiator', rated: 0, x: 345, y: 712, w: 10, h: 24, mwt: 22 },
+      E: { room: 'bathroom', type: 'Towel rail', rated: 253, x: 130, y: 404, w: 30, h: 10, mwt: 41 },
+      F: { room: 'landing', type: 'Column radiator', rated: 412, x: 173, y: 471, w: 57, h: 10, mwt: 39 },
+      G: { room: 'office', type: 'Panel radiator', rated: 327, x: 249, y: 212, w: 52, h: 10, mwt: 38 },
+      H: { room: 'front', type: 'Panel radiator', rated: 704, x: 418, y: 166, w: 69, h: 10, mwt: 37 },
+      I: { room: 'master', type: 'Panel radiator', rated: 1049, x: 410, y: 681, w: 103, h: 10, mwt: 36 },
+      J: { room: 'back', type: 'Panel radiator', rated: 819, x: 235, y: 681, w: 80, h: 10, mwt: 38 }
+    };
+
+    const ROOMS = [
+      { id: 'store', floor: 'ground', name: 'Not in survey', short: 'Not in survey', unheated: true, points: '127,232 255,232 255,460 127,460', lx: 191, ly: 346 },
+      { id: 'entrance', floor: 'ground', name: 'Entrance', short: 'Entrance', area: 8.8, t: 18, w: 383, em: ['A'], points: '255,270 363,270 363,515 305,515 305,440 255,440', lx: 309, ly: 380, ratio: 0.85, now: 18.2 },
+      { id: 'wc', floor: 'ground', name: 'GF WC', short: 'WC', area: 1.4, t: 18, w: 59, em: [], ufh: true, points: '245,440 305,440 305,515 245,515', lx: 275, ly: 474, now: 18.0 },
+      { id: 'utility', floor: 'ground', name: 'Utility', short: 'Utility', area: 7.2, t: 18, w: 517, em: [], ufh: true, points: '127,460 245,460 245,515 290,515 290,625 127,625', lx: 200, ly: 560, now: 18.1 },
+      { id: 'kitchen', floor: 'ground', name: 'Kitchen', short: 'Kitchen', area: 34.1, t: 18, w: 1836, em: ['D'], ufh: true, points: '127,625 290,625 290,515 363,515 363,940 127,940', lx: 245, ly: 790, now: 18.4 },
+      { id: 'sitting', floor: 'ground', name: 'Sitting Room', short: 'Sitting room', area: 14.6, t: 21, w: 966, em: ['B'], points: '363,270 405,270 405,232 500,232 500,270 545,270 545,455 363,455', lx: 466, ly: 362, ratio: 0.72, now: 20.6 },
+      { id: 'living', floor: 'ground', name: 'Living room', short: 'Living room', area: 18.0, t: 21, w: 1040, em: ['C'], points: '363,455 545,455 545,700 363,700', lx: 454, ly: 590, ratio: 0.78, now: 20.9 },
+      { id: 'bathroom', floor: 'first', name: 'FF Bathroom', short: 'Bathroom', area: 8.5, t: 21, w: 776, em: ['E'], points: '72,205 207,205 207,425 72,425', lx: 140, ly: 305, ratio: 0.38, now: 19.1 },
+      { id: 'office', floor: 'first', name: 'Office', short: 'Office', area: 4.9, t: 21, w: 382, em: ['G'], points: '207,205 350,205 350,335 207,335', lx: 278, ly: 278, ratio: 0.80, now: 20.5 },
+      { id: 'landing', floor: 'first', name: 'FF Landing', short: 'Landing', area: 6.5, t: 18, w: 155, em: ['F'], points: '207,335 350,335 350,490 163,490 163,425 207,425', lx: 285, ly: 410, ratio: 1.20, now: 19.4 },
+      { id: 'front', floor: 'first', name: 'Front Bedroom', short: 'Front bedroom', area: 14.7, t: 18, w: 566, em: ['H'], points: '350,205 390,205 390,157 513,157 513,205 565,205 565,418 350,418', lx: 457, ly: 315, ratio: 0.74, now: 18.3 },
+      { id: 'master', floor: 'first', name: 'Master bedroom', short: 'Master bedroom', area: 17.4, t: 18, w: 545, em: ['I'], points: '350,418 565,418 565,700 350,700', lx: 457, ly: 565, ratio: 0.65, now: 17.9 },
+      { id: 'back', floor: 'first', name: 'Back Bedroom', short: 'Back bedroom', area: 8.9, t: 18, w: 428, em: ['J'], points: '190,490 350,490 350,700 190,700', lx: 270, ly: 600, ratio: 0.95, now: 18.6 },
+      { id: 'unsurveyed1', floor: 'first', name: 'Not in survey', short: 'Not in survey', unheated: true, points: '72,490 190,490 190,700 72,700', lx: 131, ly: 600 }
+    ];
+
+    const predBin = (v) => v >= 70 ? '#F2994A' : v >= 55 ? '#C4621A' : v >= 40 ? '#3B6EA5' : '#24507F';
+    const ratioBin = (r) => r < 0.7 ? '#3B6EA5' : r < 0.9 ? '#2B4A6E' : r <= 1.1 ? '#3A3C42' : r <= 1.3 ? '#A04E12' : '#F2994A';
+    const tempBin = (d) => d < -1 ? '#3B6EA5' : d < -0.3 ? '#2B4A6E' : d <= 0.3 ? '#3A3C42' : d <= 1 ? '#A04E12' : '#F2994A';
+    const darkText = (c) => c === '#F2994A' || c === '#C4621A';
+    const fmtW = (w) => w.toLocaleString('en-GB') + ' W';
+
+    const layer = s.layer;
+    const look = (r) => {
+      if (r.unheated) return { fill: 'url(#hatch)', value: '', swatch: '#1C1D21' };
+      const wm2 = Math.round(r.w / r.area);
+      if (layer === 'pred') return { fill: predBin(wm2), value: fmtW(r.w), list: fmtW(r.w) + ' · ' + wm2 + ' W/m²', swatch: predBin(wm2) };
+      if (layer === 'live') {
+        if (!sample) return { fill: '#2A2C31', value: '—', list: '— °C', swatch: '#2A2C31' };
+        const d = r.now - r.t;
+        const c = tempBin(d);
+        return { fill: c, value: r.now.toFixed(1) + '° / ' + r.t + '°', list: r.now.toFixed(1) + ' °C (target ' + r.t + ')', swatch: c };
+      }
+      if (r.ufh) return { fill: 'url(#hatch)', value: 'Not measured', list: 'UFH · not measured', swatch: '#1C1D21' };
+      if (!sample) return { fill: '#2A2C31', value: '—', list: '—', swatch: '#2A2C31' };
+      const c = ratioBin(r.ratio);
+      return { fill: c, value: Math.round(r.ratio * 100) + '%', list: fmtW(Math.round(r.w * r.ratio)) + ' · ' + Math.round(r.ratio * 100) + '%', swatch: c };
+    };
+
+    const pickRoom = (id) => () => this.setState({ sel: this.state.sel === id ? null : id });
+    const floorRooms = ROOMS.filter((r) => r.floor === s.floor);
+
+    const rooms = floorRooms.map((r) => {
+      const lk = look(r);
+      const isSel = s.sel === r.id;
+      const fill = lk.fill;
+      return {
+        points: r.points,
+        fill,
+        stroke: isSel ? '#FFFFFF' : '#8FB0DD',
+        strokeW: isSel ? 5 : 3,
+        fg: r.unheated ? '#A9ADB5' : (darkText(fill) ? '#17181C' : '#FFFFFF'),
+        short: r.short,
+        value: lk.value,
+        lx: r.lx,
+        ly: lk.value ? r.ly - 6 : r.ly + 4,
+        ly2: r.ly + 12,
+        cursor: r.unheated ? 'default' : 'pointer',
+        pick: r.unheated ? () => {} : pickRoom(r.id)
+      };
+    });
+
+    const rads = Object.keys(EM).filter((k) => ROOMS.find((r) => r.id === EM[k].room).floor === s.floor).map((k) => {
+      const e = EM[k];
+      const live = layer === 'live' && sample;
+      const offRad = e.mwt < 25;
+      const horiz = e.w >= e.h;
+      const cx = horiz ? e.x + e.w / 2 : e.x + e.w / 2;
+      const cy = horiz ? e.y + e.h / 2 : e.y + e.h / 2;
+      return {
+        id: k, x: e.x, y: e.y, w: e.w, h: e.h, cx, cy, ty: cy + 3.5,
+        fill: live && offRad ? '#5A5D66' : '#E8EAED',
+        pick: pickRoom(e.room)
+      };
+    });
+
+    const roomList = floorRooms.filter((r) => !r.unheated).map((r) => {
+      const lk = look(r);
+      return { name: r.name, value: lk.list, swatch: lk.swatch, pick: pickRoom(r.id), pressed: s.sel === r.id ? 'true' : 'false', bg: s.sel === r.id ? '#2A2C31' : 'transparent' };
+    });
+
+    const selRoom = ROOMS.find((r) => r.id === s.sel);
+    let sel = null;
+    if (selRoom) {
+      const wm2 = Math.round(selRoom.w / selRoom.area);
+      const rated = selRoom.em.reduce((a, k) => a + EM[k].rated, 0);
+      const measured = !selRoom.ufh && sample && selRoom.ratio ? Math.round(selRoom.w * selRoom.ratio) : null;
+      const max = Math.max(selRoom.w, measured || 0, 1);
+      let verdict = 'Underfloor heating has no per-room measurement yet. Room temperature is still shown in Live.';
+      if (!selRoom.ufh && !sample) verdict = 'Connect radiator and room sensors to estimate measured heat for this room.';
+      if (measured !== null) {
+        const r = selRoom.ratio;
+        if (r < 0.7) verdict = 'Uses much less heat than predicted. ';
+        else if (r < 0.9) verdict = 'Uses a bit less heat than predicted, in line with most homes. ';
+        else if (r <= 1.1) verdict = 'Close to the prediction. ';
+        else verdict = 'Uses more heat than predicted. ';
+        if (rated > 0 && rated < selRoom.w * 0.8) verdict += 'Its emitter is rated ' + fmtW(rated) + ', well below the predicted ' + fmtW(selRoom.w) + ', so the room may run below target on cold days.';
+        else if (r > 1.1) verdict += 'Likely heat passing to cooler rooms next door, or an oversized radiator.';
+      }
+      const emitters = selRoom.em.map((k) => ({ id: k, type: EM[k].type, rated: EM[k].rated ? fmtW(EM[k].rated) : '0 W' }));
+      if (selRoom.ufh) emitters.push({ id: 'U', type: 'Underfloor heating (wet)', rated: '—' });
+      const mwtK = selRoom.em.find((k) => EM[k].mwt >= 25);
+      sel = {
+        name: selRoom.name,
+        meta: (selRoom.floor === 'ground' ? 'Ground floor' : 'First floor') + ' · ' + selRoom.area + ' m² · design ' + selRoom.t + ' °C',
+        pred: fmtW(selRoom.w),
+        wm2: wm2 + ' W/m²',
+        now: sample ? selRoom.now.toFixed(1) + ' °C' : '—',
+        mwt: sample && mwtK ? EM[mwtK].mwt + ' °C avg' : '—',
+        meas: measured !== null ? fmtW(measured) : (selRoom.ufh ? 'Not measured' : '—'),
+        predPct: Math.round(selRoom.w / max * 100),
+        measPct: measured !== null ? Math.round(measured / max * 100) : 0,
+        verdict,
+        emitters
+      };
+    }
+
+    const LAYERS = [
+      { id: 'pred', label: 'Predicted' },
+      { id: 'live', label: 'Live' },
+      { id: 'cmp', label: 'Predicted vs measured' }
+    ];
+    const layers = LAYERS.map((l) => ({ label: l.label, sel: l.id === layer ? 'true' : 'false', fg: l.id === layer ? on.fg : off.fg, bg: l.id === layer ? on.bg : off.bg, pick: () => this.setState({ layer: l.id }) }));
+
+    const TIMES = [
+      { id: 'live', label: 'Now' },
+      { id: 'cold', label: 'Coldest night' },
+      { id: 'date', label: 'Pick a date' }
+    ];
+    const times = TIMES.map((t) => ({ label: t.label, sel: t.id === s.time ? 'true' : 'false', fg: t.id === s.time ? on.fg : off.fg, bg: t.id === s.time ? on.bg : off.bg, pick: () => this.setState({ time: t.id }) }));
+    const timeNote = s.time === 'live' ? 'Updating every 5 minutes' : s.time === 'cold' ? 'Coldest night this winter · [OUTSIDE] °C outside · extrapolated to −5 °C' : 'Choose a night with steady heating';
+
+    const LEG = {
+      pred: { title: 'Predicted W/m²', items: [['#24507F', 'Under 40'], ['#3B6EA5', '40–55'], ['#C4621A', '55–70'], ['#F2994A', '70 and over']] },
+      live: { title: 'Room vs target', items: [['#3B6EA5', 'Over 1 °C below'], ['#2B4A6E', 'Slightly below'], ['#3A3C42', 'On target'], ['#A04E12', 'Slightly above'], ['#F2994A', 'Over 1 °C above']] },
+      cmp: { title: 'Measured ÷ predicted', items: [['#3B6EA5', 'Under 70%'], ['#2B4A6E', '70–90%'], ['#3A3C42', '90–110%'], ['#A04E12', '110–130%'], ['#F2994A', 'Over 130%'], ['url', 'Not measured']] }
+    };
+    const leg = LEG[layer];
+    const legend = leg.items.map(([c, label]) => ({ color: c === 'url' ? 'repeating-linear-gradient(45deg, #1C1D21 0 3px, #3A3C42 3px 5px)' : c, label }));
+
+    return {
+      showSample: sample && layer !== 'pred',
+      houseMeasured: sample ? '5.7 kW' : '[MEASURED] kW',
+      groundSel: g ? 'true' : 'false',
+      firstSel: g ? 'false' : 'true',
+      groundFg: g ? on.fg : off.fg, groundBg: g ? on.bg : off.bg,
+      firstFg: g ? off.fg : on.fg, firstBg: g ? off.bg : on.bg,
+      pickGround: () => this.setState({ floor: 'ground', sel: null }),
+      pickFirst: () => this.setState({ floor: 'first', sel: null }),
+      floorName: g ? 'Ground floor' : 'First floor',
+      viewBox: g ? '110 215 455 745' : '55 140 525 575',
+      planLabel: (g ? 'Ground floor' : 'First floor') + ' plan coloured by ' + leg.title,
+      layers, times, timeNote,
+      rooms, rads, roomList,
+      listHeader: layer === 'pred' ? 'Predicted' : layer === 'live' ? 'Now' : 'Measured',
+      legendTitle: leg.title, legend,
+      hasSel: !!sel,
+      sel: sel || { emitters: [] },
+      clearSel: () => this.setState({ sel: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

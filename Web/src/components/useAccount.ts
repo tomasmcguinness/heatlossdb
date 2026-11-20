@@ -18,3 +18,8 @@ const signedOut: Account = { isSignedIn: false, openSignIn: () => {} }
 /** The user's account, from Clerk. Clerk's hooks need its provider, which is only there when sign-in
  *  is set up, so without it this is always signed out. Which one is used never changes at runtime. */
 export const useAccount: () => Account = isAuthConfigured ? useClerkAccount : () => signedOut
+
+/** Where the logo takes you: your scans when signed in, otherwise the page to open a scan. */
+export function homeHref(isSignedIn: boolean | undefined): string {
+  return isSignedIn ? '/scans' : '/new'
+}

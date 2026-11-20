@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AccountButton } from './components/AccountButton'
+import { Brand } from './components/Brand'
 import { DropZone } from './components/DropZone'
 import { ExplorePage } from './components/ExplorePage'
 import { MatchesPage } from './components/MatchesPage'
@@ -8,7 +9,6 @@ import { SharedHomePage } from './components/SharedHomePage'
 import { useAccount } from './components/useAccount'
 import { loadSavedEdits } from './share/homes'
 import { shareIdFromPath } from './share/sharedHome'
-import { WhatNext, type Choice } from './components/WhatNext'
 import { ScanEditor } from './components/editor/ScanEditor'
 import { HomeFabricDialog } from './components/fabric/HomeFabricDialog'
 import { errorMessage, loadDevScan, loadSurvey, surveyIdFromPath } from './components/files'
@@ -16,10 +16,8 @@ import { isHomeFabricSet } from './fabric/home'
 import { restoreLastScan, useFabric } from './fabric/store'
 import { useProfile } from './match/useProfile'
 
-type Page = 'next' | 'scan' | 'share' | 'matches' | 'explore'
-
-/** The page each What next choice opens. Sharing starts in the editor, with Share open. */
-const PAGE_FOR: Record<Choice, Page> = { view: 'scan', share: 'share', search: 'matches', explore: 'explore' }
+/** The floor plan editor, or one of the pages opened from its menu. */
+type Page = 'scan' | 'matches' | 'explore'
 
 /** Once a survey is open and the user is signed in, brings back the edits they saved to their
  *  account for it. Those replace this tab's, as opening a downloaded file's do. */
@@ -55,27 +53,26 @@ function ScanApp() {
   const scan = useFabric((s) => s.scan)
   const [error, setError] = useState<string | null>(null)
   const [onHomes] = useState(() => /^\/scans\/?$/.test(location.pathname))
+  // /new is the page to open a scan: it starts empty rather than bringing back the last scan, which
+  // stays in this tab's storage until another is opened.
+  const [onNew] = useState(() => /^\/new\/?$/.test(location.pathname))
   // A link from the app (/s/<id>) opens that survey rather than the last one.
   const [surveyId] = useState(() => surveyIdFromPath(location.pathname))
   const [loadingSurvey, setLoadingSurvey] = useState(surveyId !== null)
   useSavedEdits(surveyId, !loadingSurvey)
-  // Every newly opened home starts on What next?, so the page is remembered per home (not per
-  // floor plan: switching to its tidied plan stays in the editor).
+  // Every newly opened home starts on its floor plan. The page is remembered per home (not per
+  // floor plan: switching to its tidied plan stays where it is).
   const homeKey = useFabric((s) => s.homeKey)
   const [pageFor, setPageFor] = useState<{ home: string; page: Page } | null>(null)
-  const page: Page = homeKey && pageFor?.home === homeKey ? pageFor.page : 'next'
+  const page: Page = homeKey && pageFor?.home === homeKey ? pageFor.page : 'scan'
   const setPage = (p: Page) => homeKey && setPageFor({ home: homeKey, page: p })
   const profile = useProfile(surveyId)
-  const editing = !onHomes && scan !== null && !loadingSurvey && (page === 'scan' || page === 'share')
+  const editing = !onHomes && scan !== null && !loadingSurvey && page === 'scan'
   const [fabricOpen, setFabricOpen] = useState(false)
-  // Search can be opened from What next? or from the editor, and Back returns there.
-  const [searchFrom, setSearchFrom] = useState<Page>('next')
-
-  const choose = (choice: Choice, from: Page = 'next') => {
-    setSearchFrom(from)
-    setPage(PAGE_FOR[choice])
+  const search = () => {
+    setPage('matches')
     // Matching needs a few answers about the home first: its postcode, age and type.
-    if (choice === 'search' && !isHomeFabricSet(useFabric.getState().home)) setFabricOpen(true)
+    if (!isHomeFabricSet(useFabric.getState().home)) setFabricOpen(true)
   }
 
   useEffect(() => {
@@ -92,20 +89,23 @@ function ScanApp() {
       loadDevScan(params).catch((e: unknown) => setError(String(e)))
       return
     }
+    if (onNew) return
     const last = restoreLastScan()
     if (last) useFabric.getState().loadScan(last)
-  }, [surveyId, onHomes])
+  }, [surveyId, onHomes, onNew])
+
+  // Once a scan is opened from /new, the address goes back to /, so a reload keeps it open.
+  useEffect(() => {
+    if (scan && /^\/new\/?$/.test(location.pathname)) history.replaceState(null, '', '/')
+  }, [scan])
 
   return (
     <div className={editing ? 'app full' : 'app'}>
       {/* The editor has a header of its own. */}
       {!editing && (
         <header className="topbar">
-          <h1 className="brand" aria-label="HeatLossDB">
-            <img src="/logo.svg" alt="" width={28} height={28} />
-            <span aria-hidden="true">
-              heatloss<span className="brand-db">db</span>
-            </span>
+          <h1 className="topbar-brand">
+            <Brand size={28} />
           </h1>
           <AccountButton />
         </header>
@@ -119,20 +119,18 @@ function ScanApp() {
         </div>
       ) : !scan ? (
         <DropZone error={error} onError={setError} />
-      ) : page === 'next' ? (
-        <WhatNext profile={profile} onChoose={choose} />
       ) : page === 'matches' ? (
         profile ? (
-          <MatchesPage surveyId={surveyId} profile={profile} onBack={() => setPage(searchFrom)} onFabric={() => setFabricOpen(true)} />
+          <MatchesPage surveyId={surveyId} profile={profile} onBack={() => setPage('scan')} onFabric={() => setFabricOpen(true)} />
         ) : (
           <div className="dropzone">
             <p className="muted">This scan has no floor outline to match yet.</p>
           </div>
         )
       ) : page === 'explore' ? (
-        <ExplorePage surveyId={surveyId} onBack={() => setPage('next')} />
+        <ExplorePage surveyId={surveyId} onBack={() => setPage('scan')} />
       ) : (
-        <ScanEditor onBack={() => setPage('next')} onSearch={() => choose('search', 'scan')} startSharing={page === 'share'} />
+        <ScanEditor onSearch={search} onExplore={() => setPage('explore')} />
       )}
 
       {fabricOpen && scan && !editing && <HomeFabricDialog onClose={() => setFabricOpen(false)} />}

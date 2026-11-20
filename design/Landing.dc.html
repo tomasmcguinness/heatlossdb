@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>heatlossdb – Welcome</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0;background:#17181C}
+a{color:#F2994A}a:hover{color:#FFC08A}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #17181C; color: #F2F2F2; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif">
+  <header style="height: 68px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; background: #1E1F23; border-bottom: 1px solid #2C2E33">
+    <svg width="36" height="36" viewBox="0 0 100 100" aria-hidden="true" style="border-radius: 8px"><rect width="100" height="100" fill="#12233B"></rect><polygon points="26,69.5 50,81.5 50,86.5 26,74.5" fill="#24507F"></polygon><polygon points="50,81.5 74,69.5 74,74.5 50,86.5" fill="#1B3F66"></polygon><polygon points="26,69.5 50,57.5 74,69.5 50,81.5" fill="#3B6EA5"></polygon><polygon points="26,49.5 50,61.5 50,66.5 26,54.5" fill="#24507F"></polygon><polygon points="50,61.5 74,49.5 74,54.5 50,66.5" fill="#1B3F66"></polygon><polygon points="26,49.5 50,37.5 74,49.5 50,61.5" fill="#3B6EA5"></polygon><polygon points="26,29.5 50,41.5 50,46.5 26,34.5" fill="#C4621A"></polygon><polygon points="50,41.5 74,29.5 74,34.5 50,46.5" fill="#A04E12"></polygon><polygon points="50,17.5 74,29.5 62,25.5 38,13.5" fill="#F6B97E"></polygon><polygon points="26,29.5 50,41.5 62,25.5 38,13.5" fill="#F2994A"></polygon><polygon points="50,41.5 74,29.5 62,25.5" fill="#A04E12"></polygon></svg>
+    <span style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; letter-spacing: -0.02em">heatloss<span style="color: #F2994A">db</span></span>
+    <a href="#" style="margin-left: auto; font-size: 14px; padding: 12px 4px">Sign in</a>
+  </header>
+
+  <main style="max-width: 960px; margin: 0 auto; padding: 72px 24px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px">
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 40px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; max-width: 720px">Real heat loss data from real UK homes</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 26px; color: #A9ADB5; max-width: 640px">Floor plans scanned with the HeatLossDB app, combined with heat loss calculations and heat pump details shared by homeowners.</p>
+    </div>
+
+    <nav aria-label="Get started" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px">
+
+      <section aria-labelledby="open-title" onMouseEnter="{{openCard.enter}}" onMouseLeave="{{openCard.leave}}" onFocus="{{openCard.focus}}" onBlur="{{openCard.blur}}" onDragOver="{{dragOver}}" onDragLeave="{{dragLeave}}" onDrop="{{drop}}" style="padding: 28px; min-height: 280px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; border-radius: 14px; transition: border-color 120ms, background 120ms, transform 120ms, box-shadow 120ms; border: {{openCard.border}}; background: {{openCard.bg}}; transform: {{openCard.lift}}; box-shadow: {{openCard.shadow}}">
+        <span style="width: 52px; height: 52px; border-radius: 12px; background: #2A2C31; display: flex; align-items: center; justify-content: center">
+          <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2994A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3 H6 V21 H18 V7 Z"></path><path d="M14 3 V7 H18"></path><path d="M12 17 V11"></path><path d="M9.5 13.5 L12 11 L14.5 13.5"></path></svg>
+        </span>
+        <h2 id="open-title" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700">Open a scan</h2>
+
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="scan-code" style="font-size: 15px">Enter the code from the app</label>
+          <div style="display: flex; gap: 8px">
+            <input id="scan-code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC-123" value="{{code}}" onChange="{{setCode}}" aria-describedby="code-help" style="flex: 1; min-width: 0; height: 48px; box-sizing: border-box; padding: 0 14px; font-family: 'Space Grotesk', monospace; font-size: 20px; letter-spacing: 0.12em; color: #F2F2F2; background: #17181C; border: 1px solid #4A4D55; border-radius: 8px">
+            <sc-if value="{{ready}}" hint-placeholder-val="{{ false }}">
+              <a href="WhatNext.dc.html" style="display: flex; align-items: center; min-height: 48px; box-sizing: border-box; padding: 0 20px; font-size: 16px; color: #FFFFFF; background: #C8692A; border-radius: 8px; text-decoration: none">Open</a>
+            </sc-if>
+            <sc-if value="{{notReady}}" hint-placeholder-val="{{ true }}">
+              <button type="button" disabled="" aria-disabled="true" style="min-height: 48px; padding: 0 20px; font-size: 16px; color: #8A8E96; background: #2A2C31; border: 1px solid #3A3C42; border-radius: 8px; cursor: not-allowed">Open</button>
+            </sc-if>
+          </div>
+          <span id="code-help" style="font-size: 13px; color: #A9ADB5">Shown in the app after you save a scan. You can also paste the link.</span>
+        </div>
+
+        <div aria-hidden="true" style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: #8A8E96"><span style="flex: 1; height: 1px; background: #3A3C42"></span>or<span style="flex: 1; height: 1px; background: #3A3C42"></span></div>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; border: 1.5px dashed {{dropBorder}}; background: #1A1B1F">
+          <a href="WhatNext.dc.html" style="display: flex; align-items: center; min-height: 44px; box-sizing: border-box; padding: 0 16px; font-size: 15px; color: #F2F2F2; background: #2A2C31; border: 1px solid #4A4D55; border-radius: 8px; text-decoration: none">Choose a file</a>
+          <span style="flex: 1 1 180px; font-size: 14px; line-height: 20px; color: #A9ADB5">{{dropText}}</span>
+        </div>
+
+        <span style="margin-top: auto; align-self: flex-start; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; color: #9CC3F5; background: #1C2A3D">No account needed to view</span>
+      </section>
+
+      <a href="Explore.dc.html" onMouseEnter="{{exploreCard.enter}}" onMouseLeave="{{exploreCard.leave}}" onFocus="{{exploreCard.focus}}" onBlur="{{exploreCard.blur}}" style="text-decoration: none; color: #F2F2F2; padding: 28px; min-height: 280px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; border-radius: 14px; transition: border-color 120ms, background 120ms, transform 120ms, box-shadow 120ms; border: {{exploreCard.border}}; background: {{exploreCard.bg}}; transform: {{exploreCard.lift}}; box-shadow: {{exploreCard.shadow}}">
+        <span style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+          <span style="width: 52px; height: 52px; border-radius: 12px; background: #2A2C31; display: flex; align-items: center; justify-content: center">
+            <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#F2994A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5 L9 4 L15 6.5 L21 4 V17.5 L15 20 L9 17.5 L3 20 Z"></path><path d="M9 4 V17.5"></path><path d="M15 6.5 V20"></path></svg>
+          </span>
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="{{exploreCard.arrow}}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 H19"></path><path d="M13 6 L19 12 L13 18"></path></svg>
+        </span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700">Explore the database</span>
+        <span style="font-size: 15px; line-height: 22px; color: #A9ADB5">Browse shared homes by area, age and property type, and see their heat loss and how their heat pumps perform.</span>
+        <span style="margin-top: auto; align-self: flex-start; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; color: #9CC3F5; background: #1C2A3D">No account needed</span>
+      </a>
+    </nav>
+
+    <p style="margin: 0; font-size: 14px; color: #A9ADB5">Don’t have a scan yet? <a href="#">Get the HeatLossDB app</a></p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { code: '', dragging: false, hover: null, focus: null };
+  }
+  format(raw) {
+    let s = String(raw || '').trim();
+    const m = s.match(/\/s\/([A-Za-z0-9-]+)\/?$/);
+    if (m) s = m[1];
+    s = s.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/O/g, '0').replace(/I/g, '1').slice(0, 6);
+    return s.length > 3 ? s.slice(0, 3) + '-' + s.slice(3) : s;
+  }
+  renderVals() {
+    const st = this.state;
+    const ready = st.code.replace('-', '').length === 6;
+    const card = (id) => {
+      const lit = st.hover === id || st.focus === id || (id === 'open' && st.dragging);
+      return {
+        border: id === 'open' && st.dragging ? '2px dashed #E07B35' : (lit ? '2px solid #E07B35' : '2px solid #2C2E33'),
+        bg: lit ? '#26221F' : '#202125',
+        lift: lit ? 'translateY(-3px)' : 'none',
+        shadow: lit ? '0 12px 32px rgba(0,0,0,0.35)' : 'none',
+        arrow: lit ? '#F2994A' : '#A9ADB5',
+        enter: () => this.setState({ hover: id }),
+        leave: () => this.setState({ hover: null }),
+        focus: () => this.setState({ focus: id }),
+        blur: () => this.setState({ focus: null })
+      };
+    };
+    return {
+      openCard: card('open'),
+      exploreCard: card('explore'),
+      code: st.code,
+      setCode: (e) => this.setState({ code: this.format(e.target.value) }),
+      ready, notReady: !ready,
+      dropBorder: st.dragging ? '#E07B35' : '#4A4D55',
+      dropText: st.dragging ? 'Drop to open your scan' : 'or drag your merged.json here',
+      dragOver: (e) => { e.preventDefault(); if (!st.dragging) this.setState({ dragging: true }); },
+      dragLeave: () => this.setState({ dragging: false }),
+      drop: (e) => { e.preventDefault(); this.setState({ dragging: false }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
