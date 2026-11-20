@@ -1,204 +1,381 @@
 // Explore the database: browse the homes others have shared.
-import { useMemo, useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { AGE_BANDS, labelIn, NOT_SURE, PROPERTY_TYPES } from '../fabric/home'
-import { storeyLabels } from '../fabric/store'
 import { useCandidates, type Candidate } from '../match/candidates'
-import { climateFor } from '../match/climate'
-import { formatKw, formatTemperature } from '../match/heatPump'
+import {
+  AREA_BANDS,
+  byArea,
+  hasInstallerCalc,
+  matchesFilters,
+  measuredScop,
+  NO_FILTERS,
+  searchArea,
+  SORTERS,
+  SORTS,
+  totalsOf,
+  wattsPerM2,
+  type ExploreFilters,
+  type Sort,
+} from '../match/explore'
+import { formatKw } from '../match/heatPump'
 import { uprightRotation } from '../match/similarity'
-import { outwardCode } from '../share/postcode'
 import { PlanSvg } from './PlanSvg'
 
-type Sort = 'newest' | 'size' | 'heatLoss' | 'scop'
+/** Homes shown at first, and how many more each "Show more homes" adds. */
+const PAGE = 12
 
-const SORTS: { value: Sort; label: string }[] = [
-  { value: 'newest', label: 'Newest first' },
-  { value: 'size', label: 'Floor area' },
-  { value: 'heatLoss', label: 'Heat loss per m², lowest first' },
-  { value: 'scop', label: 'Heat pump efficiency (SCOP), best first' },
-]
+const AGES = AGE_BANDS.filter((c) => c.value !== NOT_SURE)
+const kw = (watts: number) => formatKw(watts)
+const perM2 = (value: number | null) => (value === null ? '–' : `${Math.round(value)} W/m²`)
 
-const m2 = (v: number) => `${Math.round(v)} m²`
-const wattsPerM2 = (c: Candidate) => (c.heatPump && c.profile.floorArea ? c.heatPump.designHeatLossW / c.profile.floorArea : null)
+type View = 'homes' | 'areas'
 
-/** Sorts numbers best first, with homes that don't have the figure last. */
-const byFigure = (value: (c: Candidate) => number | null | undefined, descending: boolean) => (a: Candidate, b: Candidate) => {
-  const x = value(a)
-  const y = value(b)
-  if (x == null) return y == null ? 0 : 1
-  if (y == null) return -1
-  return descending ? y - x : x - y
+/** Explore the database: every shared home, searched by area and filtered by type, age, size and
+ *  the data it has. */
+export function ExplorePage({ surveyId, onBack }: { surveyId: string | null; onBack: () => void }) {
+  const [reload, setReload] = useState(0)
+  const state = useCandidates(surveyId, reload)
+  const [search, setSearch] = useState('')
+  const [searchError, setSearchError] = useState(false)
+  const [filters, setFilters] = useState<ExploreFilters>(NO_FILTERS)
+  const [sort, setSort] = useState<Sort>('recent')
+  const [view, setView] = useState<View>('homes')
+  const [shown, setShown] = useState(PAGE)
+
+  const all = state.status === 'ready' ? state.candidates : []
+  const totals = totalsOf(all)
+  const homes = all.filter((c) => matchesFilters(c, filters)).sort(SORTERS[sort])
+  const areas = byArea(homes)
+
+  const update = (patch: Partial<ExploreFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }))
+    setShown(PAGE)
+  }
+  const toggle = (key: 'propertyTypes' | 'ageBands', value: string) =>
+    update({ [key]: filters[key].includes(value) ? filters[key].filter((v) => v !== value) : [...filters[key], value] })
+
+  const runSearch = (e: FormEvent) => {
+    e.preventDefault()
+    const area = searchArea(search)
+    setSearchError(search.trim() !== '' && area === null)
+    if (search.trim() === '' || area) update({ area })
+  }
+  const seeArea = (district: string) => {
+    setSearch(district)
+    setSearchError(false)
+    update({ area: district })
+    setView('homes')
+  }
+
+  const summary = [
+    filters.area,
+    ...filters.propertyTypes.map((v) => labelIn(PROPERTY_TYPES, v)),
+    ...filters.ageBands.map((v) => labelIn(AGE_BANDS, v)),
+    AREA_BANDS.find((b) => b.value === filters.floorArea)?.label,
+    filters.hasHeatPump && 'with a heat pump',
+    filters.measured && 'measured performance',
+    filters.installerCalc && 'installer calc',
+  ].filter(Boolean)
+
+  return (
+    <main className="explore">
+      <div className="page-back">
+        <button className="link" onClick={onBack}>
+          ← Back
+        </button>
+      </div>
+
+      <div className="explore-head">
+        <div className="explore-intro">
+          <h1>Explore the database</h1>
+          <p className="muted">Heat loss and heat pump data shared by homeowners across the UK.</p>
+        </div>
+        <form role="search" className="explore-search" onSubmit={runSearch}>
+          <label htmlFor="ex-search" className="visually-hidden">
+            Search by postcode district
+          </label>
+          <input
+            id="ex-search"
+            type="search"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            placeholder="Postcode district, e.g. B91"
+            value={search}
+            aria-invalid={searchError ? true : undefined}
+            aria-describedby={searchError ? 'ex-search-error' : undefined}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              // Clearing the box shows every area again.
+              if (e.target.value.trim() === '' && filters.area) update({ area: null })
+            }}
+          />
+          <button className="button" type="submit">
+            Search
+          </button>
+        </form>
+      </div>
+      {searchError && (
+        <p id="ex-search-error" className="share-error" role="alert">
+          Enter a postcode area like SW, or the first part of a postcode like B91.
+        </p>
+      )}
+
+      <div className="explore-tiles">
+        <Tile label="Homes shared" value={state.status === 'ready' ? String(totals.homes) : '–'} />
+        <Tile label="Median heat loss per m²" value={perM2(totals.medianWattsPerM2)} />
+        <Tile label="With a heat pump" value={state.status === 'ready' ? String(totals.withHeatPump) : '–'} />
+        <Tile label="With measured performance" value={state.status === 'ready' ? String(totals.measured) : '–'} />
+      </div>
+
+      <div className="explore-body">
+        <aside className="explore-filters" aria-label="Filters">
+          <div className="explore-filters-head">
+            <h2>Filters</h2>
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                update({ ...NO_FILTERS, area: filters.area })
+              }}
+            >
+              Clear all
+            </button>
+          </div>
+
+          <fieldset>
+            <legend>Property type</legend>
+            <div className="chips">
+              {PROPERTY_TYPES.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  className="chip"
+                  aria-pressed={filters.propertyTypes.includes(c.value)}
+                  onClick={() => toggle('propertyTypes', c.value)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Age</legend>
+            <div className="chips">
+              {AGES.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  className="chip"
+                  aria-pressed={filters.ageBands.includes(c.value)}
+                  onClick={() => toggle('ageBands', c.value)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <label className="explore-field">
+            <span>Floor area</span>
+            <select value={filters.floorArea} onChange={(e) => update({ floorArea: e.target.value })}>
+              <option value="">Any size</option>
+              {AREA_BANDS.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <fieldset>
+            <legend>Data available</legend>
+            <label className="explore-check">
+              <input type="checkbox" checked={filters.hasHeatPump} onChange={(e) => update({ hasHeatPump: e.target.checked })} />
+              Has a heat pump
+            </label>
+            <label className="explore-check">
+              <input type="checkbox" checked={filters.measured} onChange={(e) => update({ measured: e.target.checked })} />
+              Measured performance
+            </label>
+            <label className="explore-check">
+              <input type="checkbox" checked={filters.installerCalc} onChange={(e) => update({ installerCalc: e.target.checked })} />
+              Installer heat loss calculation
+            </label>
+          </fieldset>
+        </aside>
+
+        <section className="explore-results" aria-label="Results">
+          <div className="explore-results-head">
+            <span aria-live="polite">
+              <strong>
+                {homes.length} {homes.length === 1 ? 'home' : 'homes'}
+              </strong>
+              {summary.length > 0 && <span className="muted"> · {summary.join(', ')}</span>}
+            </span>
+            <div className="explore-controls">
+              <div className="view-tabs" role="tablist" aria-label="View">
+                {(['homes', 'areas'] as View[]).map((v) => (
+                  <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
+                    {v === 'homes' ? 'Homes' : 'By area'}
+                  </button>
+                ))}
+              </div>
+              {view === 'homes' && (
+                <label className="explore-sort">
+                  <span className="muted">Sort</span>
+                  <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+                    {SORTS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+          </div>
+
+          {state.status === 'loading' && <p className="muted">Loading homes…</p>}
+          {state.status === 'error' && (
+            <div className="card empty">
+              <p role="alert">Couldn’t load homes.</p>
+              <button className="button subtle" onClick={() => setReload((n) => n + 1)}>
+                Try again
+              </button>
+            </div>
+          )}
+          {state.status === 'ready' && homes.length === 0 && (
+            <div className="card empty">
+              <p>{all.length ? 'No homes match these filters.' : 'No homes have been shared yet.'}</p>
+            </div>
+          )}
+
+          {view === 'homes' && homes.length > 0 && (
+            <>
+              <ul className="explore-homes">
+                {homes.slice(0, shown).map((c) => (
+                  <HomeCard key={c.id} home={c} />
+                ))}
+              </ul>
+              {homes.length > shown && (
+                <button type="button" className="button subtle explore-more" onClick={() => setShown((n) => n + PAGE)}>
+                  Show more homes
+                </button>
+              )}
+            </>
+          )}
+
+          {view === 'areas' && areas.length > 0 && (
+            <div className="explore-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Area</th>
+                    <th scope="col" className="num">
+                      Homes
+                    </th>
+                    <th scope="col" className="num">
+                      Median W/m²
+                    </th>
+                    <th scope="col" className="num">
+                      Typical heat pump
+                    </th>
+                    <th scope="col">
+                      <span className="visually-hidden">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {areas.map((a) => (
+                    <tr key={a.district}>
+                      <th scope="row">{a.district}</th>
+                      <td className="num">{a.homes}</td>
+                      <td className="num">{a.medianWattsPerM2 === null ? '–' : Math.round(a.medianWattsPerM2)}</td>
+                      <td className="num">{a.typicalHeatPumpKw === null ? '–' : `${a.typicalHeatPumpKw} kW`}</td>
+                      <td className="num">
+                        <button type="button" className="link" onClick={() => seeArea(a.district)}>
+                          See homes
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {view === 'areas' && state.status === 'ready' && homes.length > 0 && areas.length === 0 && (
+            <p className="muted">None of these homes has shared its area yet.</p>
+          )}
+
+          <div className="explore-cta">
+            <span>Every shared home makes these numbers more useful. Scanned yours?</span>
+            <a className="button" href="/new">
+              Share your home
+            </a>
+          </div>
+        </section>
+      </div>
+    </main>
+  )
 }
 
-const SORTERS: Record<Sort, (a: Candidate, b: Candidate) => number> = {
-  newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
-  size: byFigure((c) => c.profile.floorArea, true),
-  heatLoss: byFigure(wattsPerM2, false),
-  scop: byFigure((c) => c.heatPump?.annual?.scop, true),
+function Tile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="explore-tile">
+      <span className="muted small">{label}</span>
+      <span className="explore-tile-value">{value}</span>
+    </div>
+  )
 }
 
 function HomeCard({ home }: { home: Candidate }) {
   const { profile, heatPump, share } = home
-  const climate = climateFor(share?.postcodeDistrict)
-  const perM2 = wattsPerM2(home)
-  const rows: [string, string][] = [
-    ['Floor area', `${m2(profile.floorArea)} · ${profile.storeys} ${profile.storeys === 1 ? 'storey' : 'storeys'}`],
-  ]
-  if (share) rows.push(['Area', climate ? `${share.postcodeDistrict} · ${formatTemperature(climate.designTemperature)} design` : share.postcodeDistrict])
-  if (heatPump && perM2 !== null) rows.push(['Heat loss', `${formatKw(heatPump.designHeatLossW)} · ${Math.round(perM2)} W/m²`])
-  if (heatPump?.heatPump) rows.push(['Heat pump', `${heatPump.heatPump.make} ${heatPump.heatPump.model} · ${heatPump.heatPump.capacityKw} kW`])
-  if (heatPump?.annual) rows.push(['SCOP', heatPump.annual.scop.toFixed(1)])
-  return (
-    <article className="card explore-home">
-      <PlanSvg storeys={profile.plans} rotation={uprightRotation(profile.plans)} labels={storeyLabels(profile.plans.length)} title="Floorplan" />
-      <h3>
-        {share?.name ?? 'Home'}
-        {heatPump?.source === 'sample' && (
-          <span className="tag tag-sample" title="Made-up figures for trying out the page, not from a real home">
-            Sample data
-          </span>
-        )}
-      </h3>
-      {!share && <p className="muted small">The owner hasn’t described this home yet.</p>}
-      <dl className="stats">
-        {rows.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </article>
-  )
-}
-
-/** Explore the database: every shared home, filtered by area, age and type. */
-export function ExplorePage({ surveyId, onBack }: { surveyId: string | null; onBack: () => void }) {
-  const [reload, setReload] = useState(0)
-  const state = useCandidates(surveyId, reload)
-  const [area, setArea] = useState('')
-  const [propertyType, setPropertyType] = useState('')
-  const [ageBand, setAgeBand] = useState('')
-  const [sort, setSort] = useState<Sort>('newest')
-
-  // "SW", "SW1A" or a full postcode: homes in that postcode area, or that district if one is given.
-  const areaFilter = useMemo(() => {
-    const text = area.trim().toUpperCase()
-    if (!text) return null
-    const district = outwardCode(text)
-    return district ?? (/^[A-Z]{1,2}$/.test(text) ? text : null)
-  }, [area])
-  const areaInvalid = area.trim() !== '' && areaFilter === null
-
-  const all = state.status === 'ready' ? state.candidates : []
-  const homes = all
-    .filter((c) => {
-      if (areaFilter) {
-        const district = c.share?.postcodeDistrict
-        if (!district) return false
-        const matches = /\d/.test(areaFilter) ? district === areaFilter : climateFor(district)?.area === areaFilter
-        if (!matches) return false
-      }
-      if (propertyType && c.share?.home?.propertyType !== propertyType) return false
-      if (ageBand && c.share?.home?.ageBand !== ageBand) return false
-      return true
-    })
-    .sort(SORTERS[sort])
-  const withFigures = homes.filter((c) => c.heatPump).length
+  const type = labelIn(PROPERTY_TYPES, share?.home?.propertyType)
+  const age = labelIn(AGE_BANDS, share?.home?.ageBand)
+  const scop = measuredScop(home)
+  const title = share ? [share.postcodeDistrict, type].filter(Boolean).join(' · ') : 'Home not described yet'
+  const details = [age, `${Math.round(profile.floorArea)} m²`, `${profile.storeys} ${profile.storeys === 1 ? 'storey' : 'storeys'}`]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
-    <div className="explore-page">
-      <div className="page-back">
-        <button className="link" onClick={onBack}>
-          ← Back to floor plan
-        </button>
+    <li className="explore-home">
+      <div className="explore-home-plan">
+        <PlanSvg storeys={profile.plans} rotation={uprightRotation(profile.plans)} title="Floor plan" />
       </div>
-      <div className="matches-heading">
-        <h2>Explore the database</h2>
-        <button className="button subtle" onClick={() => setReload((n) => n + 1)}>
-          Refresh
-        </button>
-      </div>
-
-      <form className="explore-filters" onSubmit={(e) => e.preventDefault()} aria-label="Filter homes">
-        <label className="field">
-          <span className="field-label">Postcode area</span>
-          <input
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            placeholder="SW or SW1A"
-            value={area}
-            aria-invalid={areaInvalid ? true : undefined}
-            onChange={(e) => setArea(e.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span className="field-label">Property type</span>
-          <select value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
-            <option value="">Any</option>
-            {PROPERTY_TYPES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span className="field-label">Built</span>
-          <select value={ageBand} onChange={(e) => setAgeBand(e.target.value)}>
-            <option value="">Any time</option>
-            {AGE_BANDS.filter((c) => c.value !== NOT_SURE).map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span className="field-label">Sort by</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-            {SORTS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </form>
-      {areaInvalid && (
-        <p className="share-error" role="alert">
-          Enter a postcode area like SW, or the first part of a postcode like SW1A.
-        </p>
-      )}
-
-      {state.status === 'loading' && <p className="muted">Loading homes…</p>}
-      {state.status === 'error' && (
-        <p className="error" role="alert">
-          Couldn't load homes. Try Refresh.
-        </p>
-      )}
-      {state.status === 'ready' && (
-        <p className="muted small" aria-live="polite">
-          {homes.length === all.length
-            ? `${all.length} ${all.length === 1 ? 'home' : 'homes'}`
-            : `${homes.length} of ${all.length} homes`}
-          {withFigures > 0 && ` · ${withFigures} with heat loss figures`}
-          {(propertyType || ageBand) &&
-            ` · ${[labelIn(PROPERTY_TYPES, propertyType), labelIn(AGE_BANDS, ageBand)].filter(Boolean).join(', ').toLowerCase()}`}
-        </p>
-      )}
-      {state.status === 'ready' && homes.length === 0 && (
-        <div className="card empty">
-          <p>{all.length ? 'No homes match these filters.' : 'No homes have been shared yet.'}</p>
+      <div className="explore-home-body">
+        <div className="explore-home-title">
+          <strong>{title}</strong>
+          <span className="muted small">{details}</span>
         </div>
-      )}
-
-      <div className="match-list">
-        {homes.map((c) => (
-          <HomeCard key={c.id} home={c} />
-        ))}
+        <dl className="explore-home-figures">
+          <div>
+            <dt>Heat loss</dt>
+            <dd>{heatPump ? kw(heatPump.designHeatLossW) : '–'}</dd>
+          </div>
+          <div>
+            <dt>Per m²</dt>
+            <dd>{perM2(wattsPerM2(home))}</dd>
+          </div>
+          <div>
+            <dt>Heat pump</dt>
+            <dd>{heatPump?.heatPump ? `${heatPump.heatPump.capacityKw} kW` : '–'}</dd>
+          </div>
+        </dl>
+        {(scop !== null || hasInstallerCalc(home) || heatPump?.source === 'sample') && (
+          <div className="explore-home-badges">
+            {scop !== null && <span className="badge-measured">Measured SCOP {scop.toFixed(1)}</span>}
+            {hasInstallerCalc(home) && <span className="badge-free">Installer calc</span>}
+            {heatPump?.source === 'sample' && (
+              <span className="soon-badge" title="Made-up figures for trying out the page, not from a real home">
+                Sample data
+              </span>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </li>
   )
 }
