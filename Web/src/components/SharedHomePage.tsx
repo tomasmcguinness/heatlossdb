@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { formatHeatLoss } from '../fabric/heatLoss'
 import { homeInsulation, wallCavity } from '../fabric/home'
 import { effectiveRole } from '../fabric/store'
@@ -61,7 +61,9 @@ export function SharedHomePage({ shareId }: { shareId: string }) {
   return <SharedHomeView home={home} />
 }
 
-function SharedHomeView({ home: shared }: { home: SharedHome }) {
+/** The home to look at only. Also used by the Admin portal, which puts its own note (and a way
+ *  back) in the header's status instead of when the home was shared. */
+export function SharedHomeView({ home: shared, status }: { home: SharedHome; status?: ReactNode }) {
   const { scan, edits } = shared
   const floors = useMemo(() => sharedFloors(scan, edits), [scan, edits])
   const isExternal = useMemo(() => {
@@ -114,7 +116,7 @@ function SharedHomeView({ home: shared }: { home: SharedHome }) {
         </div>
 
         <div className="editor-status">
-          <span className="muted small">Shared {sharedOn}</span>
+          {status ?? <span className="muted small">Shared {sharedOn}</span>}
         </div>
       </header>
 

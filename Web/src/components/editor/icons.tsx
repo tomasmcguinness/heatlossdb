@@ -81,6 +81,12 @@ export const HomeIcon = (props: IconProps) => (
   </Icon>
 )
 
+export const ShieldIcon = (props: IconProps) => (
+  <Icon size={16} {...props}>
+    <path d="M12 3 L19.5 6 V11.5 C19.5 16 16.5 19.5 12 21 C7.5 19.5 4.5 16 4.5 11.5 V6 Z" />
+  </Icon>
+)
+
 export const SearchIcon = (props: IconProps) => (
   <Icon size={16} {...props}>
     <circle cx="10.5" cy="10.5" r="6.5" />

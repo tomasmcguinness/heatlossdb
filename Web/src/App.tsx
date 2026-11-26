@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { adminSurveyIdFromPath } from './admin/admin'
 import { AccountButton } from './components/AccountButton'
+import { AdminPage } from './components/AdminPage'
+import { AdminSurveyPage } from './components/AdminSurveyPage'
 import { Brand } from './components/Brand'
 import { ExplorePage } from './components/ExplorePage'
 import { LandingPage } from './components/LandingPage'
@@ -46,16 +49,22 @@ function useSavedEdits(surveyId: string | null, ready: boolean) {
   }, [surveyId, ready, isSignedIn, homeKey])
 }
 
-/** A shared home's link (/h/<id>) opens it to look at; every other page is the app itself. */
+/** A shared home's link (/h/<id>) opens it to look at, as does an admin's survey link
+ *  (/admin/s/<id>); every other page is the app itself. */
 export default function App() {
   const [shareId] = useState(() => shareIdFromPath(location.pathname))
-  return shareId ? <SharedHomePage shareId={shareId} /> : <ScanApp />
+  const [adminSurveyId] = useState(() => adminSurveyIdFromPath(location.pathname))
+  if (shareId) return <SharedHomePage shareId={shareId} />
+  if (adminSurveyId) return <AdminSurveyPage surveyId={adminSurveyId} />
+  return <ScanApp />
 }
 
 function ScanApp() {
   const scan = useFabric((s) => s.scan)
   const [error, setError] = useState<string | null>(null)
   const [onHomes] = useState(() => /^\/scans\/?$/.test(location.pathname))
+  // The Admin portal's list of every survey (admins only; see AdminPage).
+  const [onAdmin] = useState(() => /^\/admin\/?$/.test(location.pathname))
   // /new is the page to open a scan: it starts empty rather than bringing back the last scan, which
   // stays in this tab's storage until another is opened.
   const [onNew] = useState(() => /^\/new\/?$/.test(location.pathname))
@@ -73,7 +82,7 @@ function ScanApp() {
   const setPage = (p: Page) => homeKey && setPageFor({ home: homeKey, page: p })
   const profile = useProfile(surveyId)
   // The hub has a header of its own, and the editor's Home fabric.
-  const inHub = !onHomes && scan !== null && !loadingSurvey && page === 'hub'
+  const inHub = !onHomes && !onAdmin && scan !== null && !loadingSurvey && page === 'hub'
   const [fabricOpen, setFabricOpen] = useState(false)
   // The hub's tab, kept while Matches or Explore is open so Back returns to it.
   const [hubTab, setHubTab] = useState<HubTab>('view')
@@ -84,7 +93,7 @@ function ScanApp() {
   }
 
   useEffect(() => {
-    if (onHomes || onExplore) return
+    if (onHomes || onAdmin || onExplore) return
     if (surveyId) {
       loadSurvey(surveyId)
         .catch((e: unknown) => setError(errorMessage(e)))
@@ -100,7 +109,7 @@ function ScanApp() {
     if (onNew) return
     const last = restoreLastScan()
     if (last) useFabric.getState().loadScan(last)
-  }, [surveyId, onHomes, onNew, onExplore])
+  }, [surveyId, onHomes, onAdmin, onNew, onExplore])
 
   // Once a scan is opened from /new, the address goes back to /, so a reload keeps it open.
   useEffect(() => {
@@ -120,6 +129,8 @@ function ScanApp() {
 
       {onHomes ? (
         <MyHomesPage />
+      ) : onAdmin ? (
+        <AdminPage />
       ) : onExplore ? (
         <ExplorePage surveyId={null} onBack={() => location.assign('/new')} />
       ) : loadingSurvey ? (

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { parseComingSoon, unlockedFeatures } from './features'
+import { isAdminMetadata, parseComingSoon, unlockedFeatures } from './features'
+
+describe('isAdminMetadata', () => {
+  it('is only true for isAdmin: true', () => {
+    expect(isAdminMetadata({ isAdmin: true })).toBe(true)
+    expect(isAdminMetadata({ isAdmin: 'true' })).toBe(false)
+    expect(isAdminMetadata({ earlyAccess: true })).toBe(false)
+    expect(isAdminMetadata(undefined)).toBe(false)
+    expect(isAdminMetadata(null)).toBe(false)
+  })
+})
 
 describe('parseComingSoon', () => {
   it('holds back nothing when unset', () => {

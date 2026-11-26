@@ -28,6 +28,12 @@ export function unlockedFeatures(metadata: unknown): ReadonlySet<Feature> {
   return Array.isArray(features) ? known(features.filter((f): f is string => typeof f === 'string')) : new Set()
 }
 
+/** Whether the Clerk public metadata makes the user an admin: { "isAdmin": true }, and nothing else.
+ *  Only shows the Admin portal; the API checks the same metadata itself. */
+export function isAdminMetadata(metadata: unknown): boolean {
+  return typeof metadata === 'object' && metadata !== null && (metadata as { isAdmin?: unknown }).isAdmin === true
+}
+
 const comingSoon = parseComingSoon(import.meta.env.VITE_COMING_SOON)
 
 /** Held back by this build, for everyone. */

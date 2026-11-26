@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useAuth, useClerk, useUser } from '@clerk/react'
 import { isAuthConfigured } from '../auth'
-import { isComingSoon, unlockedFeatures, type Feature } from '../features'
+import { isAdminMetadata, isComingSoon, unlockedFeatures, type Feature } from '../features'
 
 export interface Account {
   /** Undefined until Clerk has loaded. */
@@ -9,6 +9,8 @@ export interface Account {
   openSignIn: () => void
   /** Held-back features this account may use anyway (see unlockedFeatures). */
   features: ReadonlySet<Feature>
+  /** Whether the account may use the Admin portal (see isAdminMetadata). */
+  isAdmin: boolean
 }
 
 function useClerkAccount(): Account {
@@ -16,10 +18,15 @@ function useClerkAccount(): Account {
   const clerk = useClerk()
   const { user } = useUser()
   const metadata = user?.publicMetadata
-  return { isSignedIn, openSignIn: () => clerk.openSignIn(), features: useMemo(() => unlockedFeatures(metadata), [metadata]) }
+  return {
+    isSignedIn,
+    openSignIn: () => clerk.openSignIn(),
+    features: useMemo(() => unlockedFeatures(metadata), [metadata]),
+    isAdmin: !!isSignedIn && isAdminMetadata(metadata),
+  }
 }
 
-const signedOut: Account = { isSignedIn: false, openSignIn: () => {}, features: new Set() }
+const signedOut: Account = { isSignedIn: false, openSignIn: () => {}, features: new Set(), isAdmin: false }
 
 /** The user's account, from Clerk. Clerk's hooks need its provider, which is only there when sign-in
  *  is set up, so without it this is always signed out. Which one is used never changes at runtime. */

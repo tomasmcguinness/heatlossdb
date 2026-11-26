@@ -376,6 +376,46 @@ app.MapGet("/api/shared/{shareId}", async (string shareId, SharedHomeStore share
 app.MapGet("/api/shared/{shareId}/scan", async (string shareId, SharedHomeStore shared, CancellationToken cancellationToken) =>
     await shared.OpenScanAsync(shareId, cancellationToken) is { } scan ? Results.Stream(scan, "application/json") : Results.NotFound());
 
+// Admins only ({"isAdmin": true} in their Clerk public metadata): every uploaded survey, and each
+// one to look at. The floor plan itself comes from the open GET /api/surveys/{id}/scan/current.
+var admin = app.MapGroup("/api/admin").RequireAuthorization().RequireAdmin();
+
+admin.MapGet("/surveys", async (SurveyStore surveys, HomeStore homes, CancellationToken cancellationToken) =>
+{
+    var all = await surveys.AllAsync(cancellationToken);
+    var owners = all.Where(s => s.OwnerId is { Length: > 0 }).ToDictionary(s => s.PartitionKey, s => s.OwnerId!);
+    var saved = await homes.NamesBySurveyAsync(owners, cancellationToken);
+    return Results.Ok(all.Select(s => new AdminSurveySummary(
+        s.PartitionKey,
+        s.CreatedAt,
+        s.SizeBytes,
+        s.OwnerId is { Length: > 0 },
+        s.IsShared,
+        saved.TryGetValue(s.PartitionKey, out var name) && name.Length > 0 ? name
+            : s.Share is { } share && SharedHomes.Details(share).Name is { Length: > 0 } listed ? listed
+            : null)));
+});
+
+// Shaped like a shared home's snapshot (GET /api/shared/{id}), with the owner's saved edits in full,
+// or null edits if nobody has saved the survey.
+admin.MapGet("/surveys/{id}", async (string id, SurveyStore surveys, HomeStore homes, CancellationToken cancellationToken) =>
+{
+    if (await surveys.ForAdminAsync(id, cancellationToken) is not { } survey) return Results.NotFound();
+    var home = survey.OwnerId is { Length: > 0 } owner ? await homes.GetAsync(owner, id, cancellationToken) : null;
+    var details = survey.Share is { } share ? SharedHomes.Details(share) : null;
+    var result = new JsonObject
+    {
+        ["name"] = home?.Name is { Length: > 0 } saved ? saved : details?.Name is { Length: > 0 } listed ? listed : null,
+        ["createdAt"] = survey.CreatedAt,
+        ["owned"] = survey.OwnerId is { Length: > 0 },
+        ["savedAt"] = home?.SavedAt,
+        ["postcodeDistrict"] = details?.PostcodeDistrict,
+        ["edits"] = home is null ? null : JsonNode.Parse(home.Edits.GetRawText()),
+    };
+    if (survey.HeatPump is not null && JsonNode.Parse(survey.HeatPump) is JsonObject figures) result["heatPump"] = figures;
+    return Results.Ok(result);
+});
+
 if (app.Environment.IsDevelopment())
 {
     // Development only: gives every home that has a profile but no figures made-up heat loss and

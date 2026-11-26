@@ -1,6 +1,7 @@
 import { Show, SignInButton, UserButton } from '@clerk/react'
 import { isAuthConfigured } from '../auth'
-import { HomeIcon } from './editor/icons'
+import { HomeIcon, ShieldIcon } from './editor/icons'
+import { useAccount } from './useAccount'
 
 /**
  * Top right of every page: "Sign in" when signed out, which opens Clerk's sign-in-or-up modal
@@ -9,6 +10,12 @@ import { HomeIcon } from './editor/icons'
  */
 export function AccountButton() {
   if (!isAuthConfigured) return null
+  return <ClerkAccountButton />
+}
+
+/** Split out so useAccount (Clerk's hooks) only runs when Clerk is set up. */
+function ClerkAccountButton() {
+  const { isAdmin } = useAccount()
   return (
     <div className="account">
       <Show when="signed-out">
@@ -17,11 +24,22 @@ export function AccountButton() {
         </SignInButton>
       </Show>
       <Show when="signed-in">
-        <UserButton>
-          <UserButton.MenuItems>
-            <UserButton.Link label="My scans" href="/scans" labelIcon={<HomeIcon />} />
-          </UserButton.MenuItems>
-        </UserButton>
+        {/* Clerk checks the menu's children, so the admin's menu is a whole one of its own rather
+            than a conditional item. */}
+        {isAdmin ? (
+          <UserButton>
+            <UserButton.MenuItems>
+              <UserButton.Link label="My scans" href="/scans" labelIcon={<HomeIcon />} />
+              <UserButton.Link label="Admin portal" href="/admin" labelIcon={<ShieldIcon />} />
+            </UserButton.MenuItems>
+          </UserButton>
+        ) : (
+          <UserButton>
+            <UserButton.MenuItems>
+              <UserButton.Link label="My scans" href="/scans" labelIcon={<HomeIcon />} />
+            </UserButton.MenuItems>
+          </UserButton>
+        )}
       </Show>
     </div>
   )

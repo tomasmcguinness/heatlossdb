@@ -45,6 +45,22 @@ public class HomeStore
         return result.OrderByDescending(h => h.SavedAt).ToList();
     }
 
+    /// <summary>
+    /// For admins: each saved survey's name, by survey id. When several people saved the same survey,
+    /// its owner's name wins.
+    /// </summary>
+    public async Task<Dictionary<string, string>> NamesBySurveyAsync(IReadOnlyDictionary<string, string> owners, CancellationToken cancellationToken)
+    {
+        var names = new Dictionary<string, string>();
+        string[] columns = [nameof(HomeEntity.PartitionKey), nameof(HomeEntity.RowKey), nameof(HomeEntity.Name)];
+        await foreach (var home in homes.QueryAsync<HomeEntity>(select: columns, cancellationToken: cancellationToken))
+        {
+            var isOwner = owners.TryGetValue(home.RowKey, out var owner) && owner == home.PartitionKey;
+            if (isOwner || !names.ContainsKey(home.RowKey)) names[home.RowKey] = home.Name;
+        }
+        return names;
+    }
+
     /// <summary>The user's saved home, or null if they haven't saved this survey.</summary>
     public async Task<SavedHome?> GetAsync(string userId, string surveyId, CancellationToken cancellationToken)
     {

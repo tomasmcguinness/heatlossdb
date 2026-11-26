@@ -290,6 +290,21 @@ public partial class SurveyStore
         return ParseJson(json).TryGetProperty("source", out var source) ? source.GetString() : null;
     }
 
+    /// <summary>Every uploaded survey's row, newest first, for admins. Holds every row in memory:
+    /// fine for thousands of surveys.</summary>
+    public async Task<List<SurveyEntity>> AllAsync(CancellationToken cancellationToken)
+    {
+        var result = new List<SurveyEntity>();
+        string[] columns = [nameof(SurveyEntity.PartitionKey), nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.SizeBytes), nameof(SurveyEntity.OwnerId), nameof(SurveyEntity.IsShared), nameof(SurveyEntity.Share)];
+        await foreach (var survey in surveys.QueryAsync<SurveyEntity>(select: columns, cancellationToken: cancellationToken))
+            result.Add(survey);
+        return result.OrderByDescending(s => s.CreatedAt).ToList();
+    }
+
+    /// <summary>The survey's row as admins see it, or null if there's no such survey.</summary>
+    public async Task<SurveyEntity?> ForAdminAsync(string id, CancellationToken cancellationToken) =>
+        await GetAsync(id, [nameof(SurveyEntity.CreatedAt), nameof(SurveyEntity.OwnerId), nameof(SurveyEntity.Share), nameof(SurveyEntity.HeatPump)], cancellationToken);
+
     /// <summary>Every survey's id and saved floor area, for generating sample data.</summary>
     public async Task<List<(string Id, double FloorArea)>> SurveysWithProfilesAsync(CancellationToken cancellationToken)
     {
